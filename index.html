@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en" class="dark" style="background-color: #121212; color: #ffffff;">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>SABDHAM</title>
+    <meta name="description" content="A modern Spotify-style music streaming application with YouTube Data API catalog metadata search, high-resolution artwork, MP3/audio stream playback, persistent playlist management, and a native exportable Android Studio project with ExoPlayer." />
+    
+    <!-- OpenGraph Social Metadata -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SABDHAM" />
+    <meta property="og:title" content="SABDHAM" />
+    <meta property="og:description" content="A modern Spotify-style music streaming application with YouTube Data API catalog metadata search, high-resolution artwork, MP3/audio stream playback, persistent playlist management, and a native exportable Android Studio project with ExoPlayer." />
+    <meta property="og:image" content="/playstore-feature-graphic.jpg" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="500" />
+    
+    <!-- Twitter / X Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SABDHAM" />
+    <meta name="twitter:description" content="A modern Spotify-style music streaming application with YouTube Data API catalog metadata search, high-resolution artwork, MP3/audio stream playback, persistent playlist management, and a native exportable Android Studio project with ExoPlayer." />
+    <meta name="twitter:image" content="/playstore-feature-graphic.jpg" />
+    
+    <meta name="theme-color" content="#121212" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png">
+
+    <!-- Schema.org Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "SABDHAM",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "All",
+      "description": "A modern Spotify-style music streaming application with YouTube Data API catalog metadata search, high-resolution artwork, MP3/audio stream playback, persistent playlist management, and a native exportable Android Studio project with ExoPlayer.",
+      "browserRequirements": "Requires JavaScript and HTML5 Audio support",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      html, body, #root {
+        background-color: #121212 !important;
+        color: #ffffff;
+        min-height: 100vh;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <script>
+      // Clean up any stale or lingering service worker registrations from previous builds
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister();
+          }
+        }).catch(function() {});
+      }
+      // Clean up stale caches
+      if ('caches' in window) {
+        caches.keys().then(function(keys) {
+          for (var i = 0; i < keys.length; i++) {
+            if (keys[i].indexOf('workbox') !== -1 || keys[i].indexOf('api-cache') !== -1) {
+              caches.delete(keys[i]);
+            }
+          }
+        }).catch(function() {});
+      }
+    </script>
+  </head>
+  <body style="background-color: #121212; color: #ffffff;" class="bg-[#121212] text-white antialiased selection:bg-[#1db954] selection:text-black font-['Plus_Jakarta_Sans',sans-serif]">
+    <div id="root" style="background-color: #121212; min-height: 100vh;">
+      <!-- Immediate initial dark loading placeholder to guarantee no white screen -->
+      <div id="app-boot-loading" style="display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; background-color: #121212; color: #a1a1aa; font-family: 'Plus Jakarta Sans', sans-serif;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
+          <div style="width: 48px; height: 48px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(245, 158, 11, 0.4); box-shadow: 0 4px 20px rgba(245, 158, 11, 0.2);">
+            <img src="/logo.jpg" alt="Sabdham" style="width: 100%; height: 100%; object-fit: cover;" />
+          </div>
+          <div style="font-size: 14px; font-weight: 600; letter-spacing: 0.05em; color: #f4f4f5;">SABDHAM</div>
+          <div style="width: 24px; height: 24px; border: 2px solid rgba(29, 185, 84, 0.3); border-top-color: #1db954; border-radius: 50%; animation: sabdham-spin 0.8s linear infinite;"></div>
+        </div>
+      </div>
+      <style>
+        @keyframes sabdham-spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      setTimeout(function() {
+        var loader = document.getElementById('app-boot-loading');
+        if (loader && !document.getElementById('boot-reload-btn')) {
+          var btn = document.createElement('button');
+          btn.id = 'boot-reload-btn';
+          btn.innerText = 'Tap to Reload Player';
+          btn.style.marginTop = '12px';
+          btn.style.padding = '8px 18px';
+          btn.style.backgroundColor = '#1db954';
+          btn.style.color = '#000000';
+          btn.style.fontWeight = '700';
+          btn.style.fontSize = '12px';
+          btn.style.borderRadius = '9999px';
+          btn.style.border = 'none';
+          btn.style.cursor = 'pointer';
+          btn.onclick = function() { window.location.reload(); };
+          var container = loader.querySelector('div');
+          if (container) container.appendChild(btn);
+        }
+      }, 5000);
+    </script>
+  </body>
+</html>

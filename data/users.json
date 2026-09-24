@@ -1,0 +1,752 @@
+{
+  "users": [
+    {
+      "id": "usr_mu7q6zfg_zjbemh",
+      "email": "kalistas007@gmail.com",
+      "name": "Tim",
+      "passwordHash": "$2b$10$LcmxtatoP74sRMZa7jqxue7sT3CV51zYfethE4frIgltxxU8LVdmm",
+      "provider": "email",
+      "avatarColor": "#EC4899",
+      "createdAt": "2026-09-19T01:45:39.292Z",
+      "lastLoginAt": "2026-09-19T03:21:00.540Z"
+    },
+    {
+      "id": "EVkdsfrEQuNeiHzCZT549jmWPoh1",
+      "email": "kalistasxo@gmail.com",
+      "name": "Prasanth",
+      "provider": "google",
+      "avatarUrl": "https://lh3.googleusercontent.com/a/ACg8ocIH9qKb56PhLkT52MOf1rppGak85JAZ1cSdsWt9FInvXUSStbYZ=s96-c",
+      "avatarColor": "#4f46e5",
+      "createdAt": "2026-09-19T11:05:43.961Z",
+      "lastLoginAt": "2026-09-20T13:12:57.359Z"
+    },
+    {
+      "id": "usr_mu8aepgr_klk6jw",
+      "email": "testuser@example.com",
+      "name": "Test Music Lover",
+      "provider": "otp",
+      "avatarColor": "#6366F1",
+      "createdAt": "2026-09-19T11:11:31.947Z",
+      "lastLoginAt": "2026-09-19T11:11:38.974Z"
+    },
+    {
+      "id": "usr_mu8aey54_2b1vq6",
+      "email": "+14155552671@sabdham.local",
+      "name": "Mobile User",
+      "provider": "otp",
+      "avatarColor": "#06B6D4",
+      "createdAt": "2026-09-19T11:11:43.192Z",
+      "lastLoginAt": "2026-09-19T11:11:43.192Z"
+    },
+    {
+      "id": "usr_mu8am616_lkvcd6",
+      "email": "musiclistener@example.com",
+      "name": "Vocal Fan",
+      "provider": "otp",
+      "avatarColor": "#10B981",
+      "createdAt": "2026-09-19T11:17:20.010Z",
+      "lastLoginAt": "2026-09-19T11:17:20.010Z"
+    },
+    {
+      "id": "usr_mu8awtu2_k1lerp",
+      "email": "newmelodist@example.com",
+      "name": "Melody Star",
+      "provider": "otp",
+      "avatarColor": "#84CC16",
+      "createdAt": "2026-09-19T11:25:37.418Z",
+      "lastLoginAt": "2026-09-19T11:25:42.464Z"
+    }
+  ],
+  "userData": {
+    "usr_mu7q6zfg_zjbemh": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [
+        {
+          "id": "tamil-kaavaalaa",
+          "audio_source_id": "RVLNBVK8auM",
+          "title": "Kaavaalaa",
+          "artist": "Anirudh Ravichander, Shilpa Rao",
+          "album": "Jailer",
+          "duration": 190,
+          "durationFormatted": "3:10",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/87/97/75/879775f4-51f6-dda5-9e13-f762d8f9a1fd/197189290183.jpg/600x600bb.jpg",
+          "audioUrl": "yt:RVLNBVK8auM",
+          "language": "tamil",
+          "genre": "Dance Beat Single",
+          "year": 2023,
+          "lyrics": "Kaavaalaa... Kaavaalaa...\nUn ninaivil kaadhal pookuthe...\nThathalikkum vizhiyil un perai ezhudhuren...\nKaadhal kavithai solla vaa!",
+          "youtubeVideoId": "RVLNBVK8auM"
+        },
+        {
+          "id": "tamil-badass",
+          "audio_source_id": "szvt1vD0Uug",
+          "title": "Badass",
+          "artist": "Anirudh Ravichander",
+          "album": "Leo",
+          "duration": 229,
+          "durationFormatted": "3:49",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/13/a8/70/13a87001-28ba-1bc7-0ca6-52cf10dd6f52/196871556415.jpg/600x600bb.jpg",
+          "audioUrl": "yt:szvt1vD0Uug",
+          "language": "tamil",
+          "genre": "High Voltage Rock Single",
+          "year": 2023,
+          "lyrics": "Badass Mr Leo Das is a badass...\nNever mind what they say, blazing guns on the highway...\nLion rules the kingdom!",
+          "youtubeVideoId": "szvt1vD0Uug"
+        },
+        {
+          "id": "tamil-1",
+          "audio_source_id": "1F3hm6MfR1k",
+          "title": "Hukum",
+          "artist": "Anirudh Ravichander",
+          "album": "Jailer",
+          "duration": 208,
+          "durationFormatted": "3:28",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/2c/df/14/2cdf140e-6d11-a98d-bfbf-bc5e30c3c4a1/197189528187.jpg/600x600bb.jpg",
+          "audioUrl": "yt:1F3hm6MfR1k",
+          "language": "tamil",
+          "genre": "Tamil Pop Single",
+          "year": 2023,
+          "lyrics": "Hukum... Thalaivar Alappara...\nKaavalaana porattam... Singam kalam irangiyache!\nAlappara kelappurom namma vazhi thani vazhi...",
+          "youtubeVideoId": "1F3hm6MfR1k"
+        },
+        {
+          "id": "tamil-real-3",
+          "audio_source_id": "pushpa2-kissik",
+          "title": "Kissik",
+          "artist": "Devi Sri Prasad, Sublahshini",
+          "album": "Pushpa 2",
+          "duration": 240,
+          "durationFormatted": "4:00",
+          "coverUrl": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=80",
+          "audioUrl": "yt:Zg38W5145Xg",
+          "language": "tamil",
+          "genre": "Tamil Item Song",
+          "year": 2024,
+          "youtubeVideoId": "Zg38W5145Xg"
+        },
+        {
+          "id": "sinhala-liyathambara",
+          "audio_source_id": "L9k1m2P3q4R",
+          "title": "Liyathambara (2026 Hit)",
+          "artist": "Piyath Rajapakse",
+          "album": "Single",
+          "duration": 212,
+          "durationFormatted": "3:32",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/3f/3f/01/3f3f0159-c608-db81-dff1-9ebf74e5bbc9/7300342974513.jpg/600x600bb.jpg",
+          "audioUrl": "yt:RV5lUx4s53E",
+          "language": "sinhala",
+          "genre": "New Sinhala Pop Melody",
+          "year": 2026,
+          "lyrics": "Liyathambara mudu mal sugande... Nethu langama rendi adare...\nPiyath Rajapakse 2026 chart-buster...",
+          "youtubeVideoId": "RV5lUx4s53E"
+        },
+        {
+          "id": "tamil-spark",
+          "audio_source_id": "V_fS2y_p-3I",
+          "title": "Spark",
+          "artist": "Yuvan Shankar Raja, Vijay",
+          "album": "GOAT",
+          "duration": 220,
+          "durationFormatted": "3:40",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a3/3a/0b/a33a0b30-3323-9c8c-ee12-887e59b369e8/8903431985392.jpg/600x600bb.jpg",
+          "audioUrl": "yt:V_fS2y_p-3I",
+          "language": "tamil",
+          "genre": "Mass Dance Beat",
+          "year": 2026,
+          "lyrics": "Spark... Un kannil thondrum spark...\nThalapathy Vijay dance floor thiruvizha!\nYuvan magic beat...",
+          "youtubeVideoId": "V_fS2y_p-3I"
+        },
+        {
+          "id": "english-apt",
+          "audio_source_id": "ekr2nIex040",
+          "title": "APT.",
+          "artist": "ROSÉ & Bruno Mars",
+          "album": "rosie",
+          "duration": 169,
+          "durationFormatted": "2:49",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/64/0e/01/640e017d-2b4a-a9a3-5c21-3e5f29a23928/24UMGIM89320.rgb.jpg/600x600bb.jpg",
+          "audioUrl": "yt:ekr2nIex040",
+          "language": "english",
+          "genre": "High Energy Pop Single",
+          "year": 2026,
+          "lyrics": "Apateu apateu... Apateu apateu... Don't you want me like I want you, baby?\nMeet me at the apartment!",
+          "youtubeVideoId": "ekr2nIex040"
+        },
+        {
+          "id": "tamil-monalisa",
+          "audio_source_id": "2qCpY38ompo",
+          "title": "Monica (Monalisa)",
+          "artist": "Anirudh Ravichander",
+          "album": "Coolie",
+          "duration": 215,
+          "durationFormatted": "3:35",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/3d/8a/12/3d8a128d-769c-409a-2cd9-c9b45612f0a8/8903431988892.jpg/600x600bb.jpg",
+          "audioUrl": "yt:2qCpY38ompo",
+          "language": "tamil",
+          "genre": "Anirudh Youth Anthem",
+          "year": 2026,
+          "lyrics": "Hey Monica... My Monalisa...\nAnirudh rock beat on high volume!",
+          "youtubeVideoId": "2qCpY38ompo"
+        },
+        {
+          "id": "tamil-kissik",
+          "audio_source_id": "T2aI2g9J8tM",
+          "title": "Kissik (Tamil)",
+          "artist": "Devi Sri Prasad, Sublahshini",
+          "album": "Pushpa 2 The Rule",
+          "duration": 218,
+          "durationFormatted": "3:38",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/1b/30/1e/1b301e12-8490-21a0-9c2f-e89a24d887e8/8903431991209.jpg/600x600bb.jpg",
+          "audioUrl": "yt:T2aI2g9J8tM",
+          "language": "tamil",
+          "genre": "Item Song Blockbuster",
+          "year": 2026,
+          "lyrics": "Kissik... Kissik... Pushpa 2 mass song!\nSreeleela dance performance & DSP beat!",
+          "youtubeVideoId": "T2aI2g9J8tM"
+        }
+      ],
+      "customPlaylists": [
+        {
+          "id": "pl_1789782339292_fav",
+          "name": "My Morning Favorites",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "createdAt": "2026-09-19T01:45:39.292Z",
+          "isCustom": true
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "EVkdsfrEQuNeiHzCZT549jmWPoh1": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [
+        {
+          "id": "tamil-mutta-kalakki",
+          "audio_source_id": "jZEA2mMwL1k",
+          "title": "Mutta Kalakki (Manja Balloon)",
+          "artist": "Ken Karunaas, G.V. Prakash Kumar",
+          "album": "Youth",
+          "duration": 170,
+          "durationFormatted": "2:50",
+          "coverUrl": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%20viewBox%3D%220%200%20400%20400%22%3E%0A%20%20%20%20%3Cdefs%3E%0A%20%20%20%20%20%20%3ClinearGradient%20id%3D%22bgGrad%22%20x1%3D%220%25%22%20y1%3D%220%25%22%20x2%3D%22100%25%22%20y2%3D%22100%25%22%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23059669%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%2310B981%22%2F%3E%0A%20%20%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%20%20%20%20%3CradialGradient%20id%3D%22aura%22%20cx%3D%2250%25%22%20cy%3D%2250%25%22%20r%3D%2250%25%22%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%2334D399%22%20stop-opacity%3D%220.35%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23059669%22%20stop-opacity%3D%220%22%2F%3E%0A%20%20%20%20%20%20%3C%2FradialGradient%3E%0A%20%20%20%20%3C%2Fdefs%3E%0A%20%20%20%20%0A%20%20%20%20%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23bgGrad)%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22200%22%20cy%3D%22200%22%20r%3D%22180%22%20fill%3D%22url(%23aura)%22%2F%3E%0A%20%20%20%20%0A%20%20%20%20%3Ccircle%20cx%3D%22200%22%20cy%3D%22200%22%20r%3D%22140%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%220.08%22%20stroke-width%3D%222%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22200%22%20cy%3D%22200%22%20r%3D%22110%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%220.06%22%20stroke-width%3D%221.5%22%2F%3E%0A%20%20%20%20%0A%20%20%20%20%3C!--%20Center%20Record%20Icon%20--%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22200%22%20cy%3D%22155%22%20r%3D%2242%22%20fill%3D%22%23000000%22%20fill-opacity%3D%220.45%22%20stroke%3D%22%2334D399%22%20stroke-width%3D%222.5%22%2F%3E%0A%20%20%20%20%3Cg%20transform%3D%22translate(185%2C%20140)%20scale(0.75)%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%0A%20%20%20%20%20%20%3Cpath%20d%3D%22M%203%2014%20A%2017%2017%200%200%201%2037%2014%22%20stroke%3D%22%2334D399%22%20stroke-width%3D%222.5%22%2F%3E%0A%20%20%20%20%20%20%3Crect%20x%3D%220%22%20y%3D%2213%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%223%22%20fill%3D%22%2334D399%22%2F%3E%0A%20%20%20%20%20%20%3Crect%20x%3D%2234%22%20y%3D%2213%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%223%22%20fill%3D%22%2334D399%22%2F%3E%0A%20%20%20%20%20%20%3Ccircle%20cx%3D%2220%22%20cy%3D%2218%22%20r%3D%225%22%20fill%3D%22%23ffffff%22%20stroke%3D%22none%22%2F%3E%0A%20%20%20%20%3C%2Fg%3E%0A%20%20%20%20%0A%20%20%20%20%3C!--%20Song%20Title%20%26%20Artist%20--%3E%0A%20%20%20%20%3Ctext%20x%3D%22200%22%20y%3D%22240%22%20font-family%3D%22-apple-system%2C%20BlinkMacSystemFont%2C%20'Segoe%20UI'%2C%20Roboto%2C%20sans-serif%22%20font-weight%3D%22800%22%20font-size%3D%2220%22%20fill%3D%22%23ffffff%22%20text-anchor%3D%22middle%22%20letter-spacing%3D%220.5%22%3EUnknown%20Track%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%22200%22%20y%3D%22270%22%20font-family%3D%22-apple-system%2C%20BlinkMacSystemFont%2C%20'Segoe%20UI'%2C%20Roboto%2C%20sans-serif%22%20font-weight%3D%22500%22%20font-size%3D%2214%22%20fill%3D%22%2334D399%22%20text-anchor%3D%22middle%22%20letter-spacing%3D%220.5%22%3ESabdham%20Music%3C%2Ftext%3E%0A%20%20%3C%2Fsvg%3E",
+          "audioUrl": "yt:jZEA2mMwL1k",
+          "language": "tamil",
+          "genre": "Kuthu / Pop Single",
+          "year": 2024,
+          "lyrics": "Manja balloon manja balloon madhiri en nenju parakkudhu...\nMutta kalakki mutta kalakki un kooda naanum sernthu aada vaaren!\nHey manja balloon parakkum kaadhal kuthu paattu!",
+          "youtubeVideoId": "jZEA2mMwL1k"
+        },
+        {
+          "id": "gemini_vil_there",
+          "audio_source_id": "gemini_vil_there",
+          "title": "Vil There",
+          "artist": "Ridma Weerawardena",
+          "album": "Single",
+          "duration": 180,
+          "durationFormatted": "3:00",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
+          "audioUrl": "",
+          "language": "english",
+          "youtubeVideoId": "gemini_vil_there",
+          "source": "catalog"
+        }
+      ],
+      "customPlaylists": [
+        {
+          "id": "pl_1789815943961_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "isCustom": true,
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "tracks": [
+            {
+              "id": "ta-01"
+            },
+            {
+              "id": "en-01"
+            }
+          ],
+          "createdAt": "2026-09-19T11:05:43.961Z",
+          "updatedAt": "2026-09-20T13:05:42.297Z",
+          "userId": "EVkdsfrEQuNeiHzCZT549jmWPoh1"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "usr_mu8aepgr_klk6jw": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [],
+      "customPlaylists": [
+        {
+          "id": "pl_1789816291947_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "isCustom": true,
+          "createdAt": "2026-09-19T11:11:31.947Z",
+          "userId": "usr_mu8aepgr_klk6jw"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "usr_mu8aey54_2b1vq6": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [],
+      "customPlaylists": [
+        {
+          "id": "pl_1789816303192_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "isCustom": true,
+          "createdAt": "2026-09-19T11:11:43.192Z",
+          "userId": "usr_mu8aey54_2b1vq6"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "usr_mu8am616_lkvcd6": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [],
+      "customPlaylists": [
+        {
+          "id": "pl_1789816640010_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "isCustom": true,
+          "createdAt": "2026-09-19T11:17:20.010Z",
+          "userId": "usr_mu8am616_lkvcd6"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "usr_mu8awtu2_k1lerp": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [],
+      "customPlaylists": [
+        {
+          "id": "pl_1789817137418_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "isCustom": true,
+          "createdAt": "2026-09-19T11:25:37.418Z",
+          "userId": "usr_mu8awtu2_k1lerp"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "kalistas007@gmail.com": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [
+        {
+          "id": "tamil-kaavaalaa",
+          "audio_source_id": "RVLNBVK8auM",
+          "title": "Kaavaalaa",
+          "artist": "Anirudh Ravichander, Shilpa Rao",
+          "album": "Jailer",
+          "duration": 190,
+          "durationFormatted": "3:10",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/87/97/75/879775f4-51f6-dda5-9e13-f762d8f9a1fd/197189290183.jpg/600x600bb.jpg",
+          "audioUrl": "yt:RVLNBVK8auM",
+          "language": "tamil",
+          "genre": "Dance Beat Single",
+          "year": 2023,
+          "lyrics": "Kaavaalaa... Kaavaalaa...\nUn ninaivil kaadhal pookuthe...\nThathalikkum vizhiyil un perai ezhudhuren...\nKaadhal kavithai solla vaa!",
+          "youtubeVideoId": "RVLNBVK8auM"
+        },
+        {
+          "id": "tamil-badass",
+          "audio_source_id": "szvt1vD0Uug",
+          "title": "Badass",
+          "artist": "Anirudh Ravichander",
+          "album": "Leo",
+          "duration": 229,
+          "durationFormatted": "3:49",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/13/a8/70/13a87001-28ba-1bc7-0ca6-52cf10dd6f52/196871556415.jpg/600x600bb.jpg",
+          "audioUrl": "yt:szvt1vD0Uug",
+          "language": "tamil",
+          "genre": "High Voltage Rock Single",
+          "year": 2023,
+          "lyrics": "Badass Mr Leo Das is a badass...\nNever mind what they say, blazing guns on the highway...\nLion rules the kingdom!",
+          "youtubeVideoId": "szvt1vD0Uug"
+        },
+        {
+          "id": "tamil-1",
+          "audio_source_id": "1F3hm6MfR1k",
+          "title": "Hukum",
+          "artist": "Anirudh Ravichander",
+          "album": "Jailer",
+          "duration": 208,
+          "durationFormatted": "3:28",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/2c/df/14/2cdf140e-6d11-a98d-bfbf-bc5e30c3c4a1/197189528187.jpg/600x600bb.jpg",
+          "audioUrl": "yt:1F3hm6MfR1k",
+          "language": "tamil",
+          "genre": "Tamil Pop Single",
+          "year": 2023,
+          "lyrics": "Hukum... Thalaivar Alappara...\nKaavalaana porattam... Singam kalam irangiyache!\nAlappara kelappurom namma vazhi thani vazhi...",
+          "youtubeVideoId": "1F3hm6MfR1k"
+        },
+        {
+          "id": "tamil-real-3",
+          "audio_source_id": "pushpa2-kissik",
+          "title": "Kissik",
+          "artist": "Devi Sri Prasad, Sublahshini",
+          "album": "Pushpa 2",
+          "duration": 240,
+          "durationFormatted": "4:00",
+          "coverUrl": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=80",
+          "audioUrl": "yt:Zg38W5145Xg",
+          "language": "tamil",
+          "genre": "Tamil Item Song",
+          "year": 2024,
+          "youtubeVideoId": "Zg38W5145Xg"
+        },
+        {
+          "id": "sinhala-liyathambara",
+          "audio_source_id": "L9k1m2P3q4R",
+          "title": "Liyathambara (2026 Hit)",
+          "artist": "Piyath Rajapakse",
+          "album": "Single",
+          "duration": 212,
+          "durationFormatted": "3:32",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/3f/3f/01/3f3f0159-c608-db81-dff1-9ebf74e5bbc9/7300342974513.jpg/600x600bb.jpg",
+          "audioUrl": "yt:RV5lUx4s53E",
+          "language": "sinhala",
+          "genre": "New Sinhala Pop Melody",
+          "year": 2026,
+          "lyrics": "Liyathambara mudu mal sugande... Nethu langama rendi adare...\nPiyath Rajapakse 2026 chart-buster...",
+          "youtubeVideoId": "RV5lUx4s53E"
+        },
+        {
+          "id": "tamil-spark",
+          "audio_source_id": "V_fS2y_p-3I",
+          "title": "Spark",
+          "artist": "Yuvan Shankar Raja, Vijay",
+          "album": "GOAT",
+          "duration": 220,
+          "durationFormatted": "3:40",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a3/3a/0b/a33a0b30-3323-9c8c-ee12-887e59b369e8/8903431985392.jpg/600x600bb.jpg",
+          "audioUrl": "yt:V_fS2y_p-3I",
+          "language": "tamil",
+          "genre": "Mass Dance Beat",
+          "year": 2026,
+          "lyrics": "Spark... Un kannil thondrum spark...\nThalapathy Vijay dance floor thiruvizha!\nYuvan magic beat...",
+          "youtubeVideoId": "V_fS2y_p-3I"
+        },
+        {
+          "id": "english-apt",
+          "audio_source_id": "ekr2nIex040",
+          "title": "APT.",
+          "artist": "ROSÉ & Bruno Mars",
+          "album": "rosie",
+          "duration": 169,
+          "durationFormatted": "2:49",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/64/0e/01/640e017d-2b4a-a9a3-5c21-3e5f29a23928/24UMGIM89320.rgb.jpg/600x600bb.jpg",
+          "audioUrl": "yt:ekr2nIex040",
+          "language": "english",
+          "genre": "High Energy Pop Single",
+          "year": 2026,
+          "lyrics": "Apateu apateu... Apateu apateu... Don't you want me like I want you, baby?\nMeet me at the apartment!",
+          "youtubeVideoId": "ekr2nIex040"
+        },
+        {
+          "id": "tamil-monalisa",
+          "audio_source_id": "2qCpY38ompo",
+          "title": "Monica (Monalisa)",
+          "artist": "Anirudh Ravichander",
+          "album": "Coolie",
+          "duration": 215,
+          "durationFormatted": "3:35",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/3d/8a/12/3d8a128d-769c-409a-2cd9-c9b45612f0a8/8903431988892.jpg/600x600bb.jpg",
+          "audioUrl": "yt:2qCpY38ompo",
+          "language": "tamil",
+          "genre": "Anirudh Youth Anthem",
+          "year": 2026,
+          "lyrics": "Hey Monica... My Monalisa...\nAnirudh rock beat on high volume!",
+          "youtubeVideoId": "2qCpY38ompo"
+        },
+        {
+          "id": "tamil-kissik",
+          "audio_source_id": "T2aI2g9J8tM",
+          "title": "Kissik (Tamil)",
+          "artist": "Devi Sri Prasad, Sublahshini",
+          "album": "Pushpa 2 The Rule",
+          "duration": 218,
+          "durationFormatted": "3:38",
+          "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/1b/30/1e/1b301e12-8490-21a0-9c2f-e89a24d887e8/8903431991209.jpg/600x600bb.jpg",
+          "audioUrl": "yt:T2aI2g9J8tM",
+          "language": "tamil",
+          "genre": "Item Song Blockbuster",
+          "year": 2026,
+          "lyrics": "Kissik... Kissik... Pushpa 2 mass song!\nSreeleela dance performance & DSP beat!",
+          "youtubeVideoId": "T2aI2g9J8tM"
+        }
+      ],
+      "customPlaylists": [
+        {
+          "id": "pl_1789782339292_fav",
+          "name": "My Morning Favorites",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "createdAt": "2026-09-19T01:45:39.292Z",
+          "isCustom": true
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "kalistasxo@gmail.com": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [
+        {
+          "id": "tamil-mutta-kalakki",
+          "audio_source_id": "jZEA2mMwL1k",
+          "title": "Mutta Kalakki (Manja Balloon)",
+          "artist": "Ken Karunaas, G.V. Prakash Kumar",
+          "album": "Youth",
+          "duration": 170,
+          "durationFormatted": "2:50",
+          "coverUrl": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22400%22%20viewBox%3D%220%200%20400%20400%22%3E%0A%20%20%20%20%3Cdefs%3E%0A%20%20%20%20%20%20%3ClinearGradient%20id%3D%22bgGrad%22%20x1%3D%220%25%22%20y1%3D%220%25%22%20x2%3D%22100%25%22%20y2%3D%22100%25%22%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23059669%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%2310B981%22%2F%3E%0A%20%20%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%20%20%20%20%3CradialGradient%20id%3D%22aura%22%20cx%3D%2250%25%22%20cy%3D%2250%25%22%20r%3D%2250%25%22%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%2334D399%22%20stop-opacity%3D%220.35%22%2F%3E%0A%20%20%20%20%20%20%20%20%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23059669%22%20stop-opacity%3D%220%22%2F%3E%0A%20%20%20%20%20%20%3C%2FradialGradient%3E%0A%20%20%20%20%3C%2Fdefs%3E%0A%20%20%20%20%0A%20%20%20%20%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23bgGrad)%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22200%22%20cy%3D%22200%22%20r%3D%22180%22%20fill%3D%22url(%23aura)%22%2F%3E%0A%20%20%20%20%0A%20%20%20%20%3Ccircle%20cx%3D%22200%22%20cy%3D%22200%22%20r%3D%22140%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%220.08%22%20stroke-width%3D%222%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22200%22%20cy%3D%22200%22%20r%3D%22110%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%220.06%22%20stroke-width%3D%221.5%22%2F%3E%0A%20%20%20%20%0A%20%20%20%20%3C!--%20Center%20Record%20Icon%20--%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22200%22%20cy%3D%22155%22%20r%3D%2242%22%20fill%3D%22%23000000%22%20fill-opacity%3D%220.45%22%20stroke%3D%22%2334D399%22%20stroke-width%3D%222.5%22%2F%3E%0A%20%20%20%20%3Cg%20transform%3D%22translate(185%2C%20140)%20scale(0.75)%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%0A%20%20%20%20%20%20%3Cpath%20d%3D%22M%203%2014%20A%2017%2017%200%200%201%2037%2014%22%20stroke%3D%22%2334D399%22%20stroke-width%3D%222.5%22%2F%3E%0A%20%20%20%20%20%20%3Crect%20x%3D%220%22%20y%3D%2213%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%223%22%20fill%3D%22%2334D399%22%2F%3E%0A%20%20%20%20%20%20%3Crect%20x%3D%2234%22%20y%3D%2213%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%223%22%20fill%3D%22%2334D399%22%2F%3E%0A%20%20%20%20%20%20%3Ccircle%20cx%3D%2220%22%20cy%3D%2218%22%20r%3D%225%22%20fill%3D%22%23ffffff%22%20stroke%3D%22none%22%2F%3E%0A%20%20%20%20%3C%2Fg%3E%0A%20%20%20%20%0A%20%20%20%20%3C!--%20Song%20Title%20%26%20Artist%20--%3E%0A%20%20%20%20%3Ctext%20x%3D%22200%22%20y%3D%22240%22%20font-family%3D%22-apple-system%2C%20BlinkMacSystemFont%2C%20'Segoe%20UI'%2C%20Roboto%2C%20sans-serif%22%20font-weight%3D%22800%22%20font-size%3D%2220%22%20fill%3D%22%23ffffff%22%20text-anchor%3D%22middle%22%20letter-spacing%3D%220.5%22%3EUnknown%20Track%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%22200%22%20y%3D%22270%22%20font-family%3D%22-apple-system%2C%20BlinkMacSystemFont%2C%20'Segoe%20UI'%2C%20Roboto%2C%20sans-serif%22%20font-weight%3D%22500%22%20font-size%3D%2214%22%20fill%3D%22%2334D399%22%20text-anchor%3D%22middle%22%20letter-spacing%3D%220.5%22%3ESabdham%20Music%3C%2Ftext%3E%0A%20%20%3C%2Fsvg%3E",
+          "audioUrl": "yt:jZEA2mMwL1k",
+          "language": "tamil",
+          "genre": "Kuthu / Pop Single",
+          "year": 2024,
+          "lyrics": "Manja balloon manja balloon madhiri en nenju parakkudhu...\nMutta kalakki mutta kalakki un kooda naanum sernthu aada vaaren!\nHey manja balloon parakkum kaadhal kuthu paattu!",
+          "youtubeVideoId": "jZEA2mMwL1k"
+        },
+        {
+          "id": "gemini_vil_there",
+          "audio_source_id": "gemini_vil_there",
+          "title": "Vil There",
+          "artist": "Ridma Weerawardena",
+          "album": "Single",
+          "duration": 180,
+          "durationFormatted": "3:00",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
+          "audioUrl": "",
+          "language": "english",
+          "youtubeVideoId": "gemini_vil_there",
+          "source": "catalog"
+        }
+      ],
+      "customPlaylists": [
+        {
+          "id": "pl_1789815943961_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "isCustom": true,
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "tracks": [
+            {
+              "id": "ta-01"
+            },
+            {
+              "id": "en-01"
+            }
+          ],
+          "createdAt": "2026-09-19T11:05:43.961Z",
+          "updatedAt": "2026-09-20T13:05:42.297Z",
+          "userId": "EVkdsfrEQuNeiHzCZT549jmWPoh1"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "testuser@example.com": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [],
+      "customPlaylists": [
+        {
+          "id": "pl_1789816291947_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "isCustom": true,
+          "createdAt": "2026-09-19T11:11:31.947Z",
+          "userId": "usr_mu8aepgr_klk6jw"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "+14155552671@sabdham.local": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [],
+      "customPlaylists": [
+        {
+          "id": "pl_1789816303192_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "isCustom": true,
+          "createdAt": "2026-09-19T11:11:43.192Z",
+          "userId": "usr_mu8aey54_2b1vq6"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "musiclistener@example.com": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [],
+      "customPlaylists": [
+        {
+          "id": "pl_1789816640010_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "isCustom": true,
+          "createdAt": "2026-09-19T11:17:20.010Z",
+          "userId": "usr_mu8am616_lkvcd6"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    },
+    "newmelodist@example.com": {
+      "likedTrackIds": [],
+      "recentlyPlayed": [],
+      "customPlaylists": [
+        {
+          "id": "pl_1789817137418_fav",
+          "title": "My Morning Favorites",
+          "description": "My personalized morning playlist",
+          "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+          "trackIds": [
+            "ta-01",
+            "en-01"
+          ],
+          "isCustom": true,
+          "createdAt": "2026-09-19T11:25:37.418Z",
+          "userId": "usr_mu8awtu2_k1lerp"
+        }
+      ],
+      "customSongs": [],
+      "settings": {
+        "audioQuality": "high",
+        "crossfade": true,
+        "equalizerPreset": "Dynamic Clarity",
+        "offlineMode": false
+      }
+    }
+  },
+  "sessions": [
+    [
+      "mm_tok_mu9u6pov_k6telu9wiun8eucp6qxlbt",
+      {
+        "userId": "EVkdsfrEQuNeiHzCZT549jmWPoh1",
+        "email": "kalistasxo@gmail.com",
+        "expiresAt": 1792501977487
+      }
+    ]
+  ]
+}
