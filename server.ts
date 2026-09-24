@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import https from 'https';
 import path from 'path';
 import fs from 'fs';
@@ -28,7 +28,7 @@ import {
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Enable CORS and JSON parsing globally for all routes
 app.use((req, res, next) => {
