@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import https from 'https';
 import path from 'path';
 import fs from 'fs';
@@ -521,7 +521,7 @@ app.post('/api/auth/register', async (req, res) => {
     const token = createSessionToken(newUser);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nâœ… [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
+    console.log(`\nÃ¢Å“â€¦ [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
 
     return res.status(201).json({
       success: true,
@@ -562,7 +562,7 @@ app.post('/api/auth/login', async (req, res) => {
     const token = createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nðŸ”‘ [Auth] User signed in: ${email} (${user.name})`);
+    console.log(`\nÃ°Å¸â€â€˜ [Auth] User signed in: ${email} (${user.name})`);
 
     return res.json({
       success: true,
@@ -602,7 +602,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     resetCodes.set(email, { code, expiresAt });
 
-    console.log(`\nðŸ” [Auth] Password Reset Code generated for ${email}: [REDACTED]`);
+    console.log(`\nÃ°Å¸â€Â [Auth] Password Reset Code generated for ${email}: [REDACTED]`);
 
     // Dispatch real email to user's inbox
     await sendOtpEmail(email, code, 'signin', user.name);
@@ -667,7 +667,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const token = createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nðŸŽ‰ [Auth] Password reset successfully for ${email}`);
+    console.log(`\nÃ°Å¸Å½â€° [Auth] Password reset successfully for ${email}`);
 
     return res.json({
       success: true,
@@ -710,7 +710,7 @@ app.post('/api/auth/otp/send', async (req, res) => {
       attempts: 0,
     });
 
-    console.log(`\nðŸ“¨ [Auth Email OTP] Code generated for ${email}: [REDACTED] (purpose: ${purpose}, existing: ${!!existing})`);
+    console.log(`\nÃ°Å¸â€œÂ¨ [Auth Email OTP] Code generated for ${email}: [REDACTED] (purpose: ${purpose}, existing: ${!!existing})`);
 
     // Dispatch real email to user's inbox
     const mailResult = await sendOtpEmail(email, code, purpose as any, rawName);
@@ -827,7 +827,7 @@ app.post('/api/auth/otp/verify', async (req, res) => {
     const token = createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nðŸŽ‰ [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
+    console.log(`\nÃ°Å¸Å½â€° [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
 
     return res.json({
       success: true,
@@ -1269,7 +1269,7 @@ app.get('/oauth/spotify/callback', (req, res) => {
     <head><title>Spotify Authorization</title></head>
     <body style="background:#121212;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
       <div style="text-align:center;padding:20px;">
-        <div style="width:40px;height:40px;border-radius:50%;background:#1db954;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;font-size:20px;">âœ“</div>
+        <div style="width:40px;height:40px;border-radius:50%;background:#1db954;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;font-size:20px;">Ã¢Å“â€œ</div>
         <h3 style="margin:0 0 8px;">Spotify Connected</h3>
         <p style="color:#a1a1aa;font-size:14px;margin:0;">Returning to Sabdham...</p>
         <script>
@@ -2633,7 +2633,7 @@ async function resolveAudioStreamInfo(
   // "Aathi - Video Song | Kaththi | Vijay | ..." -> "Aathi"
   let saavnTitle = activeTitle
     .split('|')[0]
-    .replace(/\s*[-–—]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
+    .replace(/\s*[-â€“â€”]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
     .replace(/\s*\((official\s*)?(music\s*)?(video|audio|lyrics?).*?\)\s*/gi, ' ')
     .replace(/\s*\[(official\s*)?(music\s*)?(video|audio|lyrics?).*?\]\s*/gi, ' ')
     .replace(/\b(official\s+video|official\s+audio|video\s+song|lyric\s+video|lyrics\s+video)\b/gi, '')
@@ -2698,6 +2698,105 @@ async function resolveAudioStreamInfo(
   };
 }
 
+// API: Search real music metadata using JioSaavn
+app.get('/api/music/search', async (req, res) => {
+  try {
+    const query = (req.query.q as string || '').trim();
+    const language = (req.query.language as string || 'all').toLowerCase();
+    const maxResults = Math.min(
+      Math.max(parseInt(req.query.maxResults as string || '15', 10), 1),
+      25
+    );
+
+    if (!query) {
+      return res.json({ tracks: [] });
+    }
+
+    let searchQuery = query;
+
+    if (language === 'tamil' && !query.toLowerCase().includes('tamil')) {
+      searchQuery += ' tamil';
+    } else if (
+      language === 'sinhala' &&
+      !query.toLowerCase().includes('sinhala')
+    ) {
+      searchQuery += ' sinhala';
+    }
+
+    const searchUrl =
+      `https://www.jiosaavn.com/api.php?__call=search.getResults` +
+      `&_format=json&n=${maxResults}&p=1` +
+      `&q=${encodeURIComponent(searchQuery)}&_marker=0`;
+
+    const upstream = await fetch(searchUrl, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+          'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+          'Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!upstream.ok) {
+      throw new Error(`Music metadata upstream returned ${upstream.status}`);
+    }
+
+    // JioSaavn sometimes labels its JSON response as text/html.
+    const body = await upstream.text();
+    const data = JSON.parse(body);
+
+    const tracks = (data.results || [])
+      .filter((item: any) => item && item.id && item.song)
+      .map((item: any) => {
+        const duration = parseInt(item.duration || '0', 10) || 0;
+        const mins = Math.floor(duration / 60);
+        const secs = duration % 60;
+
+        const rawImage = item.image || '';
+        const coverUrl = rawImage
+          ? rawImage.replace(/150x150|50x50/g, '500x500')
+          : '';
+
+        return {
+          id: `saavn-${item.id}`,
+          audio_source_id: item.id,
+
+          title: item.song,
+          artist:
+            item.primary_artists ||
+            item.singers ||
+            'Unknown Artist',
+
+          album: item.album || 'Single',
+
+          coverUrl,
+          duration,
+          durationFormatted:
+            `${mins}:${secs < 10 ? '0' : ''}${secs}`,
+
+          language: item.language || 'unknown',
+          genre: 'Music',
+
+          year: item.year || null,
+          label: item.label || null,
+
+          source: 'saavn'
+        };
+      });
+
+    return res.json({ tracks });
+
+  } catch (err) {
+    console.error('[Music Search] JioSaavn search failed:', err);
+
+    return res.status(502).json({
+      error: 'Music search temporarily unavailable',
+      tracks: []
+    });
+  }
+});
 // API: Search YouTube songs securely proxying requests with the server-side API Key
 app.get('/api/youtube/search', async (req, res) => {
   try {
@@ -4080,6 +4179,7 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
 
 
 
