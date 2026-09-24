@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile containing basic identification and profile information",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth unique identifier",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User chosen display name",
+          "maxLength": 100
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Avatar photo URL",
+          "maxLength": 1024
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account registration timestamp"
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "Favorite song reference for user library",
+      "type": "object",
+      "properties": {
+        "userUid": {
+          "type": "string",
+          "description": "Owner UID",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "trackId": {
+          "type": "string",
+          "description": "ID of favorited music track",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Time track was favorited"
+        }
+      },
+      "required": ["userUid", "trackId"]
+    },
+    "Playlist": {
+      "title": "Playlist",
+      "description": "Custom playlist created by user",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Playlist unique ID",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userUid": {
+          "type": "string",
+          "description": "Owner UID",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of playlist",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional playlist description",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Time playlist was created"
+        }
+      },
+      "required": ["id", "userUid", "title"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document accessible only to the authenticated owner"
+    },
+    "/users/{userId}/favorites/{trackId}": {
+      "schema": "Favorite",
+      "description": "User bookmarked music tracks"
+    },
+    "/users/{userId}/playlists/{playlistId}": {
+      "schema": "Playlist",
+      "description": "User curated playlists"
+    }
+  }
+}

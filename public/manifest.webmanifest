@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "SABDHAM",
+  "short_name": "SABDHAM",
+  "description": "A modern Spotify-style music streaming application with YouTube Data API catalog metadata search, high-resolution artwork, MP3/audio stream playback, persistent playlist management, and a native exportable Android Studio project with ExoPlayer.",
+  "theme_color": "#121212",
+  "background_color": "#121212",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

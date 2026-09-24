@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+android/
+*.log
+.idea/
+*.zip
+*.mp4
+server.ts.before-*
+app-part.txt
+web-ui-source.txt
+data/users.json

@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    -webkit-touch-callout: none; /* Disable long-press context menus on mobile */
+    -webkit-user-select: none;   /* Disable default text selection for native app feel */
+    user-select: none;
+    -webkit-tap-highlight-color: transparent; /* Disable browser blue tap highlight overlay */
+  }
+
+  /* Allow text selection specifically in inputs and text areas */
+  input, textarea, [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  /* Safe-area utility classes for notch and home-indicator mobile screens */
+  .safe-padding-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-padding-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-margin-top {
+    margin-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-margin-bottom {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* Custom Spotify scrubber */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  margin-top: -4px;
+}
+
+.group:hover input[type="range"]::-webkit-slider-thumb,
+input[type="range"]:hover::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+input[type="range"]:active::-webkit-slider-thumb {
+  opacity: 1;
+  transform: scale(1.25);
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+}

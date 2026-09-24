@@ -1,0 +1,6 @@
+{
+  "name": "SABDHAM",
+  "description": "A modern Spotify-style music streaming application with YouTube Data API catalog metadata search, high-resolution artwork, MP3/audio stream playback, persistent playlist management, and a native exportable Android Studio project with ExoPlayer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
