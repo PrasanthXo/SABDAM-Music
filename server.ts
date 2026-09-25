@@ -2749,6 +2749,10 @@ app.get('/api/music/search', async (req, res) => {
   try {
     const query = (req.query.q as string || '').trim();
     const language = (req.query.language as string || 'all').toLowerCase();
+    const page = Math.min(
+      Math.max(parseInt(req.query.page as string || '1', 10), 1),
+      100
+    );
     const maxResults = Math.min(
       Math.max(parseInt(req.query.maxResults as string || '15', 10), 1),
       25
@@ -2771,7 +2775,7 @@ app.get('/api/music/search', async (req, res) => {
 
     const searchUrl =
       `https://www.jiosaavn.com/api.php?__call=search.getResults` +
-      `&_format=json&n=${maxResults}&p=1` +
+      `&_format=json&n=${maxResults}&p=${page}` +
       `&q=${encodeURIComponent(searchQuery)}&_marker=0`;
 
     const upstream = await fetch(searchUrl, {
@@ -4225,6 +4229,7 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
 
 
 
