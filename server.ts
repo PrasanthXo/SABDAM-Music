@@ -1057,12 +1057,13 @@ app.post('/api/auth/google', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // Cloud SQL database user endpoints
-app.get('/api/db/favorites', requireAuth, async (req: AuthRequest, res) => {
+app.get('/api/db/favorites', async (req, res) => {
   try {
-    if (!req.user?.uid) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const favorites = await getUserFavorites(req.user.uid);
+    const favorites = await getUserFavorites(user.id);
     res.json({ favorites });
   } catch (error: any) {
     console.error('Failed to fetch user favorites from Cloud SQL:', error);
@@ -1070,16 +1071,17 @@ app.get('/api/db/favorites', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-app.post('/api/db/favorites', requireAuth, async (req: AuthRequest, res) => {
+app.post('/api/db/favorites', async (req, res) => {
   try {
-    if (!req.user?.uid) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const { trackId } = req.body || {};
     if (!trackId) {
       return res.status(400).json({ error: 'trackId is required.' });
     }
-    await addUserFavorite(req.user.uid, trackId);
+    await addUserFavorite(user.id, trackId);
     res.json({ success: true });
   } catch (error: any) {
     console.error('Failed to add favorite to Cloud SQL:', error);
@@ -1087,13 +1089,14 @@ app.post('/api/db/favorites', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-app.delete('/api/db/favorites/:trackId', requireAuth, async (req: AuthRequest, res) => {
+app.delete('/api/db/favorites/:trackId', async (req, res) => {
   try {
-    if (!req.user?.uid) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const { trackId } = req.params;
-    await removeUserFavorite(req.user.uid, trackId);
+    await removeUserFavorite(user.id, trackId);
     res.json({ success: true });
   } catch (error: any) {
     console.error('Failed to remove favorite from Cloud SQL:', error);
@@ -1101,18 +1104,19 @@ app.delete('/api/db/favorites/:trackId', requireAuth, async (req: AuthRequest, r
   }
 });
 
-app.delete('/api/db/playlists/:playlistId', requireAuth, async (req: AuthRequest, res) => {
+app.delete('/api/db/playlists/:playlistId', async (req, res) => {
   try {
-    if (!req.user?.uid) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const { playlistId } = req.params;
-    await deleteUserPlaylist(req.user.uid, playlistId);
-    const current = userDataStore.get(req.user.uid) || userDataStore.get(req.user.email?.toLowerCase() || '');
+    await deleteUserPlaylist(user.id, playlistId);
+    const current = userDataStore.get(user.id) || userDataStore.get(user.email?.toLowerCase() || '');
     if (current && current.customPlaylists) {
       current.customPlaylists = current.customPlaylists.filter((p: any) => p.id !== playlistId);
-      userDataStore.set(req.user.uid, current);
-      if (req.user.email) userDataStore.set(req.user.email.toLowerCase(), current);
+      userDataStore.set(user.id, current);
+      if (user.email) userDataStore.set(user.email.toLowerCase(), current);
       savePersistedData();
     }
     res.json({ success: true });
@@ -4221,6 +4225,8 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
+
 
 
 
