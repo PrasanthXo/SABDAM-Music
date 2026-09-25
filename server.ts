@@ -698,6 +698,25 @@ app.post('/api/auth/otp/send', async (req, res) => {
 
     const existing = users.get(email);
 
+    // Enforce separate Sign In and Register flows
+    if (purpose === 'signup' && existing) {
+      return res.status(409).json({
+        success: false,
+        error: 'This account already exists. Please sign in instead.',
+        code: 'ACCOUNT_EXISTS',
+        action: 'signin',
+      });
+    }
+
+    if (purpose === 'signin' && !existing) {
+      return res.status(404).json({
+        success: false,
+        error: 'No account exists with this email. Please create an account first.',
+        code: 'ACCOUNT_NOT_FOUND',
+        action: 'signup',
+      });
+    }
+
     // Generate secure 6-digit OTP
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
@@ -771,6 +790,29 @@ app.post('/api/auth/otp/verify', async (req, res) => {
 
     if (record.code !== code) {
       return res.status(400).json({ error: 'Invalid verification code. Please check the code and try again.' });
+    }
+
+    // Re-check account state after OTP validation to prevent flow bypass
+    const existingAtVerification = users.get(email);
+
+    if (record.purpose === 'signup' && existingAtVerification) {
+      otpStore.delete(email);
+      return res.status(409).json({
+        success: false,
+        error: 'This account already exists. Please sign in instead.',
+        code: 'ACCOUNT_EXISTS',
+        action: 'signin',
+      });
+    }
+
+    if (record.purpose === 'signin' && !existingAtVerification) {
+      otpStore.delete(email);
+      return res.status(404).json({
+        success: false,
+        error: 'No account exists with this email. Please create an account first.',
+        code: 'ACCOUNT_NOT_FOUND',
+        action: 'signup',
+      });
     }
 
     // OTP verified successfully! Clear single-use code
