@@ -15,6 +15,7 @@ import { adminAuth } from './src/lib/firebase-admin.ts';
 import { initializeApp as initializeClientApp } from 'firebase/app';
 import { getFirestore as getClientFirestore, collection, writeBatch, doc, getDocs } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
+import { SABDHAM_DEFAULT_ARTWORK } from './src/utils/imageUtils';
 import {
   getOrCreateUser,
   getUserByEmail,
@@ -2010,7 +2011,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     movie: "Youth",
     duration: 170,
     durationFormatted: "2:50",
-    coverUrl: "https://i.ytimg.com/vi/jZEA2mMwL1k/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:jZEA2mMwL1k",
     language: "tamil",
     genre: "Kuthu / Pop Single",
@@ -2025,7 +2026,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Katchi Sera Single",
     duration: 195,
     durationFormatted: "3:15",
-    coverUrl: "https://i.ytimg.com/vi/bhU9E7kj1oo/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:bhU9E7kj1oo",
     language: "tamil",
     genre: "Indie Pop",
@@ -2040,7 +2041,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Aasa Kooda Single",
     duration: 215,
     durationFormatted: "3:35",
-    coverUrl: "https://i.ytimg.com/vi/NCIMPzFSQjU/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:NCIMPzFSQjU",
     language: "tamil",
     genre: "Indie Pop",
@@ -2055,7 +2056,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Nilavuku En Mel Ennadi Kobam",
     duration: 204,
     durationFormatted: "3:24",
-    coverUrl: "https://i.ytimg.com/vi/AAq06bS8UZM/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:AAq06bS8UZM",
     language: "tamil",
     genre: "Pop / Dance",
@@ -2070,7 +2071,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "The Greatest Of All Time",
     duration: 210,
     durationFormatted: "3:30",
-    coverUrl: "https://i.ytimg.com/vi/8bfH0EYn0Pg/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:8bfH0EYn0Pg",
     language: "tamil",
     genre: "Kuthu",
@@ -2085,7 +2086,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Devara",
     duration: 220,
     durationFormatted: "3:40",
-    coverUrl: "https://i.ytimg.com/vi/9jY8PItvMxo/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:9jY8PItvMxo",
     language: "tamil",
     genre: "Romantic Melody",
@@ -2100,7 +2101,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Bad Newz",
     duration: 215,
     durationFormatted: "3:35",
-    coverUrl: "https://i.ytimg.com/vi/3YQKuAP79Q8/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:3YQKuAP79Q8",
     language: "hindi",
     genre: "Punjabi Pop",
@@ -2115,7 +2116,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Aavesham",
     duration: 185,
     durationFormatted: "3:05",
-    coverUrl: "https://i.ytimg.com/vi/JqMZFeG-bYk/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:JqMZFeG-bYk",
     language: "tamil",
     genre: "Club Rap",
@@ -2130,7 +2131,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Manike Mage Hithe Single",
     duration: 198,
     durationFormatted: "3:18",
-    coverUrl: "https://i.ytimg.com/vi/Gw-kiVGfoHo/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:Gw-kiVGfoHo",
     language: "sinhala",
     genre: "Sinhala Pop",
@@ -2145,7 +2146,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Maari 2",
     duration: 284,
     durationFormatted: "4:44",
-    coverUrl: "https://i.ytimg.com/vi/SaNC4NKco8k/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:SaNC4NKco8k",
     language: "tamil",
     genre: "Dance Beat",
@@ -2160,7 +2161,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Master",
     duration: 230,
     durationFormatted: "3:50",
-    coverUrl: "https://i.ytimg.com/vi/vxzfsBDx590/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:vxzfsBDx590",
     language: "tamil",
     genre: "Kuthu",
@@ -2175,7 +2176,7 @@ const MODULAR_CATALOG: MusicTrack[] = [
     album: "Gunaa / Manjummel Boys",
     duration: 330,
     durationFormatted: "5:30",
-    coverUrl: "https://i.ytimg.com/vi/T5S8I8d8yuo/hq720.jpg",
+    coverUrl: SABDHAM_DEFAULT_ARTWORK,
     audioUrl: "yt:T5S8I8d8yuo",
     language: "tamil",
     genre: "Classic",
@@ -2716,8 +2717,7 @@ async function resolveAudioStreamInfo(
     return {
       url: audioUrl,
       videoId: activeVideoId,
-      coverUrl: activeVideoId ? `https://i.ytimg.com/vi/${activeVideoId}/hqdefault.jpg` : undefined,
-      source: 'youtube',
+            source: 'youtube',
     };
   }
 
@@ -2798,8 +2798,7 @@ async function resolveAudioStreamInfo(
   return {
     url: audioUrl,
     videoId: activeVideoId,
-    coverUrl: activeVideoId ? `https://i.ytimg.com/vi/${activeVideoId}/hqdefault.jpg` : undefined,
-    source: 'youtube',
+        source: 'youtube',
   };
 }
 
@@ -3387,7 +3386,7 @@ app.get('/api/youtube/playlist', async (req, res) => {
       const seconds = Math.floor(durationSeconds % 60);
       const durationFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
-      const highResArt = item.snippet?.thumbnails?.maxres?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+      const highResArt = SABDHAM_DEFAULT_ARTWORK;
 
       return {
         id: `yt-${videoId}`,
@@ -4288,6 +4287,9 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
+
+
 
 
 
