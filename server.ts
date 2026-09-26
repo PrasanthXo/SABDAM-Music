@@ -384,6 +384,13 @@ async function getAuthUser(req: express.Request): Promise<UserRecord | null> {
       const email = decodedToken.email?.toLowerCase();
       let user = usersById.get(decodedToken.uid) || (email ? users.get(email) : null);
       if (!user && email) {
+        const dbUser = await getOrCreateUser(
+          decodedToken.uid,
+          email,
+          decodedToken.name || email.split('@')[0],
+          decodedToken.picture
+        );
+
         user = {
           id: decodedToken.uid,
           email,
@@ -391,15 +398,16 @@ async function getAuthUser(req: express.Request): Promise<UserRecord | null> {
           provider: 'google',
           avatarUrl: decodedToken.picture,
           avatarColor: '#4f46e5',
-          createdAt: new Date().toISOString(),
+          createdAt: dbUser?.createdAt
+            ? dbUser.createdAt.toISOString()
+            : new Date().toISOString(),
           lastLoginAt: new Date().toISOString(),
         };
+
         users.set(email, user);
         usersById.set(decodedToken.uid, user);
-        initUserData(decodedToken.uid);
+        initUserData(decodedToken.uid, email);
         savePersistedData();
-        // Synchronize with PostgreSQL Cloud SQL
-        getOrCreateUser(user.id, user.email, user.name, user.avatarUrl).catch(() => {});
       }
       return user || null;
     }
@@ -4229,6 +4237,7 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
 
 
 
