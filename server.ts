@@ -1024,7 +1024,7 @@ app.post('/api/auth/google', requireAuth, async (req: AuthRequest, res) => {
     const picture = photoUrl || req.user.picture || null;
 
     // Upsert into Cloud SQL users table
-    await getOrCreateUser(req.user.uid, req.user.email, name, picture);
+    const dbUser = await getOrCreateUser(req.user.uid, req.user.email, name, picture);
 
     // Also update in-memory cache for app operations
     let localUser = users.get(req.user.email);
@@ -1036,7 +1036,9 @@ app.post('/api/auth/google', requireAuth, async (req: AuthRequest, res) => {
         provider: 'google',
         avatarUrl: picture,
         avatarColor: '#4f46e5',
-        createdAt: new Date().toISOString(),
+        createdAt: dbUser?.createdAt
+          ? dbUser.createdAt.toISOString()
+          : new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
       };
       users.set(req.user.email, localUser);
@@ -4237,6 +4239,7 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
 
 
 
