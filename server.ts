@@ -2294,7 +2294,7 @@ function parseISO8601Duration(durationStr: string): number {
 }
 
 // Cache resolved audio streams in memory with 2 hour TTL to ensure instant playback
-const streamCache = new Map<string, { url: string; videoId?: string; expiresAt: number }>();
+const streamCache = new Map<string, { url: string; coverUrl?: string; duration?: number; videoId?: string; expiresAt: number }>();
 
 function hashString(str: string): number {
   let hash = 0;
@@ -2723,7 +2723,7 @@ async function resolveAudioStreamInfo(
   const cacheKey = (activeVideoId || `${title || ''}_${artist || ''}` || query || 'track').trim();
   const cached = streamCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() && (!cached.videoId || !excludeVideoIds.includes(cached.videoId))) {
-    return { url: cached.url, videoId: activeVideoId || cached.videoId, source: 'cache' };
+    return { url: cached.url, coverUrl: cached.coverUrl, duration: cached.duration, videoId: activeVideoId || cached.videoId, source: 'cache' };
   }
 
   let activeTitle = title ? title.trim() : '';
@@ -2743,25 +2743,7 @@ async function resolveAudioStreamInfo(
 
   if (!saavnTitle) saavnTitle = activeTitle;
 
-  // First try cleaned title alone. YouTube channel names such as
-  // "Sony Music South" are labels, not necessarily the song artist.
-  if (saavnTitle) {
-    const saavnStream = await resolveFromJioSaavn(
-      saavnTitle,
-      saavnTitle
-    );
-
-    if (saavnStream && saavnStream.url) {
-      streamCache.set(cacheKey, {
-        url: saavnStream.url,
-        videoId: activeVideoId,
-        expiresAt: Date.now() + 6 * 3600 * 1000
-      });
-      return saavnStream;
-    }
-  }
-
-  // If title-only lookup did not find a suitable match, try title + artist.
+  // Prefer title + artist to prevent unrelated same-title matches.
   if (saavnTitle && activeArtist) {
     const saavnStream = await resolveFromJioSaavn(
       `${saavnTitle} ${activeArtist}`,
@@ -2772,6 +2754,8 @@ async function resolveAudioStreamInfo(
     if (saavnStream && saavnStream.url) {
       streamCache.set(cacheKey, {
         url: saavnStream.url,
+        coverUrl: saavnStream.coverUrl,
+        duration: saavnStream.duration,
         videoId: activeVideoId,
         expiresAt: Date.now() + 6 * 3600 * 1000
       });
@@ -2779,6 +2763,24 @@ async function resolveAudioStreamInfo(
     }
   }
 
+  // Use title-only matching only when no usable artist was supplied.
+  if (saavnTitle && !activeArtist) {
+    const saavnStream = await resolveFromJioSaavn(
+      saavnTitle,
+      saavnTitle
+    );
+
+    if (saavnStream && saavnStream.url) {
+      streamCache.set(cacheKey, {
+        url: saavnStream.url,
+        coverUrl: saavnStream.coverUrl,
+        duration: saavnStream.duration,
+        videoId: activeVideoId,
+        expiresAt: Date.now() + 6 * 3600 * 1000
+      });
+      return saavnStream;
+    }
+  }
   // Tier 2: Dynamically resolve to YouTube video ID
   if ((!activeVideoId || excludeVideoIds.includes(activeVideoId)) && activeTitle) {
     const resolvedYt = await resolveYouTubeVideoBySong(activeTitle, activeArtist, excludeVideoIds);
@@ -4284,6 +4286,12 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
+
+
+
+
+
 
 
 
