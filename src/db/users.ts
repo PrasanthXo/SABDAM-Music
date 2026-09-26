@@ -42,6 +42,22 @@ export interface DbUserLibrary {
   settings?: Record<string, any>;
 }
 
+export async function getUserByEmail(email: string) {
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    return result[0] || null;
+  } catch (error) {
+    console.error('[Cloud SQL] getUserByEmail error:', error);
+    return null;
+  }
+}
 export async function getOrCreateUser(
   uid: string,
   email: string,

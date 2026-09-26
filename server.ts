@@ -17,6 +17,7 @@ import { getFirestore as getClientFirestore, collection, writeBatch, doc, getDoc
 import firebaseConfig from './firebase-applet-config.json';
 import {
   getOrCreateUser,
+  getUserByEmail,
   getUserFavorites,
   addUserFavorite,
   removeUserFavorite,
@@ -704,7 +705,29 @@ app.post('/api/auth/otp/send', async (req, res) => {
       return res.status(400).json({ error: 'Please enter a valid email address (e.g. user@example.com).' });
     }
 
-    const existing = users.get(email);
+    let existing = users.get(email);
+
+    // Restore persistent account information from Cloud SQL if memory cache is empty.
+    if (!existing) {
+      const dbUser = await getUserByEmail(email);
+      if (dbUser) {
+        existing = {
+          id: dbUser.uid,
+          email: dbUser.email,
+          name: dbUser.displayName || email.split('@')[0],
+          provider: 'email',
+          avatarUrl: dbUser.photoUrl || undefined,
+          avatarColor: '#4f46e5',
+          createdAt: dbUser.createdAt
+            ? dbUser.createdAt.toISOString()
+            : new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+        };
+
+        users.set(email, existing);
+        usersById.set(existing.id, existing);
+      }
+    }
 
     // Enforce separate Sign In and Register flows
     if (purpose === 'signup' && existing) {
@@ -801,7 +824,29 @@ app.post('/api/auth/otp/verify', async (req, res) => {
     }
 
     // Re-check account state after OTP validation to prevent flow bypass
-    const existingAtVerification = users.get(email);
+    let existingAtVerification = users.get(email);
+
+    // Re-check Cloud SQL so an existing persistent account is never treated as a new signup.
+    if (!existingAtVerification) {
+      const dbUser = await getUserByEmail(email);
+      if (dbUser) {
+        existingAtVerification = {
+          id: dbUser.uid,
+          email: dbUser.email,
+          name: dbUser.displayName || email.split('@')[0],
+          provider: 'email',
+          avatarUrl: dbUser.photoUrl || undefined,
+          avatarColor: '#4f46e5',
+          createdAt: dbUser.createdAt
+            ? dbUser.createdAt.toISOString()
+            : new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+        };
+
+        users.set(email, existingAtVerification);
+        usersById.set(existingAtVerification.id, existingAtVerification);
+      }
+    }
 
     if (record.purpose === 'signup' && existingAtVerification) {
       otpStore.delete(email);
