@@ -2722,7 +2722,7 @@ async function resolveAudioStreamInfo(
 
   const cacheKey = (activeVideoId || `${title || ''}_${artist || ''}` || query || 'track').trim();
   const cached = streamCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now() && (!cached.videoId || !excludeVideoIds.includes(cached.videoId))) {
+  if (cached && cached.coverUrl && cached.expiresAt > Date.now() && (!cached.videoId || !excludeVideoIds.includes(cached.videoId))) {
     return { url: cached.url, coverUrl: cached.coverUrl, duration: cached.duration, videoId: activeVideoId || cached.videoId, source: 'cache' };
   }
 
@@ -4286,6 +4286,7 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
 
 
 
