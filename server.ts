@@ -2716,6 +2716,7 @@ async function resolveAudioStreamInfo(
     return {
       url: audioUrl,
       videoId: activeVideoId,
+      coverUrl: activeVideoId ? `https://i.ytimg.com/vi/${activeVideoId}/hqdefault.jpg` : undefined,
       source: 'youtube',
     };
   }
@@ -2797,6 +2798,7 @@ async function resolveAudioStreamInfo(
   return {
     url: audioUrl,
     videoId: activeVideoId,
+    coverUrl: activeVideoId ? `https://i.ytimg.com/vi/${activeVideoId}/hqdefault.jpg` : undefined,
     source: 'youtube',
   };
 }
@@ -4286,6 +4288,7 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
 
 
 
