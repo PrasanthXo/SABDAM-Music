@@ -1,0 +1,417 @@
+    suspend fun importPlaylistByLink(
+        context: Context,
+        playlistUrl: String
+    ): LibraryResult = withContext(Dispatchers.IO) {
+        val link = playlistUrl.trim()
+
+        if (link.isBlank()) {
+            return@withContext LibraryResult(false, "Enter a playlist link.")
+        }
+
+        try {
+            when {
+                link.contains("open.spotify.com/playlist/", ignoreCase = true) ||
+                    link.startsWith("spotify:playlist:", ignoreCase = true) -> {
+
+                    val encodedUrl = URLEncoder.encode(link, "UTF-8")
+
+                    // Resolve playlist metadata.
+                    val resolveConnection =
+                        URL("$BASE_URL/api/spotify/playlist-resolve?url=$encodedUrl")
+                            .openConnection() as HttpURLConnection
+
+                    resolveConnection.requestMethod = "GET"
+                    resolveConnection.connectTimeout = 15000
+                    resolveConnection.readTimeout = 20000
+                    resolveConnection.setRequestProperty("Accept", "application/json")
+
+                    val resolveCode = resolveConnection.responseCode
+                    val resolveStream =
+                        if (resolveCode in 200..299) {
+                            resolveConnection.inputStream
+                        } else {
+                            resolveConnection.errorStream
+                        }
+
+                    val resolveText =
+                        resolveStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+                    resolveConnection.disconnect()
+
+                    if (resolveCode !in 200..299 || resolveText.isBlank()) {
+                        return@withContext LibraryResult(
+                            false,
+                            "Could not load Spotify playlist."
+                        )
+                    }
+
+                    val playlistInfo = JSONObject(resolveText)
+
+                    val playlistId = playlistInfo.optString("id").trim()
+                    val playlistName =
+                        playlistInfo.optString("title", "Spotify Playlist").trim()
+                            .ifBlank { "Spotify Playlist" }
+                    val description =
+                        playlistInfo.optString("description").trim()
+
+                    if (playlistId.isBlank()) {
+                        return@withContext LibraryResult(
+                            false,
+                            "Invalid Spotify playlist."
+                        )
+                    }
+
+                    // Fetch playlist tracks.
+                    val encodedId = URLEncoder.encode(playlistId, "UTF-8")
+
+                    val tracksConnection =
+                        URL("$BASE_URL/api/spotify/playlist-tracks?playlistId=$encodedId")
+                            .openConnection() as HttpURLConnection
+
+                    tracksConnection.requestMethod = "GET"
+                    tracksConnection.connectTimeout = 15000
+                    tracksConnection.readTimeout = 30000
+                    tracksConnection.setRequestProperty("Accept", "application/json")
+
+                    val tracksCode = tracksConnection.responseCode
+                    val tracksStream =
+                        if (tracksCode in 200..299) {
+                            tracksConnection.inputStream
+                        } else {
+                            tracksConnection.errorStream
+                        }
+
+                    val tracksText =
+                        tracksStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+                    tracksConnection.disconnect()
+
+                    if (tracksCode !in 200..299 || tracksText.isBlank()) {
+                        return@withContext LibraryResult(
+                            false,
+                            "Could not fetch Spotify playlist tracks."
+                        )
+                    }
+
+                    val array = JSONArray(tracksText)
+                    val importedTracks = mutableListOf<Track>()
+
+                    for (i in 0 until array.length()) {
+                        val wrapper = array.optJSONObject(i) ?: continue
+                        val trackObject =
+                            wrapper.optJSONObject("track") ?: continue
+
+                        val title = trackObject.optString("name").trim()
+                        if (title.isBlank()) continue
+
+                        val artistsArray = trackObject.optJSONArray("artists")
+                        val artistNames = mutableListOf<String>()
+
+                        if (artistsArray != null) {
+                            for (j in 0 until artistsArray.length()) {
+                                val artistName =
+                                    artistsArray.optJSONObject(j)
+                                        ?.optString("name")
+                                        ?.trim()
+                                        .orEmpty()
+
+                                if (artistName.isNotBlank()) {
+                                    artistNames += artistName
+                                }
+                            }
+                        }
+
+                        val artist =
+                            artistNames.joinToString(", ")
+                                .ifBlank { "Unknown Artist" }
+
+                        val albumObject = trackObject.optJSONObject("album")
+                        val album =
+                            albumObject?.optString("name")?.trim()
+                                ?.ifBlank { playlistName }
+                                ?: playlistName
+
+                        // Spotify album artwork is verified catalog metadata.
+                        val images = albumObject?.optJSONArray("images")
+                        val spotifyArtwork =
+                            images?.optJSONObject(0)
+                                ?.optString("url")
+                                ?.trim()
+                                .orEmpty()
+
+                        val durationMs =
+                            trackObject.optLong("duration_ms", 180000L)
+                        val durationSeconds =
+                            (durationMs / 1000L).coerceAtLeast(1L)
+
+                        val minutes = durationSeconds / 60L
+                        val seconds = durationSeconds % 60L
+                        val durationFormatted =
+                            "$minutes:${seconds.toString().padStart(2, '0')}"
+
+                        val spotifyId =
+                            trackObject.optString("id").trim()
+                                .ifBlank {
+                                    "${title.lowercase()}-${artist.lowercase()}"
+                                        .replace(
+                                            Regex("[^a-z0-9]+"),
+                                            "-"
+                                        )
+                                        .trim('-')
+                                }
+
+                        importedTracks += Track(
+                            id = "spotify-$spotifyId",
+                            title = title,
+                            artist = artist,
+                            album = album,
+                            durationSeconds = durationSeconds,
+                            durationFormatted = durationFormatted,
+                            coverUrl = spotifyArtwork,
+                            // Playback will first use SABDHAM's
+                            // title + artist stream resolver.
+                            audioUrl = "",
+                            youtubeVideoId = "",
+                            language = "all",
+                            genre = "Imported",
+                            year = 2024,
+                            releaseDate = "2024-01-01",
+                            popularityScore = 80,
+                            streamCount = 0L,
+                            viewCount = 0L,
+                            isTrendingNow = false
+                        )
+                    }
+
+                    val uniqueTracks =
+                        importedTracks.distinctBy { it.id }
+
+                    if (uniqueTracks.isEmpty()) {
+                        return@withContext LibraryResult(
+                            false,
+                            "No playable tracks found in this Spotify playlist."
+                        )
+                    }
+
+                    val result =
+                        createPlaylist(
+                            context = context,
+                            name = playlistName,
+                            description =
+                                "Imported from Spotify" +
+                                    if (description.isNotBlank()) {
+                                        ": $description"
+                                    } else {
+                                        ""
+                                    },
+                            tracks = uniqueTracks
+                        )
+
+                    if (result.success) {
+                        result.copy(
+                            message =
+                                "Imported \"$playlistName\" with ${uniqueTracks.size} songs."
+                        )
+                    } else {
+                        result
+                    }
+                }
+
+                link.contains("youtube.com/", ignoreCase = true) ||
+                    link.contains("youtu.be/", ignoreCase = true) -> {
+
+                    val playlistId =
+                        Regex(
+                            "[?&]list=([^&#]+)",
+                            RegexOption.IGNORE_CASE
+                        )
+                            .find(link)
+                            ?.groupValues
+                            ?.getOrNull(1)
+                            ?.trim()
+                            .orEmpty()
+
+                    if (playlistId.isBlank()) {
+                        return@withContext LibraryResult(
+                            false,
+                            "This is not a YouTube playlist link."
+                        )
+                    }
+
+                    val encodedId = URLEncoder.encode(playlistId, "UTF-8")
+
+                    // Public endpoint: no Google user token required.
+                    val connection =
+                        URL(
+                            "$BASE_URL/api/youtube/playlist" +
+                                "?id=$encodedId&maxResults=100"
+                        ).openConnection() as HttpURLConnection
+
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 15000
+                    connection.readTimeout = 30000
+                    connection.setRequestProperty("Accept", "application/json")
+
+                    val code = connection.responseCode
+                    val responseStream =
+                        if (code in 200..299) {
+                            connection.inputStream
+                        } else {
+                            connection.errorStream
+                        }
+
+                    val responseText =
+                        responseStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+                    connection.disconnect()
+
+                    if (code !in 200..299 || responseText.isBlank()) {
+                        return@withContext LibraryResult(
+                            false,
+                            "Could not load YouTube playlist."
+                        )
+                    }
+
+                    val root = JSONObject(responseText)
+                    val array =
+                        root.optJSONArray("tracks") ?: JSONArray()
+
+                    val importedTracks = mutableListOf<Track>()
+
+                    for (i in 0 until array.length()) {
+                        val obj = array.optJSONObject(i) ?: continue
+
+                        val videoId =
+                            obj.optString("youtubeVideoId").trim()
+                                .ifBlank {
+                                    obj.optString("audio_source_id").trim()
+                                }
+
+                        if (videoId.isBlank()) continue
+
+                        val title =
+                            obj.optString("title", "Unknown").trim()
+                        val artist =
+                            obj.optString(
+                                "artist",
+                                "Sabdham Artist"
+                            ).trim()
+
+                        val duration =
+                            obj.optLong(
+                                "duration",
+                                obj.optLong("durationSeconds", 210L)
+                            )
+
+                        val durationFormatted =
+                            obj.optString("durationFormatted").trim()
+                                .ifBlank {
+                                    val minutes = duration / 60L
+                                    val seconds = duration % 60L
+                                    "$minutes:${
+                                        seconds.toString().padStart(2, '0')
+                                    }"
+                                }
+
+                        /*
+                         * IMPORTANT:
+                         * Never import YouTube thumbnail artwork.
+                         *
+                         * coverUrl is intentionally blank here even though
+                         * the backend currently returns SABDHAM_DEFAULT_ARTWORK.
+                         * Native UI will therefore use its own verified
+                         * SABDHAM/default song placeholder.
+                         */
+                        importedTracks += Track(
+                            id =
+                                obj.optString("id").trim()
+                                    .ifBlank { "yt-$videoId" },
+                            title = title,
+                            artist =
+                                artist.ifBlank { "Sabdham Artist" },
+                            album =
+                                obj.optString(
+                                    "album",
+                                    "YouTube Playlist"
+                                ),
+                            durationSeconds =
+                                duration.coerceAtLeast(1L),
+                            durationFormatted = durationFormatted,
+                            coverUrl = "",
+                            audioUrl = "yt:$videoId",
+                            youtubeVideoId = videoId,
+                            language =
+                                obj.optString("language", "all"),
+                            genre =
+                                obj.optString(
+                                    "genre",
+                                    "Imported"
+                                ),
+                            year = obj.optInt("year", 2024),
+                            releaseDate =
+                                obj.optString(
+                                    "releaseDate",
+                                    "2024-01-01"
+                                ),
+                            popularityScore =
+                                obj.optInt("popularityScore", 80),
+                            streamCount =
+                                obj.optLong("streamCount", 0L),
+                            viewCount =
+                                obj.optLong("viewCount", 0L),
+                            isTrendingNow =
+                                obj.optBoolean(
+                                    "isTrendingNow",
+                                    false
+                                )
+                        )
+                    }
+
+                    val uniqueTracks =
+                        importedTracks.distinctBy { it.id }
+
+                    if (uniqueTracks.isEmpty()) {
+                        return@withContext LibraryResult(
+                            false,
+                            "No songs found in this YouTube playlist."
+                        )
+                    }
+
+                    /*
+                     * The public endpoint currently does not return
+                     * playlist metadata, so use a safe SABDHAM name.
+                     */
+                    val playlistName = "YouTube Playlist"
+
+                    val result =
+                        createPlaylist(
+                            context = context,
+                            name = playlistName,
+                            description = "Imported from YouTube",
+                            tracks = uniqueTracks
+                        )
+
+                    if (result.success) {
+                        result.copy(
+                            message =
+                                "Imported YouTube playlist with ${uniqueTracks.size} songs."
+                        )
+                    } else {
+                        result
+                    }
+                }
+
+                else -> {
+                    LibraryResult(
+                        false,
+                        "Unsupported link. Paste a Spotify or YouTube playlist URL."
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            LibraryResult(
+                false,
+                e.message ?: "Playlist import failed."
+            )
+        }
+    }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { Play, Pause, Sparkles, Heart, Compass } from 'lucide-react';
 import { Language, Artist, Track } from '../types';
 import { SectionRow } from './SectionRow';
@@ -232,7 +232,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
 
     setCatalogView({
       title: genre.name,
-      subtitle: `${genre.description} • Verified catalog collection`,
+      subtitle: `${genre.description} â€¢ Verified catalog collection`,
       tracks: genreTracks,
     });
   };
@@ -267,7 +267,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
               Your Library
             </span>
             <span className="text-xs text-neutral-400 font-medium">
-              Songs you've liked • Quick access to your favorites
+              Songs you've liked â€¢ Quick access to your favorites
             </span>
           </div>
           <SectionRow
@@ -293,18 +293,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
             Recent Hits
           </span>
           <span className="text-xs text-neutral-400 font-medium">
-            🔥 Hourly Auto-Rotating Catalog • High Streams & Trends
+            ðŸ”¥ Hourly Auto-Rotating Catalog â€¢ High Streams & Trends
           </span>
         </div>
         <SectionRow
           title={
             selectedLanguage === 'tamil'
-              ? '🔥 Recent Hits • Tamil'
+              ? 'ðŸ”¥ Recent Hits â€¢ Tamil'
               : selectedLanguage === 'sinhala'
-              ? '🔥 Recent Hits • Sinhala'
+              ? 'ðŸ”¥ Recent Hits â€¢ Sinhala'
               : selectedLanguage === 'english'
-              ? '🔥 Recent Hits • English'
-              : '🔥 Recent Hits'
+              ? 'ðŸ”¥ Recent Hits â€¢ English'
+              : 'ðŸ”¥ Recent Hits'
           }
           subtitle={
             selectedLanguage === 'tamil'
@@ -317,8 +317,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
           }
           tracks={trendingHits.length > 0 ? trendingHits : dynamicRecentTracks}
           onSeeAll={() => setCatalogView({
-            title: '🔥 Recent Hits',
-            subtitle: 'Songs people are listening to NOW • High Streams & Trends',
+            title: 'ðŸ”¥ Recent Hits',
+            subtitle: 'Songs people are listening to NOW â€¢ High Streams & Trends',
             tracks: trendingHits.length > 0 ? trendingHits : recentHitsPool
           })}
         />
@@ -366,6 +366,22 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
         />
       )}
 
+      {/* Explore Genres */}
+      {!isRecentMode && (
+        <GenresRow
+          genres={
+            selectedLanguage === 'all'
+              ? GENRES
+              : GENRES.filter(
+                  (genre) =>
+                    genre.language === 'all' ||
+                    genre.language === selectedLanguage
+                )
+          }
+          onSelectGenre={handleSelectGenre}
+        />
+      )}
+
       {/* 5. Popular Artists */}
       {!isRecentMode && (
         <PopularArtistsRow 
@@ -374,7 +390,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
           onSeeAll={() => setCatalogView({
             title: 'Popular Artists',
             subtitle: 'Top trending artists and legendary hit-makers',
-            tracks: ALL_TRACKS.filter(t => dynamicArtists.some(a => t.artist.toLowerCase().includes(a.name.toLowerCase())))
+            tracks: ALL_TRACKS.filter(t => dynamicArtists.some(a => (t.artist.toLowerCase().includes(a.name.toLowerCase()) || a.name.toLowerCase().includes(t.artist.toLowerCase()))))
           })}
         />
       )}
@@ -633,4 +649,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
     </div>
   );
 };
+
+
 

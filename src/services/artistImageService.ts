@@ -1,4 +1,4 @@
-import { Artist } from '../types';
+﻿import { Artist } from '../types';
 
 export const DEFAULT_ARTIST_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
@@ -21,7 +21,7 @@ export const DEFAULT_ARTIST_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURICo
 </svg>
 `)}`;
 
-const ARTIST_IMAGE_CACHE_KEY = 'sabdham_artist_image_cache_v3';
+const ARTIST_IMAGE_CACHE_KEY = 'sabdham_artist_image_cache_v4';
 
 // In-memory runtime cache keyed by artist.id and normalized artist.name
 const inMemoryCache = new Map<string, string>();
@@ -78,6 +78,20 @@ export function isValidArtistProfileImage(url: string | null | undefined): boole
 
   // Filter out Unsplash stock photos
   if (clean.includes('images.unsplash.com')) {
+    return false;
+  }
+
+  // Never use Apple Music / iTunes song or album artwork as an artist photo.
+  // These URLs commonly end in cover.jpg and represent release artwork,
+  // not a verified artist profile image.
+  if (
+    clean.includes('mzstatic.com') ||
+    clean.includes('is1-ssl.mzstatic.com') ||
+    clean.includes('is2-ssl.mzstatic.com') ||
+    clean.includes('is3-ssl.mzstatic.com') ||
+    clean.includes('is4-ssl.mzstatic.com') ||
+    clean.includes('is5-ssl.mzstatic.com')
+  ) {
     return false;
   }
 
@@ -239,3 +253,4 @@ export async function resolveArtistImage(artist: { id: string; name: string; ima
   cacheArtistImage(artistId, artistName, DEFAULT_ARTIST_PLACEHOLDER);
   return DEFAULT_ARTIST_PLACEHOLDER;
 }
+

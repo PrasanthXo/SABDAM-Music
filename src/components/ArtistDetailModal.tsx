@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { X, Play, Heart, Disc3 } from 'lucide-react';
 import { Artist } from '../types';
 import { ALL_TRACKS } from '../data/musicCatalog';
@@ -19,7 +19,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({ artist, on
 
   const artistTracks = ALL_TRACKS.filter(
     (t) =>
-      t.artist.toLowerCase().includes(artist.name.toLowerCase()) ||
+      (t.artist.toLowerCase().includes(artist.name.toLowerCase()) || artist.name.toLowerCase().includes(t.artist.toLowerCase())) ||
       (artist.name.includes('Rahman') && t.artist.includes('Rahman')) ||
       (artist.name.includes('Ilaiyaraaja') && t.artist.includes('Ilaiyaraaja')) ||
       (artist.name.includes('Amaradeva') && t.artist.includes('Amaradeva')) ||
@@ -111,7 +111,7 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({ artist, on
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-xs text-neutral-400 w-5 text-center">
-                          {isCurrent && isPlaying ? <span className="text-[#1db954]">▶</span> : idx + 1}
+                          {isCurrent && isPlaying ? <span className="text-[#1db954]">â–¶</span> : idx + 1}
                         </span>
                         <CoverArtImage
                           track={track}
@@ -151,3 +151,4 @@ export const ArtistDetailModal: React.FC<ArtistDetailModalProps> = ({ artist, on
     </div>
   );
 };
+

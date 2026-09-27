@@ -1,0 +1,36 @@
+                        onClick = {
+                            val link = importPlaylistUrl.trim()
+
+                            if (link.isBlank()) {
+                                importLinkError = "Enter a playlist link."
+                            } else if (!importingPlaylist) {
+                                importingPlaylist = true
+                                importLinkError = null
+
+                                libraryScope.launch {
+                                    val result =
+                                        SabdhamLibraryService.importPlaylistByLink(
+                                            context = libraryContext,
+                                            playlistUrl = link
+                                        )
+
+                                    importingPlaylist = false
+
+                                    if (result.success) {
+                                        if (result.playlists.isNotEmpty()) {
+                                            libraryPlaylists = result.playlists
+                                        }
+
+                                        importPlaylistUrl = ""
+                                        importLinkError = null
+                                        showImportLinkDialog = false
+                                    } else {
+                                        importLinkError =
+                                            result.message.ifBlank {
+                                                "Playlist import failed."
+                                            }
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !importingPlaylist

@@ -1,0 +1,93 @@
+﻿        if (showRenamePlaylistDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!renamingPlaylist) {
+                        showRenamePlaylistDialog = false
+                        renamePlaylistError = null
+                    }
+                },
+                containerColor = Color(0xFF18191E),
+                title = {
+                    Text("Rename Playlist", color = Color.White, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = renamePlaylistName,
+                            onValueChange = {
+                                renamePlaylistName = it
+                                renamePlaylistError = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !renamingPlaylist,
+                            singleLine = true,
+                            label = { Text("Playlist name") }
+                        )
+
+                        renamePlaylistError?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(it, color = Color(0xFFFF6B6B), fontSize = 12.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !renamingPlaylist,
+                        onClick = {
+                            val name = renamePlaylistName.trim()
+
+                            if (name.isBlank()) {
+                                renamePlaylistError = "Enter a playlist name."
+                            } else {
+                                renamingPlaylist = true
+                                libraryScope.launch {
+                                    val result = SabdhamLibraryService.renamePlaylist(
+                                        context = libraryContext,
+                                        playlistId = selectedPlaylist.id,
+                                        newName = name
+                                    )
+
+                                    renamingPlaylist = false
+
+                                    if (result.success) {
+                                        if (result.playlists.isNotEmpty()) {
+                                            libraryPlaylists = result.playlists
+                                            selectedLibraryPlaylist =
+                                                result.playlists.firstOrNull {
+                                                    it.id == selectedPlaylist.id
+                                                }
+                                        } else {
+                                            selectedLibraryPlaylist =
+                                                selectedPlaylist.copy(name = name)
+                                        }
+
+                                        showRenamePlaylistDialog = false
+                                        renamePlaylistError = null
+                                    } else {
+                                        renamePlaylistError = result.message
+                                    }
+                                }
+                            }
+                        }
+                    ) {
+                        Text(
+                            if (renamingPlaylist) "Renaming..." else "Rename",
+                            color = green,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !renamingPlaylist,
+                        onClick = {
+                            showRenamePlaylistDialog = false
+                            renamePlaylistError = null
+                        }
+                    ) {
+                        Text("Cancel", color = Color.White)
+                    }
+                }
+            )
+        }
+

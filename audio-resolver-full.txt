@@ -1,0 +1,103 @@
+// Strict stream resolver: only returns verified direct streams or authentic YouTube IDs
+async function resolveAudioStreamInfo(
+  videoId?: string,
+  title?: string,
+  artist?: string,
+  query?: string,
+  excludeVideoIds: string[] = []
+): Promise<StreamInfo> {
+  let rawVideoId = videoId ? videoId.replace('yt-', '').replace('yt:', '').trim() : '';
+  let activeVideoId = isAuthenticYouTubeVideoId(rawVideoId) && !excludeVideoIds.includes(rawVideoId) ? rawVideoId : '';
+
+  // If we already have a verified 11-char YouTube Video ID not excluded, resolve its direct audio URL!
+  if (activeVideoId && activeVideoId.length === 11) {
+    const audioUrl = await resolveYouTubeAudioUrl(activeVideoId);
+    return {
+      url: audioUrl,
+      videoId: activeVideoId,
+            source: 'youtube',
+    };
+  }
+
+  const cacheKey = (activeVideoId || `${title || ''}_${artist || ''}` || query || 'track').trim();
+  const cached = streamCache.get(cacheKey);
+  if (cached && cached.coverUrl && cached.expiresAt > Date.now() && (!cached.videoId || !excludeVideoIds.includes(cached.videoId))) {
+    return { url: cached.url, coverUrl: cached.coverUrl, duration: cached.duration, videoId: activeVideoId || cached.videoId, source: 'cache' };
+  }
+
+  let activeTitle = title ? title.trim() : '';
+  let activeArtist = artist && artist !== 'Unknown Artist' ? artist.trim() : '';
+
+  // Clean YouTube-style titles before looking up the real song on JioSaavn.
+  // Example:
+  // "Aathi - Video Song | Kaththi | Vijay | ..." -> "Aathi"
+  let saavnTitle = activeTitle
+    .split('|')[0]
+    .replace(/\s*[-–—]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
+    .replace(/\s*\((official\s*)?(music\s*)?(video|audio|lyrics?).*?\)\s*/gi, ' ')
+    .replace(/\s*\[(official\s*)?(music\s*)?(video|audio|lyrics?).*?\]\s*/gi, ' ')
+    .replace(/\b(official\s+video|official\s+audio|video\s+song|lyric\s+video|lyrics\s+video)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!saavnTitle) saavnTitle = activeTitle;
+
+  // Prefer title + artist to prevent unrelated same-title matches.
+  if (saavnTitle && activeArtist) {
+    const saavnStream = await resolveFromJioSaavn(
+      `${saavnTitle} ${activeArtist}`,
+      saavnTitle,
+      activeArtist
+    );
+
+    if (saavnStream && saavnStream.url) {
+      streamCache.set(cacheKey, {
+        url: saavnStream.url,
+        coverUrl: saavnStream.coverUrl,
+        duration: saavnStream.duration,
+        videoId: activeVideoId,
+        expiresAt: Date.now() + 6 * 3600 * 1000
+      });
+      return saavnStream;
+    }
+  }
+
+  // Use title-only matching only when no usable artist was supplied.
+  if (saavnTitle && !activeArtist) {
+    const saavnStream = await resolveFromJioSaavn(
+      saavnTitle,
+      saavnTitle
+    );
+
+    if (saavnStream && saavnStream.url) {
+      streamCache.set(cacheKey, {
+        url: saavnStream.url,
+        coverUrl: saavnStream.coverUrl,
+        duration: saavnStream.duration,
+        videoId: activeVideoId,
+        expiresAt: Date.now() + 6 * 3600 * 1000
+      });
+      return saavnStream;
+    }
+  }
+  // Tier 2: Dynamically resolve to YouTube video ID
+  if ((!activeVideoId || excludeVideoIds.includes(activeVideoId)) && activeTitle) {
+    const resolvedYt = await resolveYouTubeVideoBySong(activeTitle, activeArtist, excludeVideoIds);
+    if (resolvedYt && resolvedYt.videoId) {
+      activeVideoId = resolvedYt.videoId;
+    }
+  }
+
+  // Return authentic YouTube stream
+  let audioUrl: string | null = null;
+  if (activeVideoId && activeVideoId.length === 11) {
+    audioUrl = await resolveYouTubeAudioUrl(activeVideoId);
+  }
+  return {
+    url: audioUrl,
+    videoId: activeVideoId,
+        source: 'youtube',
+  };
+}
+
+// API: Search real music metadata using JioSaavn

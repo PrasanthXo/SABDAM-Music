@@ -1,0 +1,88 @@
+﻿        if (showDeletePlaylistDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!deletingPlaylist) {
+                        showDeletePlaylistDialog = false
+                        deletePlaylistError = null
+                    }
+                },
+                containerColor = Color(0xFF18191E),
+                title = {
+                    Text(
+                        text = "Delete Playlist?",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "Delete \"${selectedPlaylist.name}\"? This removes the playlist, not the songs from SABDHAM.",
+                            color = Color.White
+                        )
+
+                        deletePlaylistError?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = it,
+                                color = Color(0xFFFF6B6B),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !deletingPlaylist,
+                        onClick = {
+                            deletingPlaylist = true
+                            deletePlaylistError = null
+
+                            libraryScope.launch {
+                                val result = SabdhamLibraryService.deletePlaylist(
+                                    context = libraryContext,
+                                    playlistId = selectedPlaylist.id
+                                )
+
+                                deletingPlaylist = false
+
+                                if (result.success) {
+                                    libraryPlaylists =
+                                        if (result.playlists.isNotEmpty()) {
+                                            result.playlists
+                                        } else {
+                                            libraryPlaylists.filterNot {
+                                                it.id == selectedPlaylist.id
+                                            }
+                                        }
+
+                                    showDeletePlaylistDialog = false
+                                    deletePlaylistError = null
+                                    selectedLibraryPlaylist = null
+                                } else {
+                                    deletePlaylistError = result.message
+                                }
+                            }
+                        }
+                    ) {
+                        Text(
+                            text = if (deletingPlaylist) "Deleting..." else "Delete",
+                            color = Color(0xFFFF6B6B),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !deletingPlaylist,
+                        onClick = {
+                            showDeletePlaylistDialog = false
+                            deletePlaylistError = null
+                        }
+                    ) {
+                        Text("Cancel", color = Color.White)
+                    }
+                }
+            )
+        }
+

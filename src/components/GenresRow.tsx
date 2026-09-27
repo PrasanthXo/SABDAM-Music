@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+﻿import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight, Disc3, Play, Pause } from 'lucide-react';
 import { GenreItem, ALL_TRACKS, GENRES } from '../data/musicCatalog';
 import { Track } from '../types';
@@ -101,12 +101,25 @@ export const GenresRow: React.FC<GenresRowProps> = ({ genres = GENRES, onSelectG
             >
               {/* Background Cover Image with Gradient Overlay */}
               <div className="h-28 sm:h-32 relative overflow-hidden">
-                <img
-                  src={genre.coverUrl}
-                  alt={genre.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  loading="lazy"
+                {/* SABDHAM local genre artwork - no external/YouTube cover */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${genre.gradient}`} />
+                <div className="absolute inset-0 opacity-30"
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(circle at 20% 20%, rgba(255,255,0,.55), transparent 32%), radial-gradient(circle at 80% 80%, rgba(0,255,120,.45), transparent 38%)"
+                  }}
                 />
+                <div className="absolute inset-0 flex items-center justify-center p-4">
+                  <div className="text-center">
+                    <Disc3 className="w-9 h-9 mx-auto mb-2 text-yellow-300 drop-shadow-lg" />
+                    <div className="text-lg sm:text-xl font-black text-white uppercase tracking-tight drop-shadow-lg">
+                      {genre.name}
+                    </div>
+                    <div className="mt-1 text-[10px] font-bold tracking-[0.25em] text-yellow-300">
+                      SABDHAM
+                    </div>
+                  </div>
+                </div>
                 <div
                   className={`absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/70 to-transparent`}
                 />
@@ -153,3 +166,4 @@ export const GenresRow: React.FC<GenresRowProps> = ({ genres = GENRES, onSelectG
     </section>
   );
 };
+

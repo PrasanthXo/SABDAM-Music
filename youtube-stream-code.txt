@@ -1,0 +1,82 @@
+    res.status(500).json({ error: 'MusicBrainz lookup failed', message: err.message });
+  }
+});
+
+// API: Stream redirection & MP3 playback proxy endpoint
+app.get(['/api/youtube/stream', '/api/youtube/mp3'], async (req, res) => {
+  try {
+    const videoId = (req.query.id as string || '').replace('yt-', '').trim();
+    const title = (req.query.title as string || '').trim();
+    const artist = (req.query.artist as string || '').trim();
+
+    if (!videoId && !title) {
+      return res.status(400).json({ error: 'Missing video id or title parameter' });
+    }
+
+    const streamInfo = await resolveAudioStreamInfo(videoId, title, artist);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    if (streamInfo && streamInfo.url) {
+      if (streamInfo.url.startsWith('http')) {
+        const headers: Record<string, string> = {
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'accept': '*/*',
+        };
+
+        if (req.headers.range) {
+          headers['range'] = req.headers.range;
+        }
+
+        const options = {
+          method: 'GET',
+          headers,
+        };
+
+        const proxyReq = https.request(streamInfo.url, options, (proxyRes) => {
+          // Force pure audio mime type to tell Chrome/Safari background audio is permitted!
+          res.setHeader('Content-Type', 'audio/mp4');
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+
+          if (proxyRes.headers['content-range']) {
+            res.setHeader('Content-Range', proxyRes.headers['content-range']);
+          }
+          if (proxyRes.headers['content-length']) {
+            res.setHeader('Content-Length', proxyRes.headers['content-length']);
+          }
+
+          res.writeHead(proxyRes.statusCode || 200);
+          proxyRes.pipe(res);
+        });
+
+        proxyReq.on('error', (e) => {
+          console.error('[YouTube Stream Proxy] Request error:', e);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to stream audio from source' });
+          }
+        });
+
+        req.on('close', () => {
+          proxyReq.destroy();
+        });
+
+        return proxyReq.end();
+      } else {
+        return res.redirect(302, streamInfo.url);
+      }
+    }
+    return res.status(404).json({
+      error: 'Direct audio stream not available. Use YouTube player.',
+      useYouTube: true,
+      videoId: streamInfo.videoId || videoId,
+    });
+  } catch (err: any) {
+    console.error('[YouTube Stream] Error in streaming endpoint:', err);
+    res.status(500).json({ error: 'Failed to stream audio' });
+  }
+});
+
+// API: Stream resolution endpoint returning direct audio stream URL and metadata
+app.get('/api/stream/resolve', async (req, res) => {

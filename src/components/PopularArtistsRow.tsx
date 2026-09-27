@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+﻿import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause } from 'lucide-react';
 import { Artist, Track } from '../types';
 import { useMusic } from '../context/MusicContext';
@@ -16,7 +16,7 @@ export const PopularArtistsRow: React.FC<PopularArtistsRowProps> = ({ artists, o
   const { playTrack, isPlaying, currentTrack, togglePlayPause } = useMusic();
 
   const allArtistTracks = artists.flatMap(artist => 
-    ALL_TRACKS.filter(t => t.artist.toLowerCase().includes(artist.name.toLowerCase())).slice(0, 5)
+    ALL_TRACKS.filter(t => (t.artist.toLowerCase().includes(artist.name.toLowerCase()) || artist.name.toLowerCase().includes(t.artist.toLowerCase()))).slice(0, 5)
   );
   
   const isCurrentMixLoaded = currentTrack && allArtistTracks.some(t => t.id === currentTrack.id);
@@ -32,7 +32,7 @@ export const PopularArtistsRow: React.FC<PopularArtistsRowProps> = ({ artists, o
   const handleQuickPlayArtist = (e: React.MouseEvent, artist: Artist) => {
     e.stopPropagation();
     const artistTracks = ALL_TRACKS.filter((t) =>
-      t.artist.toLowerCase().includes(artist.name.toLowerCase())
+      (t.artist.toLowerCase().includes(artist.name.toLowerCase()) || artist.name.toLowerCase().includes(t.artist.toLowerCase()))
     );
     if (artistTracks.length > 0) {
       playTrack(artistTracks[0], artistTracks);
@@ -149,3 +149,4 @@ export const PopularArtistsRow: React.FC<PopularArtistsRowProps> = ({ artists, o
     </section>
   );
 };
+
