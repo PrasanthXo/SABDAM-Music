@@ -2808,6 +2808,25 @@ async function resolveAudioStreamInfo(
       return saavnStream;
     }
   }
+  // If title + artist failed on Saavn, retry title-only before YouTube.
+  if (saavnTitle && activeArtist) {
+    const titleOnlySaavnStream = await resolveFromJioSaavn(
+      saavnTitle,
+      saavnTitle
+    );
+
+    if (titleOnlySaavnStream && titleOnlySaavnStream.url) {
+      streamCache.set(cacheKey, {
+        url: titleOnlySaavnStream.url,
+        coverUrl: titleOnlySaavnStream.coverUrl,
+        duration: titleOnlySaavnStream.duration,
+        videoId: activeVideoId,
+        expiresAt: Date.now() + 6 * 3600 * 1000
+      });
+
+      return titleOnlySaavnStream;
+    }
+  }
   // Tier 2: Dynamically resolve to YouTube video ID
   if ((!activeVideoId || excludeVideoIds.includes(activeVideoId)) && activeTitle) {
     const resolvedYt = await resolveYouTubeVideoBySong(activeTitle, activeArtist, excludeVideoIds);
