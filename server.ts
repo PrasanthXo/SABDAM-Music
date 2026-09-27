@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import https from 'https';
 import path from 'path';
 import fs from 'fs';
@@ -394,7 +394,7 @@ async function getAuthUser(req: express.Request): Promise<UserRecord | null> {
         );
 
         user = {
-          id: decodedToken.uid,
+          id: dbUser?.uid || decodedToken.uid,
           email,
           name: decodedToken.name || email.split('@')[0],
           provider: 'google',
@@ -407,8 +407,8 @@ async function getAuthUser(req: express.Request): Promise<UserRecord | null> {
         };
 
         users.set(email, user);
-        usersById.set(decodedToken.uid, user);
-        initUserData(decodedToken.uid, email);
+        usersById.set(dbUser?.uid || decodedToken.uid, user);
+        initUserData(dbUser?.uid || decodedToken.uid, email);
         savePersistedData();
       }
       return user || null;
@@ -531,7 +531,7 @@ app.post('/api/auth/register', async (req, res) => {
     const token = createSessionToken(newUser);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nÃ¢Å“â€¦ [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
+    console.log(`\nâœ… [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
 
     return res.status(201).json({
       success: true,
@@ -572,7 +572,7 @@ app.post('/api/auth/login', async (req, res) => {
     const token = createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nÃ°Å¸â€â€˜ [Auth] User signed in: ${email} (${user.name})`);
+    console.log(`\nðŸ”‘ [Auth] User signed in: ${email} (${user.name})`);
 
     return res.json({
       success: true,
@@ -612,7 +612,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     resetCodes.set(email, { code, expiresAt });
 
-    console.log(`\nÃ°Å¸â€Â [Auth] Password Reset Code generated for ${email}: [REDACTED]`);
+    console.log(`\nðŸ” [Auth] Password Reset Code generated for ${email}: [REDACTED]`);
 
     // Dispatch real email to user's inbox
     await sendOtpEmail(email, code, 'signin', user.name);
@@ -677,7 +677,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const token = createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nÃ°Å¸Å½â€° [Auth] Password reset successfully for ${email}`);
+    console.log(`\nðŸŽ‰ [Auth] Password reset successfully for ${email}`);
 
     return res.json({
       success: true,
@@ -761,7 +761,7 @@ app.post('/api/auth/otp/send', async (req, res) => {
       attempts: 0,
     });
 
-    console.log(`\nÃ°Å¸â€œÂ¨ [Auth Email OTP] Code generated for ${email}: [REDACTED] (purpose: ${purpose}, existing: ${!!existing})`);
+    console.log(`\nðŸ“¨ [Auth Email OTP] Code generated for ${email}: [REDACTED] (purpose: ${purpose}, existing: ${!!existing})`);
 
     // Dispatch real email to user's inbox
     const mailResult = await sendOtpEmail(email, code, purpose as any, rawName);
@@ -923,7 +923,7 @@ app.post('/api/auth/otp/verify', async (req, res) => {
     const token = createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nÃ°Å¸Å½â€° [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
+    console.log(`\nðŸŽ‰ [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
 
     return res.json({
       success: true,
@@ -1065,38 +1065,63 @@ app.post('/api/auth/google', requireAuth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized: Missing user details' });
     }
 
+    const normalizedEmail = req.user.email.trim().toLowerCase();
     const { displayName, photoUrl } = req.body || {};
-    const name = displayName || req.user.name || req.user.email.split('@')[0];
+    const name = displayName || req.user.name || normalizedEmail.split('@')[0];
     const picture = photoUrl || req.user.picture || null;
 
-    // Upsert into Cloud SQL users table
-    const dbUser = await getOrCreateUser(req.user.uid, req.user.email, name, picture);
+    // One verified email = one SABDHAM account.
+    // getOrCreateUser returns the existing account when this email
+    // was previously registered using Email OTP.
+    const dbUser = await getOrCreateUser(
+      req.user.uid,
+      normalizedEmail,
+      name,
+      picture
+    );
 
-    // Also update in-memory cache for app operations
-    let localUser = users.get(req.user.email);
+    if (!dbUser) {
+      return res.status(500).json({
+        error: 'Unable to resolve SABDHAM account.'
+      });
+    }
+
+    // IMPORTANT: use the canonical SABDHAM UID returned by Cloud SQL.
+    // Do not replace an existing OTP account UID with the Firebase UID.
+    const sabdhamUid = dbUser.uid;
+
+    let localUser = users.get(normalizedEmail);
+
     if (!localUser) {
       localUser = {
-        id: req.user.uid,
-        email: req.user.email,
-        name,
+        id: sabdhamUid,
+        email: normalizedEmail,
+        name: dbUser.displayName || name,
         provider: 'google',
-        avatarUrl: picture,
+        avatarUrl: dbUser.photoUrl || picture || undefined,
         avatarColor: '#4f46e5',
-        createdAt: dbUser?.createdAt
+        createdAt: dbUser.createdAt
           ? dbUser.createdAt.toISOString()
           : new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
       };
-      users.set(req.user.email, localUser);
-      usersById.set(req.user.uid, localUser);
-      initUserData(req.user.uid);
-      savePersistedData();
     } else {
+      // Keep the existing SABDHAM identity and its data.
+      localUser.id = sabdhamUid;
       localUser.lastLoginAt = new Date().toISOString();
-      if (picture) localUser.avatarUrl = picture;
-      usersById.set(localUser.id, localUser);
-      savePersistedData();
+
+      if (picture) {
+        localUser.avatarUrl = picture;
+      }
     }
+
+    users.set(normalizedEmail, localUser);
+    usersById.set(sabdhamUid, localUser);
+
+    // Link the same library under both canonical UID and email.
+    initUserData(sabdhamUid, normalizedEmail);
+
+    savePersistedData();
 
     const token = createSessionToken(localUser);
 
@@ -1108,10 +1133,11 @@ app.post('/api/auth/google', requireAuth, async (req: AuthRequest, res) => {
     });
   } catch (error: any) {
     console.error('Error syncing Google user with Cloud SQL:', error);
-    return res.status(500).json({ error: 'Failed to synchronize user profile with database.' });
+    return res.status(500).json({
+      error: 'Failed to synchronize user profile with database.'
+    });
   }
 });
-
 // Cloud SQL database user endpoints
 app.get('/api/db/favorites', async (req, res) => {
   try {
@@ -1371,7 +1397,7 @@ app.get('/oauth/spotify/callback', (req, res) => {
     <head><title>Spotify Authorization</title></head>
     <body style="background:#121212;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
       <div style="text-align:center;padding:20px;">
-        <div style="width:40px;height:40px;border-radius:50%;background:#1db954;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;font-size:20px;">Ã¢Å“â€œ</div>
+        <div style="width:40px;height:40px;border-radius:50%;background:#1db954;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;font-size:20px;">âœ“</div>
         <h3 style="margin:0 0 8px;">Spotify Connected</h3>
         <p style="color:#a1a1aa;font-size:14px;margin:0;">Returning to Sabdham...</p>
         <script>
@@ -2712,7 +2738,7 @@ async function resolveAudioStreamInfo(
   let activeVideoId = isAuthenticYouTubeVideoId(rawVideoId) && !excludeVideoIds.includes(rawVideoId) ? rawVideoId : '';
 
   // If we already have a verified 11-char YouTube Video ID not excluded, resolve its direct audio URL!
-  if (activeVideoId && activeVideoId.length === 11) {
+  if (false && activeVideoId && activeVideoId.length === 11) {
     const audioUrl = await resolveYouTubeAudioUrl(activeVideoId);
     return {
       url: audioUrl,
@@ -2735,7 +2761,7 @@ async function resolveAudioStreamInfo(
   // "Aathi - Video Song | Kaththi | Vijay | ..." -> "Aathi"
   let saavnTitle = activeTitle
     .split('|')[0]
-    .replace(/\s*[-â€“â€”]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
+    .replace(/\s*[-–—]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
     .replace(/\s*\((official\s*)?(music\s*)?(video|audio|lyrics?).*?\)\s*/gi, ' ')
     .replace(/\s*\[(official\s*)?(music\s*)?(video|audio|lyrics?).*?\]\s*/gi, ' ')
     .replace(/\b(official\s+video|official\s+audio|video\s+song|lyric\s+video|lyrics\s+video)\b/gi, '')
@@ -4231,6 +4257,29 @@ app.get('/api/export/web-apk-zip', async (req, res) => {
 
     if (fs.existsSync(distPath) && fs.existsSync(path.join(distPath, 'index.html'))) {
       addDirToZip(distPath, zip);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     } else {
       return res.status(404).json({ error: 'Web build assets not found. Run build first.' });
     }
