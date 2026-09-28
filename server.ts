@@ -1304,6 +1304,56 @@ app.post('/api/db/favorites', async (req, res) => {
       return res.status(500).json({ error: 'Failed to save favorite.' });
     }
 
+    // SABDHAM_FAVORITE_MEMORY_SYNC
+    // Keep the in-memory library consistent with the atomic PostgreSQL write.
+    // Otherwise a later full /api/user/data sync can overwrite the new like.
+    const favoriteId = String(trackId).trim();
+
+    const favoriteState: UserDataRecord =
+      userDataStore.get(user.id) ||
+      (user.email
+        ? userDataStore.get(user.email.toLowerCase())
+        : undefined) || {
+        likedTrackIds: [],
+        likedTracks: [],
+        recentlyPlayed: [],
+        customPlaylists: [],
+        customSongs: [],
+      };
+
+    favoriteState.likedTrackIds = Array.from(
+      new Set([
+        ...(favoriteState.likedTrackIds || []),
+        favoriteId,
+      ])
+    );
+
+    if (
+      trackData &&
+      typeof trackData === 'object'
+    ) {
+      favoriteState.likedTracks = [
+        ...(favoriteState.likedTracks || []).filter(
+          (item: any) => item?.id !== favoriteId
+        ),
+        {
+          ...trackData,
+          id: favoriteId,
+        },
+      ];
+    }
+
+    userDataStore.set(user.id, favoriteState);
+
+    if (user.email) {
+      userDataStore.set(
+        user.email.toLowerCase(),
+        favoriteState
+      );
+    }
+
+    savePersistedData();
+
     res.json({ success: true });
   } catch (error: any) {
     console.error('Failed to add favorite to Cloud SQL:', error);
@@ -1318,7 +1368,52 @@ app.delete('/api/db/favorites/:trackId', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const { trackId } = req.params;
-    await removeUserFavorite(user.id, trackId);
+
+    const removedFavorite =
+      await removeUserFavorite(user.id, trackId);
+
+    if (!removedFavorite.success) {
+      return res
+        .status(500)
+        .json({ error: 'Failed to remove favorite.' });
+    }
+
+    // SABDHAM_FAVORITE_MEMORY_DELETE_SYNC
+    const favoriteId = String(trackId).trim();
+
+    const favoriteState: UserDataRecord =
+      userDataStore.get(user.id) ||
+      (user.email
+        ? userDataStore.get(user.email.toLowerCase())
+        : undefined) || {
+        likedTrackIds: [],
+        likedTracks: [],
+        recentlyPlayed: [],
+        customPlaylists: [],
+        customSongs: [],
+      };
+
+    favoriteState.likedTrackIds =
+      (favoriteState.likedTrackIds || [])
+        .filter((id) => id !== favoriteId);
+
+    favoriteState.likedTracks =
+      (favoriteState.likedTracks || [])
+        .filter(
+          (item: any) => item?.id !== favoriteId
+        );
+
+    userDataStore.set(user.id, favoriteState);
+
+    if (user.email) {
+      userDataStore.set(
+        user.email.toLowerCase(),
+        favoriteState
+      );
+    }
+
+    savePersistedData();
+
     res.json({ success: true });
   } catch (error: any) {
     console.error('Failed to remove favorite from Cloud SQL:', error);
@@ -4541,6 +4636,7 @@ startServer();
 
 
 // force render redeploy 2026-09-28T19:56:35
+
 
 
 
