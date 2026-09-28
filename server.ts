@@ -228,6 +228,7 @@ interface UserRecord {
 
 interface UserDataRecord {
   likedTrackIds: string[];
+  likedTracks?: any[];
   recentlyPlayed: any[];
   customPlaylists: any[];
   customSongs: any[];
@@ -1417,7 +1418,7 @@ app.post('/api/user/data', async (req, res) => {
     return res.status(401).json({ error: 'Authentication required to save user data.' });
   }
 
-  const { likedTrackIds, recentlyPlayed, customPlaylists, customSongs, settings, isExplicitClear } = req.body || {};
+  const { likedTrackIds, likedTracks, recentlyPlayed, customPlaylists, customSongs, settings, isExplicitClear } = req.body || {};
 
   const current = userDataStore.get(user.id) || (user.email ? userDataStore.get(user.email.toLowerCase()) : null) || {
     likedTrackIds: [],
@@ -1435,6 +1436,17 @@ app.post('/api/user/data', async (req, res) => {
       console.warn(`[Data Safeguard] Preserved ${current.likedTrackIds.length} existing liked tracks for ${user.id} against empty sync.`);
     }
   }
+
+  if (Array.isArray(likedTracks)) {
+    current.likedTracks = likedTracks.filter(
+      (track: any) =>
+        track &&
+        typeof track === 'object' &&
+        typeof track.id === 'string' &&
+        track.id.trim().length > 0
+    );
+  }
+
   if (Array.isArray(recentlyPlayed)) {
     if (recentlyPlayed.length > 0 || isExplicitClear || (current.recentlyPlayed || []).length === 0) {
       current.recentlyPlayed = recentlyPlayed.slice(0, 50);
@@ -4529,5 +4541,6 @@ startServer();
 
 
 // force render redeploy 2026-09-28T19:56:35
+
 
 

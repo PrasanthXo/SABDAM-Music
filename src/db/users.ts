@@ -139,6 +139,29 @@ export async function getUserLibraryFromDb(uid: string): Promise<DbUserLibrary |
       .where(eq(userFavorites.userUid, uid));
     const likedTrackIds = favRecords.map((r) => r.trackId);
 
+    // Preserve complete favorite metadata for Android/web clients.
+    const likedTracks: DbTrack[] = [];
+
+    for (const record of favRecords) {
+      if (!record.trackData) continue;
+
+      try {
+        const parsed = JSON.parse(record.trackData);
+
+        if (
+          parsed &&
+          typeof parsed === 'object'
+        ) {
+          likedTracks.push({
+            ...parsed,
+            id: String(parsed.id || record.trackId),
+          });
+        }
+      } catch {
+        // Keep the favorite ID even if legacy metadata is malformed.
+      }
+    }
+
     // 2. Fetch user playlists
     const playlistRecords = await db
       .select()
@@ -260,6 +283,7 @@ export async function getUserLibraryFromDb(uid: string): Promise<DbUserLibrary |
 
     return {
       likedTrackIds,
+      likedTracks,
       recentlyPlayed,
       customPlaylists,
       customSongs,
@@ -282,17 +306,76 @@ export async function saveUserLibraryToDb(
   try {
     // 1. Sync Favorites
     if (Array.isArray(data.likedTrackIds)) {
-      await db.delete(userFavorites).where(eq(userFavorites.userUid, uid));
-      const uniqueIds = Array.from(new Set(data.likedTrackIds.filter((id) => typeof id === 'string' && id.trim().length > 0)));
+      const uniqueIds = Array.from(
+        new Set(
+          data.likedTrackIds.filter(
+            (id) =>
+              typeof id === 'string' &&
+              id.trim().length > 0
+          )
+        )
+      );
+
+      /*
+       * Preserve metadata that is already stored in PostgreSQL.
+       * This is critical because settings synchronization also sends
+       * the full user library and must NEVER convert favorites into
+       * bare IDs.
+       */
+      const existingFavorites = await db
+        .select()
+        .from(userFavorites)
+        .where(eq(userFavorites.userUid, uid));
+
+      const existingTrackData = new Map<string, string | null>();
+
+      for (const favorite of existingFavorites) {
+        if (!existingTrackData.has(favorite.trackId)) {
+          existingTrackData.set(
+            favorite.trackId,
+            favorite.trackData || null
+          );
+        }
+      }
+
+      const incomingTracks = new Map<string, DbTrack>();
+
+      if (Array.isArray(data.likedTracks)) {
+        for (const track of data.likedTracks) {
+          if (
+            track &&
+            typeof track === 'object' &&
+            track.id
+          ) {
+            incomingTracks.set(
+              String(track.id),
+              track
+            );
+          }
+        }
+      }
+
+      await db
+        .delete(userFavorites)
+        .where(eq(userFavorites.userUid, uid));
+
       if (uniqueIds.length > 0) {
         await db.insert(userFavorites).values(
-          uniqueIds.map((trackId) => ({
-            userUid: uid,
-            trackId,
-          }))
+          uniqueIds.map((trackId) => {
+            const incoming = incomingTracks.get(trackId);
+
+            return {
+              userUid: uid,
+              trackId,
+              trackData: incoming
+                ? JSON.stringify(incoming)
+                : existingTrackData.get(trackId) || null,
+            };
+          })
         );
       }
     }
+
 
     // 2. Sync Custom Playlists (Upsert by ID + Clean up removed)
     if (Array.isArray(data.customPlaylists)) {
@@ -644,5 +727,6 @@ export async function deleteAuthSessionsForUser(userUid: string): Promise<void> 
     console.error('[PostgreSQL] deleteAuthSessionsForUser failed:', error);
   }
 }
+
 
 
