@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import https from 'https';
 import path from 'path';
 import fs from 'fs';
@@ -25,6 +25,12 @@ import {
   getUserLibraryFromDb,
   saveUserLibraryToDb,
   deleteUserPlaylist,
+  getUserByUid,
+  createAuthSession,
+  getAuthSession,
+  touchAuthSession,
+  deleteAuthSession,
+  deleteAuthSessionsForUser,
 } from './src/db/users.ts';
 
 dotenv.config();
@@ -348,6 +354,9 @@ function clearAuthCookie(res: express.Response) {
   res.setHeader('Set-Cookie', `mm_auth_token=; Max-Age=0; Path=/; SameSite=Lax`);
 }
 
+function hashSessionToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 // Helper to authenticate requests (supports Bearer headers, 7-day HTTP cookies, and Firebase ID tokens)
 async function getAuthUser(req: express.Request): Promise<UserRecord | null> {
   let token: string | null = null;
@@ -362,21 +371,86 @@ async function getAuthUser(req: express.Request): Promise<UserRecord | null> {
   if (!token) {
     return null;
   }
-  
-  // 1. Check custom session token
+  // 1. Check custom SABDHAM session.
+  // Memory is a cache only. PostgreSQL is the durable source of truth.
   const session = sessions.get(token);
   if (session) {
     if (Date.now() > session.expiresAt) {
       sessions.delete(token);
-      savePersistedData();
+      await deleteAuthSession(hashSessionToken(token));
       return null;
     }
-    
-    // Rolling 30-day session extension on active request
-    session.expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
 
-    const user = usersById.get(session.userId);
-    return user || null;
+    const nextExpiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    session.expiresAt = nextExpiry;
+    await touchAuthSession(hashSessionToken(token), new Date(nextExpiry));
+
+    const cachedUser = usersById.get(session.userId);
+    if (cachedUser) {
+      return cachedUser;
+    }
+  }
+
+  // SABDHAM_DB_SESSION_FALLBACK
+  // Recover after Render restart directly from Supabase/PostgreSQL.
+  try {
+    const tokenHash = hashSessionToken(token);
+    const dbSession = await getAuthSession(tokenHash);
+
+    if (dbSession) {
+      const expiryMs = dbSession.expiresAt.getTime();
+
+      if (Date.now() > expiryMs) {
+        await deleteAuthSession(tokenHash);
+        return null;
+      }
+
+      const nextExpiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      await touchAuthSession(tokenHash, new Date(nextExpiry));
+
+      let dbBackedUser = usersById.get(dbSession.userUid);
+
+      if (!dbBackedUser) {
+        const dbUser = await getUserByUid(dbSession.userUid);
+
+        if (dbUser) {
+          const provider: UserRecord['provider'] =
+            dbSession.provider === 'google'
+              ? 'google'
+              : dbSession.provider === 'email'
+                ? 'email'
+                : 'otp';
+
+          dbBackedUser = {
+            id: dbUser.uid,
+            email: dbUser.email,
+            name: dbUser.displayName || dbUser.email.split('@')[0],
+            provider,
+            avatarUrl: dbUser.photoUrl || undefined,
+            avatarColor: '#4f46e5',
+            createdAt: dbUser.createdAt
+              ? dbUser.createdAt.toISOString()
+              : new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+          };
+
+          users.set(dbBackedUser.email.toLowerCase(), dbBackedUser);
+          usersById.set(dbBackedUser.id, dbBackedUser);
+          initUserData(dbBackedUser.id, dbBackedUser.email);
+        }
+      }
+
+      if (dbBackedUser) {
+        sessions.set(token, {
+          userId: dbBackedUser.id,
+          email: dbBackedUser.email,
+          expiresAt: nextExpiry,
+        });
+        return dbBackedUser;
+      }
+    }
+  } catch (sessionError) {
+    console.error('[Auth] PostgreSQL session recovery failed:', sessionError);
   }
 
   // 2. Check Firebase ID token
@@ -420,15 +494,39 @@ async function getAuthUser(req: express.Request): Promise<UserRecord | null> {
   return null;
 }
 
-function createSessionToken(user: UserRecord): string {
-  const token = `mm_tok_${Date.now().toString(36)}_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
-  const session = {
-    userId: user.id,
+async function createSessionToken(user: UserRecord): Promise<string> {
+  // SABDHAM_DURABLE_SESSION_CREATE
+  const token = `mm_tok_${randomBytes(32).toString('hex')}`;
+  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+
+  const dbUser = await getOrCreateUser(
+    user.id,
+    user.email,
+    user.name,
+    user.avatarUrl
+  );
+
+  const canonicalUid = dbUser?.uid || user.id;
+  user.id = canonicalUid;
+
+  const saved = await createAuthSession(
+    hashSessionToken(token),
+    canonicalUid,
+    user.email,
+    user.provider,
+    new Date(expiresAt)
+  );
+
+  if (!saved) {
+    throw new Error('Unable to persist SABDHAM authentication session.');
+  }
+
+  sessions.set(token, {
+    userId: canonicalUid,
     email: user.email,
-    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
-  };
-  sessions.set(token, session);
-  savePersistedData();
+    expiresAt,
+  });
+
   return token;
 }
 
@@ -528,10 +626,10 @@ app.post('/api/auth/register', async (req, res) => {
     // Synchronize with PostgreSQL Cloud SQL
     getOrCreateUser(newUser.id, newUser.email, newUser.name, undefined).catch(() => {});
 
-    const token = createSessionToken(newUser);
+    const token = await createSessionToken(newUser);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nâœ… [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
+    console.log(`\nÃ¢Å“â€¦ [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
 
     return res.status(201).json({
       success: true,
@@ -569,10 +667,10 @@ app.post('/api/auth/login', async (req, res) => {
     // Synchronize with PostgreSQL Cloud SQL
     getOrCreateUser(user.id, user.email, user.name, user.avatarUrl).catch(() => {});
 
-    const token = createSessionToken(user);
+    const token = await createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nðŸ”‘ [Auth] User signed in: ${email} (${user.name})`);
+    console.log(`\nÃ°Å¸â€â€˜ [Auth] User signed in: ${email} (${user.name})`);
 
     return res.json({
       success: true,
@@ -612,7 +710,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     resetCodes.set(email, { code, expiresAt });
 
-    console.log(`\nðŸ” [Auth] Password Reset Code generated for ${email}: [REDACTED]`);
+    console.log(`\nÃ°Å¸â€Â [Auth] Password Reset Code generated for ${email}: [REDACTED]`);
 
     // Dispatch real email to user's inbox
     await sendOtpEmail(email, code, 'signin', user.name);
@@ -674,10 +772,10 @@ app.post('/api/auth/reset-password', async (req, res) => {
     savePersistedData();
     getOrCreateUser(user.id, user.email, user.name, user.avatarUrl).catch(() => {});
 
-    const token = createSessionToken(user);
+    const token = await createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nðŸŽ‰ [Auth] Password reset successfully for ${email}`);
+    console.log(`\nÃ°Å¸Å½â€° [Auth] Password reset successfully for ${email}`);
 
     return res.json({
       success: true,
@@ -761,7 +859,7 @@ app.post('/api/auth/otp/send', async (req, res) => {
       attempts: 0,
     });
 
-    console.log(`\nðŸ“¨ [Auth Email OTP] Code generated for ${email}: [REDACTED] (purpose: ${purpose}, existing: ${!!existing})`);
+    console.log(`\nÃ°Å¸â€œÂ¨ [Auth Email OTP] Code generated for ${email}: [REDACTED] (purpose: ${purpose}, existing: ${!!existing})`);
 
     // Dispatch real email to user's inbox
     const mailResult = await sendOtpEmail(email, code, purpose as any, rawName);
@@ -920,10 +1018,10 @@ app.post('/api/auth/otp/verify', async (req, res) => {
       }
     }
 
-    const token = createSessionToken(user);
+    const token = await createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nðŸŽ‰ [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
+    console.log(`\nÃ°Å¸Å½â€° [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
 
     return res.json({
       success: true,
@@ -978,12 +1076,14 @@ app.patch('/api/auth/profile', async (req, res) => {
 });
 
 // 6. API: Logout
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   clearAuthCookie(res);
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7).trim();
     sessions.delete(token);
+    // SABDHAM_DURABLE_LOGOUT
+    await deleteAuthSession(hashSessionToken(token));
   }
   return res.json({ success: true, message: 'Logged out successfully.' });
 });
@@ -1123,7 +1223,7 @@ app.post('/api/auth/google', requireAuth, async (req: AuthRequest, res) => {
 
     savePersistedData();
 
-    const token = createSessionToken(localUser);
+    const token = await createSessionToken(localUser);
 
     return res.json({
       success: true,
@@ -1159,11 +1259,17 @@ app.post('/api/db/favorites', async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const { trackId } = req.body || {};
+    const { trackId, trackData } = req.body || {};
     if (!trackId) {
       return res.status(400).json({ error: 'trackId is required.' });
     }
-    await addUserFavorite(user.id, trackId);
+
+    // SABDHAM_FAVORITE_RESULT_CHECK
+    const savedFavorite = await addUserFavorite(user.id, trackId, trackData);
+    if (!savedFavorite.success) {
+      return res.status(500).json({ error: 'Failed to save favorite.' });
+    }
+
     res.json({ success: true });
   } catch (error: any) {
     console.error('Failed to add favorite to Cloud SQL:', error);
@@ -1397,7 +1503,7 @@ app.get('/oauth/spotify/callback', (req, res) => {
     <head><title>Spotify Authorization</title></head>
     <body style="background:#121212;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
       <div style="text-align:center;padding:20px;">
-        <div style="width:40px;height:40px;border-radius:50%;background:#1db954;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;font-size:20px;">âœ“</div>
+        <div style="width:40px;height:40px;border-radius:50%;background:#1db954;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;font-size:20px;">Ã¢Å“â€œ</div>
         <h3 style="margin:0 0 8px;">Spotify Connected</h3>
         <p style="color:#a1a1aa;font-size:14px;margin:0;">Returning to Sabdham...</p>
         <script>
@@ -2761,7 +2867,7 @@ async function resolveAudioStreamInfo(
   // "Aathi - Video Song | Kaththi | Vijay | ..." -> "Aathi"
   let saavnTitle = activeTitle
     .split('|')[0]
-    .replace(/\s*[-–—]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
+    .replace(/\s*[-â€“â€”]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
     .replace(/\s*\((official\s*)?(music\s*)?(video|audio|lyrics?).*?\)\s*/gi, ' ')
     .replace(/\s*\[(official\s*)?(music\s*)?(video|audio|lyrics?).*?\]\s*/gi, ' ')
     .replace(/\b(official\s+video|official\s+audio|video\s+song|lyric\s+video|lyrics\s+video)\b/gi, '')
@@ -4355,6 +4461,7 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
 
 
 

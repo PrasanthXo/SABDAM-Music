@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+﻿import { relations } from 'drizzle-orm';
 import { boolean, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
@@ -7,6 +7,17 @@ export const users = pgTable('users', {
   email: text('email').notNull(),
   displayName: text('display_name'),
   photoUrl: text('photo_url'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+export const authSessions = pgTable('auth_sessions', {
+  tokenHash: text('token_hash').primaryKey(),
+  userUid: text('user_uid')
+    .references(() => users.uid, { onDelete: 'cascade' })
+    .notNull(),
+  email: text('email').notNull(),
+  provider: text('provider').notNull().default('otp'),
+  expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -130,3 +141,4 @@ export const userRecentlyPlayedRelations = relations(userRecentlyPlayed, ({ one 
     references: [users.uid],
   }),
 }));
+

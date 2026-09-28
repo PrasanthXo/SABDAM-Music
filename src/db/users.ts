@@ -7,6 +7,7 @@ import {
   userCustomSongs,
   userRecentlyPlayed,
   userSettings,
+  authSessions,
 } from './schema.ts';
 import { eq, and, desc, inArray, notInArray } from 'drizzle-orm';
 
@@ -55,6 +56,20 @@ export async function getUserByEmail(email: string) {
     return result[0] || null;
   } catch (error) {
     console.error('[Cloud SQL] getUserByEmail error:', error);
+    return null;
+  }
+}
+export async function getUserByUid(uid: string) {
+  try {
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.uid, uid))
+      .limit(1);
+
+    return result[0] || null;
+  } catch (error) {
+    console.error('[PostgreSQL] getUserByUid error:', error);
     return null;
   }
 }
@@ -438,7 +453,17 @@ export async function getUserFavorites(uid: string) {
 
 export async function addUserFavorite(uid: string, trackId: string, trackData?: any) {
   try {
-    await db.insert(userFavorites).values({
+        // SABDHAM_FAVORITE_IDEMPOTENT
+    const existing = await db
+      .select({ id: userFavorites.id })
+      .from(userFavorites)
+      .where(and(eq(userFavorites.userUid, uid), eq(userFavorites.trackId, trackId)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return { success: true };
+    }
+await db.insert(userFavorites).values({
       userUid: uid,
       trackId,
       trackData: trackData ? JSON.stringify(trackData) : null,
@@ -470,6 +495,97 @@ export async function deleteUserPlaylist(uid: string, playlistId: string): Promi
   } catch (error) {
     console.error('[Cloud SQL] deleteUserPlaylist failed:', error);
     return false;
+  }
+}
+
+export async function createAuthSession(
+  tokenHash: string,
+  userUid: string,
+  email: string,
+  provider: string,
+  expiresAt: Date
+): Promise<boolean> {
+  try {
+    await db
+      .insert(authSessions)
+      .values({
+        tokenHash,
+        userUid,
+        email: email.trim().toLowerCase(),
+        provider,
+        expiresAt,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: authSessions.tokenHash,
+        set: {
+          userUid,
+          email: email.trim().toLowerCase(),
+          provider,
+          expiresAt,
+          updatedAt: new Date(),
+        },
+      });
+
+    return true;
+  } catch (error) {
+    console.error('[PostgreSQL] createAuthSession failed:', error);
+    return false;
+  }
+}
+
+export async function getAuthSession(tokenHash: string) {
+  try {
+    const result = await db
+      .select()
+      .from(authSessions)
+      .where(eq(authSessions.tokenHash, tokenHash))
+      .limit(1);
+
+    return result[0] || null;
+  } catch (error) {
+    console.error('[PostgreSQL] getAuthSession failed:', error);
+    return null;
+  }
+}
+
+export async function touchAuthSession(
+  tokenHash: string,
+  expiresAt: Date
+): Promise<boolean> {
+  try {
+    await db
+      .update(authSessions)
+      .set({
+        expiresAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(authSessions.tokenHash, tokenHash));
+
+    return true;
+  } catch (error) {
+    console.error('[PostgreSQL] touchAuthSession failed:', error);
+    return false;
+  }
+}
+
+export async function deleteAuthSession(tokenHash: string): Promise<void> {
+  try {
+    await db
+      .delete(authSessions)
+      .where(eq(authSessions.tokenHash, tokenHash));
+  } catch (error) {
+    console.error('[PostgreSQL] deleteAuthSession failed:', error);
+  }
+}
+
+export async function deleteAuthSessionsForUser(userUid: string): Promise<void> {
+  try {
+    await db
+      .delete(authSessions)
+      .where(eq(authSessions.userUid, userUid));
+  } catch (error) {
+    console.error('[PostgreSQL] deleteAuthSessionsForUser failed:', error);
   }
 }
 
