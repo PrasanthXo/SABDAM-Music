@@ -3814,7 +3814,15 @@ app.get('/api/stream/resolve', async (req, res) => {
     const excludeVideoIds = excludeParam ? excludeParam.split(',').map((s) => s.trim()).filter(Boolean) : [];
 
     const streamInfo = await resolveAudioStreamInfo(videoId, title, artist, query, excludeVideoIds);
-    if (streamInfo && streamInfo.url && streamInfo.source === 'youtube') {
+
+    const directClientStream = String(req.query.direct || '') === '1';
+
+    if (
+      streamInfo &&
+      streamInfo.url &&
+      streamInfo.source === 'youtube' &&
+      !directClientStream
+    ) {
       streamInfo.url = `/api/youtube/stream?id=${encodeURIComponent(streamInfo.videoId || videoId)}`;
     }
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -4462,6 +4470,8 @@ process.on('uncaughtException', (err) => {
 });
 
 startServer();
+
+
 
 
 
