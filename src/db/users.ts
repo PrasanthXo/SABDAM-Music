@@ -389,14 +389,15 @@ export async function saveUserLibraryToDb(
       const uniquePlaylists = Array.from(playlistMap.values());
       const currentPlaylistIds = uniquePlaylists.map((p) => p.id);
 
-      // Remove playlists that are no longer in user's library
-      if (currentPlaylistIds.length > 0) {
-        await db
-          .delete(userPlaylists)
-          .where(and(eq(userPlaylists.userUid, uid), notInArray(userPlaylists.id, currentPlaylistIds)));
-      } else {
-        await db.delete(userPlaylists).where(eq(userPlaylists.userUid, uid));
-      }
+      // SABDHAM_PLAYLIST_NON_DESTRUCTIVE_SYNC
+      //
+      // IMPORTANT:
+      // A customPlaylists array received through /api/user/data is only
+      // a client snapshot. Missing playlist IDs must NOT be interpreted
+      // as deletion.
+      //
+      // Real deletion is performed exclusively through
+      // deleteUserPlaylist(uid, playlistId).
 
       // Upsert each unique playlist and its tracks
       for (const pl of uniquePlaylists) {

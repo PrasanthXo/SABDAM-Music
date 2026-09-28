@@ -1428,7 +1428,15 @@ app.delete('/api/db/playlists/:playlistId', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const { playlistId } = req.params;
-    await deleteUserPlaylist(user.id, playlistId);
+    // SABDHAM_PLAYLIST_DELETE_CHECK
+    const deleted =
+      await deleteUserPlaylist(user.id, playlistId);
+
+    if (!deleted) {
+      return res
+        .status(500)
+        .json({ error: 'Failed to delete playlist.' });
+    }
     const current = userDataStore.get(user.id) || userDataStore.get(user.email?.toLowerCase() || '');
     if (current && current.customPlaylists) {
       current.customPlaylists = current.customPlaylists.filter((p: any) => p.id !== playlistId);
@@ -1548,12 +1556,52 @@ app.post('/api/user/data', async (req, res) => {
     }
   }
   if (Array.isArray(customPlaylists)) {
-    if (customPlaylists.length > 0 || isExplicitClear || (current.customPlaylists || []).length === 0) {
-      current.customPlaylists = customPlaylists;
-    } else {
-      console.warn(`[Data Safeguard] Preserved ${current.customPlaylists.length} existing custom playlists for ${user.id} against empty sync.`);
+    // SABDHAM_PLAYLIST_MERGE_SYNC
+    // Client playlist arrays are snapshots, NOT deletion instructions.
+    // Merge by playlist ID so a stale client cannot erase another
+    // playlist or an imported Spotify/YouTube playlist.
+    const incomingPlaylists =
+      customPlaylists.filter(
+        (playlist: any) =>
+          playlist &&
+          typeof playlist.id === 'string' &&
+          playlist.id.trim().length > 0
+      );
+
+    if (incomingPlaylists.length > 0) {
+      const playlistsById = new Map<string, any>();
+
+      for (const existingPlaylist of current.customPlaylists || []) {
+        if (
+          existingPlaylist &&
+          typeof existingPlaylist.id === 'string' &&
+          existingPlaylist.id.trim().length > 0
+        ) {
+          playlistsById.set(
+            existingPlaylist.id,
+            existingPlaylist
+          );
+        }
+      }
+
+      for (const incomingPlaylist of incomingPlaylists) {
+        const existingPlaylist =
+          playlistsById.get(incomingPlaylist.id) || {};
+
+        playlistsById.set(
+          incomingPlaylist.id,
+          {
+            ...existingPlaylist,
+            ...incomingPlaylist,
+          }
+        );
+      }
+
+      current.customPlaylists =
+        Array.from(playlistsById.values());
     }
   }
+
   if (Array.isArray(customSongs)) {
     if (customSongs.length > 0 || isExplicitClear || (current.customSongs || []).length === 0) {
       current.customSongs = customSongs;
