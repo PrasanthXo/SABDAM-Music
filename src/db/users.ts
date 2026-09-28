@@ -240,7 +240,20 @@ export async function getUserLibraryFromDb(uid: string): Promise<DbUserLibrary |
       ? {
           audioQuality: settingsRecord[0].audioQuality,
           crossfade: settingsRecord[0].crossfade,
+          gapless: settingsRecord[0].gapless,
+          autoplay: settingsRecord[0].autoplay,
+          volumeNormalization: settingsRecord[0].volumeNormalization,
+          wifiOnlyDownloads: settingsRecord[0].wifiOnlyDownloads,
+          mobileStreaming: settingsRecord[0].mobileStreaming,
+          downloadQuality: settingsRecord[0].downloadQuality,
+          themeMode: settingsRecord[0].themeMode,
+          equalizerEnabled: settingsRecord[0].equalizerEnabled,
           equalizerPreset: settingsRecord[0].equalizerPreset,
+          eqBass: settingsRecord[0].eqBass,
+          eqLowMid: settingsRecord[0].eqLowMid,
+          eqMid: settingsRecord[0].eqMid,
+          eqHighMid: settingsRecord[0].eqHighMid,
+          eqTreble: settingsRecord[0].eqTreble,
           offlineMode: settingsRecord[0].offlineMode,
         }
       : undefined;
@@ -412,23 +425,66 @@ export async function saveUserLibraryToDb(
 
     // 5. Sync Settings
     if (data.settings && typeof data.settings === 'object') {
+      const s = data.settings;
+
       await db
         .insert(userSettings)
         .values({
           userUid: uid,
-          audioQuality: data.settings.audioQuality || 'high',
-          crossfade: data.settings.crossfade ?? true,
-          equalizerPreset: data.settings.equalizerPreset || 'Dynamic Clarity',
-          offlineMode: data.settings.offlineMode ?? false,
+
+          audioQuality: s.audioQuality || 'Normal',
+
+          crossfade: s.crossfade ?? false,
+          gapless: s.gapless ?? false,
+          autoplay: s.autoplay ?? false,
+          volumeNormalization: s.volumeNormalization ?? false,
+
+          wifiOnlyDownloads: s.wifiOnlyDownloads ?? false,
+          mobileStreaming: s.mobileStreaming ?? false,
+
+          downloadQuality: s.downloadQuality || 'Normal',
+          themeMode: s.themeMode || 'Dark',
+
+          equalizerEnabled: s.equalizerEnabled ?? false,
+          equalizerPreset: s.equalizerPreset || 'Flat',
+
+          eqBass: Number(s.eqBass ?? 0),
+          eqLowMid: Number(s.eqLowMid ?? 0),
+          eqMid: Number(s.eqMid ?? 0),
+          eqHighMid: Number(s.eqHighMid ?? 0),
+          eqTreble: Number(s.eqTreble ?? 0),
+
+          offlineMode: s.offlineMode ?? false,
+
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: userSettings.userUid,
           set: {
-            audioQuality: data.settings.audioQuality || 'high',
-            crossfade: data.settings.crossfade ?? true,
-            equalizerPreset: data.settings.equalizerPreset || 'Dynamic Clarity',
-            offlineMode: data.settings.offlineMode ?? false,
+            audioQuality: s.audioQuality || 'Normal',
+
+            crossfade: s.crossfade ?? false,
+            gapless: s.gapless ?? false,
+            autoplay: s.autoplay ?? false,
+            volumeNormalization: s.volumeNormalization ?? false,
+
+            wifiOnlyDownloads: s.wifiOnlyDownloads ?? false,
+            mobileStreaming: s.mobileStreaming ?? false,
+
+            downloadQuality: s.downloadQuality || 'Normal',
+            themeMode: s.themeMode || 'Dark',
+
+            equalizerEnabled: s.equalizerEnabled ?? false,
+            equalizerPreset: s.equalizerPreset || 'Flat',
+
+            eqBass: Number(s.eqBass ?? 0),
+            eqLowMid: Number(s.eqLowMid ?? 0),
+            eqMid: Number(s.eqMid ?? 0),
+            eqHighMid: Number(s.eqHighMid ?? 0),
+            eqTreble: Number(s.eqTreble ?? 0),
+
+            offlineMode: s.offlineMode ?? false,
+
             updatedAt: new Date(),
           },
         });
@@ -588,4 +644,5 @@ export async function deleteAuthSessionsForUser(userUid: string): Promise<void> 
     console.error('[PostgreSQL] deleteAuthSessionsForUser failed:', error);
   }
 }
+
 

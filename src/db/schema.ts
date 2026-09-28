@@ -1,5 +1,5 @@
 ﻿import { relations } from 'drizzle-orm';
-import { boolean, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, real, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -87,9 +87,29 @@ export const userSettings = pgTable('user_settings', {
     .references(() => users.uid, { onDelete: 'cascade' })
     .notNull()
     .unique(),
-  audioQuality: text('audio_quality').default('high'),
-  crossfade: boolean('crossfade').default(true),
-  equalizerPreset: text('equalizer_preset').default('Dynamic Clarity'),
+
+  audioQuality: text('audio_quality').default('Normal'),
+
+  crossfade: boolean('crossfade').default(false),
+  gapless: boolean('gapless').default(false),
+  autoplay: boolean('autoplay').default(false),
+  volumeNormalization: boolean('volume_normalization').default(false),
+
+  wifiOnlyDownloads: boolean('wifi_only_downloads').default(false),
+  mobileStreaming: boolean('mobile_streaming').default(false),
+
+  downloadQuality: text('download_quality').default('Normal'),
+  themeMode: text('theme_mode').default('Dark'),
+
+  equalizerEnabled: boolean('equalizer_enabled').default(false),
+  equalizerPreset: text('equalizer_preset').default('Flat'),
+
+  eqBass: real('eq_bass').default(0),
+  eqLowMid: real('eq_low_mid').default(0),
+  eqMid: real('eq_mid').default(0),
+  eqHighMid: real('eq_high_mid').default(0),
+  eqTreble: real('eq_treble').default(0),
+
   offlineMode: boolean('offline_mode').default(false),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -141,4 +161,5 @@ export const userRecentlyPlayedRelations = relations(userRecentlyPlayed, ({ one 
     references: [users.uid],
   }),
 }));
+
 

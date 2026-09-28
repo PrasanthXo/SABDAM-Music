@@ -232,9 +232,22 @@ interface UserDataRecord {
   customPlaylists: any[];
   customSongs: any[];
   settings?: {
-    audioQuality: 'high' | 'medium' | 'low';
+    audioQuality: string;
     crossfade: boolean;
+    gapless: boolean;
+    autoplay: boolean;
+    volumeNormalization: boolean;
+    wifiOnlyDownloads: boolean;
+    mobileStreaming: boolean;
+    downloadQuality: string;
+    themeMode: string;
+    equalizerEnabled: boolean;
     equalizerPreset: string;
+    eqBass: number;
+    eqLowMid: number;
+    eqMid: number;
+    eqHighMid: number;
+    eqTreble: number;
     offlineMode: boolean;
   };
 }
@@ -560,9 +573,28 @@ function initUserData(userId: string, email?: string) {
     ],
     customSongs: [],
     settings: {
-      audioQuality: 'high',
-      crossfade: true,
-      equalizerPreset: 'Dynamic Clarity',
+      audioQuality: 'Normal',
+
+      crossfade: false,
+      gapless: false,
+      autoplay: false,
+      volumeNormalization: false,
+
+      wifiOnlyDownloads: false,
+      mobileStreaming: false,
+
+      downloadQuality: 'Normal',
+      themeMode: 'Dark',
+
+      equalizerEnabled: false,
+      equalizerPreset: 'Flat',
+
+      eqBass: 0,
+      eqLowMid: 0,
+      eqMid: 0,
+      eqHighMid: 0,
+      eqTreble: 0,
+
       offlineMode: false,
     },
   };
@@ -1330,7 +1362,8 @@ app.get('/api/user/data', async (req, res) => {
       (dbLibrary.customPlaylists.length > 0 ||
         dbLibrary.likedTrackIds.length > 0 ||
         dbLibrary.customSongs.length > 0 ||
-        dbLibrary.recentlyPlayed.length > 0)
+        dbLibrary.recentlyPlayed.length > 0 ||
+        !!dbLibrary.settings)
     ) {
       // Update memory store with latest SQL database state
       userDataStore.set(user.id, dbLibrary as UserDataRecord);
@@ -4496,3 +4529,5 @@ startServer();
 
 
 // force render redeploy 2026-09-28T19:56:35
+
+
