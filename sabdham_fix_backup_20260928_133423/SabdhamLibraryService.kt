@@ -80,17 +80,6 @@ object SabdhamLibraryService {
                         "SABDHAM_LIKES",
                         "GET /api/user/data failed HTTP=$code BODY=$text"
                     )
-
-                    // Keep the last successfully cached library during
-                    // temporary Render/auth/network failures.
-                    loadLikedCache(context)?.let { cached ->
-                        android.util.Log.w(
-                            "SABDHAM_LIKES",
-                            "Using cached liked songs because HTTP=$code"
-                        )
-                        return@withContext cached
-                    }
-
                     return@withContext LikedTracksResult(
                         false,
                         "Unable to load liked songs. HTTP $code"
@@ -107,125 +96,23 @@ object SabdhamLibraryService {
 
                 val tracks = mutableListOf<Track>()
 
-                // 1. Static SABDHAM catalogue.
                 ids.forEach { id ->
                     com.morningmusic.app.data.repository.MusicRepository
-                        .getTrackById(id)
-                        ?.let { tracks += it }
+                        .getTrackById(id)?.let { tracks += it }
                 }
 
-                // 2. Preferred source: metadata stored with each favorite.
-                val serverLiked =
-                    data.optJSONArray("likedTracks") ?: JSONArray()
-
-                for (i in 0 until serverLiked.length()) {
-                    val obj =
-                        serverLiked.optJSONObject(i) ?: continue
-
-                    val id =
-                        obj.optString("id").trim()
-
-                    if (
-                        id in ids &&
-                        tracks.none { it.id == id }
-                    ) {
-                        parseTrack(obj)?.let {
-                            tracks += it
-                        }
-                    }
-                }
-
-                // 3. Legacy custom-song storage.
-                val custom =
-                    data.optJSONArray("customSongs") ?: JSONArray()
+                val custom = data.optJSONArray("customSongs") ?: JSONArray()
 
                 for (i in 0 until custom.length()) {
-                    val obj =
-                        custom.optJSONObject(i) ?: continue
+                    val obj = custom.optJSONObject(i) ?: continue
+                    val id = obj.optString("id")
 
-                    val id =
-                        obj.optString("id").trim()
-
-                    if (
-                        id in ids &&
-                        tracks.none { it.id == id }
-                    ) {
-                        parseTrack(obj)?.let {
-                            tracks += it
-                        }
+                    if (id in ids && tracks.none { it.id == id }) {
+                        parseTrack(obj)?.let { tracks += it }
                     }
                 }
 
-                // 4. Recover metadata from user's playlists.
-                val playlists =
-                    data.optJSONArray("customPlaylists") ?: JSONArray()
-
-                for (i in 0 until playlists.length()) {
-                    val playlist =
-                        playlists.optJSONObject(i) ?: continue
-
-                    val playlistTracks =
-                        playlist.optJSONArray("tracks") ?: JSONArray()
-
-                    for (j in 0 until playlistTracks.length()) {
-                        val obj =
-                            playlistTracks.optJSONObject(j) ?: continue
-
-                        val id =
-                            obj.optString("id").trim()
-
-                        if (
-                            id in ids &&
-                            tracks.none { it.id == id }
-                        ) {
-                            parseTrack(obj)?.let {
-                                tracks += it
-                            }
-                        }
-                    }
-                }
-
-                // 5. Recover metadata from recently-played history.
-                val recent =
-                    data.optJSONArray("recentlyPlayed") ?: JSONArray()
-
-                for (i in 0 until recent.length()) {
-                    val obj =
-                        recent.optJSONObject(i) ?: continue
-
-                    val id =
-                        obj.optString("id").trim()
-
-                    if (
-                        id in ids &&
-                        tracks.none { it.id == id }
-                    ) {
-                        parseTrack(obj)?.let {
-                            tracks += it
-                        }
-                    }
-                }
-
-                /*
-                 * 6. Merge account-specific device cache BEFORE replacing it.
-                 * This can recover old search/playlist favorites whose DB
-                 * metadata was previously lost.
-                 */
-                loadLikedCache(context)
-                    ?.tracks
-                    ?.forEach { cachedTrack ->
-                        if (
-                            cachedTrack.id in ids &&
-                            tracks.none {
-                                it.id == cachedTrack.id
-                            }
-                        ) {
-                            tracks += cachedTrack
-                        }
-                    }
-
-                val finalTracks =
-                    tracks.distinctBy { it.id }
+                val finalTracks = tracks.distinctBy { it.id }
 
                 saveLikedCache(
                     context = context,
@@ -1177,80 +1064,53 @@ object SabdhamLibraryService {
         context: Context,
         playlistId: String
     ): LibraryResult = withContext(Dispatchers.IO) {
+        val token = SabdhamAuthService.getToken(context)
+            ?: return@withContext LibraryResult(false, "Please sign in first.")
 
-        // SABDHAM_ATOMIC_PLAYLIST_DELETE
-        //
-        // Playlist deletion is atomic. Never send an old complete
-        // customPlaylists snapshot to delete one playlist.
-
-        val cleanId = playlistId.trim()
-
-        if (cleanId.isBlank()) {
-            return@withContext LibraryResult(
-                false,
-                "Invalid playlist."
-            )
+        if (playlistId.isBlank()) {
+            return@withContext LibraryResult(false, "Invalid playlist.")
         }
 
-        val token =
-            SabdhamAuthService.getToken(context)
-                ?: return@withContext LibraryResult(
-                    false,
-                    "Please sign in first."
-                )
-
-        var connection: HttpURLConnection? = null
-
         try {
-            val encodedId =
-                URLEncoder.encode(cleanId, "UTF-8")
+            val encodedPlaylistId =
+                URLEncoder.encode(playlistId, "UTF-8")
 
-            connection =
-                URL(
-                    "$BASE_URL/api/db/playlists/$encodedId"
-                ).openConnection() as HttpURLConnection
+            val connection =
+                URL("$BASE_URL/api/db/playlists/$encodedPlaylistId")
+                    .openConnection() as HttpURLConnection
 
             connection.requestMethod = "DELETE"
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
-            connection.setRequestProperty(
-                "Accept",
-                "application/json"
-            )
+            connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty(
                 "Authorization",
                 "Bearer $token"
             )
 
             val code = connection.responseCode
+            val stream =
+                if (code in 200..299) connection.inputStream
+                else connection.errorStream
 
             val responseText =
-                (
-                    if (code in 200..299) {
-                        connection.inputStream
-                    } else {
-                        connection.errorStream
-                    }
-                )
-                    ?.bufferedReader()
-                    ?.use { it.readText() }
-                    .orEmpty()
+                stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+            connection.disconnect()
 
             if (code !in 200..299) {
-                val message =
-                    try {
-                        JSONObject(responseText)
-                            .optString(
-                                "error",
-                                "Failed to delete playlist."
-                            )
-                    } catch (_: Exception) {
+                val message = try {
+                    JSONObject(responseText).optString(
+                        "error",
                         "Failed to delete playlist."
-                    }
+                    )
+                } catch (_: Exception) {
+                    "Failed to delete playlist."
+                }
 
                 return@withContext LibraryResult(
                     false,
-                    message
+                    if (code == 401) "Please sign in again." else message
                 )
             }
 
@@ -1258,24 +1118,21 @@ object SabdhamLibraryService {
 
             if (refreshed.success) {
                 LibraryResult(
-                    success = true,
-                    message = "Playlist deleted.",
-                    playlists = refreshed.playlists
+                    true,
+                    "Playlist deleted.",
+                    refreshed.playlists
                 )
             } else {
                 LibraryResult(
-                    success = true,
-                    message = "Playlist deleted."
+                    true,
+                    "Playlist deleted."
                 )
             }
-
         } catch (e: Exception) {
             LibraryResult(
                 false,
                 e.message ?: "Failed to delete playlist."
             )
-        } finally {
-            connection?.disconnect()
         }
     }
     suspend fun importPlaylistByLink(
@@ -1908,11 +1765,6 @@ object SabdhamLibraryService {
         )
     }
 }
-
-
-
-
-
 
 
 

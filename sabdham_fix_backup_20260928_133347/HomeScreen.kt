@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Lyrics
 import androidx.compose.material.icons.outlined.Tune
@@ -98,7 +97,6 @@ fun HomeScreen(viewModel: MusicViewModel) {
         viewModel.loadMoreTamilEvergreen()
         viewModel.loadMoreTamilRomantic()
         viewModel.loadMoreTamilDance()
-        viewModel.loadMoreSinhalaClassics()
         viewModel.loadMoreEnglishPop()
         viewModel.loadMoreChillRelax()
         viewModel.loadMorePartyHits()
@@ -110,7 +108,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var activeNavTab by remember { mutableStateOf("home") }
     var isFullPlayerVisible by remember { mutableStateOf(false) }
     var isEqDialogVisible by remember { mutableStateOf(false) }
-    var isSettingsPageVisible by remember { mutableStateOf(false) }
+    var isSettingsDialogVisible by remember { mutableStateOf(false) }
     var isEditProfileDialogVisible by remember { mutableStateOf(false) }
     var isAuthDialogVisible by remember { mutableStateOf(false) }
     var playlistTargetTrack by remember { mutableStateOf<Track?>(null) }
@@ -148,7 +146,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
             playlistMessage = null
             val result = SabdhamLibraryService.getPlaylists(context)
             if (playlistTargetTrack != null) {
-                if (result.success) { cloudPlaylists = result.playlists }
+                cloudPlaylists = if (result.success) result.playlists else emptyList()
                 playlistMessage = if (result.success) null else result.message
                 playlistLoading = false
             }
@@ -157,24 +155,18 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
     val authViewModel: AuthViewModel = viewModel()
     val authUser by authViewModel.user.collectAsState()
-    val authToken by authViewModel.token.collectAsState()
 
-    LaunchedEffect(authUser?.id, authToken) {
-        if (authUser != null && !authToken.isNullOrBlank()) {
-            com.morningmusic.app.data.network.SabdhamSettingsSyncService
-                .syncFromServer(context)
-            applySabdhamAudioPreferences(context)
-
+    LaunchedEffect(authUser?.id) {
+        if (authUser != null) {
             viewModel.loadLikedSongsFromCloud()
 
             playlistLoading = true
             val result = SabdhamLibraryService.getPlaylists(context)
-            if (result.success) { cloudPlaylists = result.playlists }
+            cloudPlaylists = if (result.success) result.playlists else emptyList()
             playlistMessage = if (result.success) null else result.message
             playlistLoading = false
         } else {
-            // Keep existing playlists while auth/session is restoring.
-            // Temporary null user is NOT a library deletion.
+            cloudPlaylists = emptyList()
         }
     }
     val authLoading by authViewModel.loading.collectAsState()
@@ -573,7 +565,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularTamil) },
+                                onTrackClick = { viewModel.playTrack(it, popularTamil) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
@@ -586,7 +578,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularSinhala) },
+                                onTrackClick = { viewModel.playTrack(it, popularSinhala) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
@@ -599,7 +591,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularEnglish) },
+                                onTrackClick = { viewModel.playTrack(it, popularEnglish) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
@@ -612,7 +604,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, viewModel.trending) },
+                                onTrackClick = { viewModel.playTrack(it, viewModel.trending) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
@@ -636,7 +628,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                     currentTrack = currentTrack,
                                     isPlaying = isPlaying,
                                     likedTrackIds = likedTrackIds,
-                                    onTrackClick = { viewModel.playCatalogTrack(it, likedList) },
+                                    onTrackClick = { viewModel.playTrack(it, likedList) },
                                     onLikeClick = { viewModel.toggleLike(it) }
                                 )
                             }
@@ -652,7 +644,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                     currentTrack = currentTrack,
                                     isPlaying = isPlaying,
                                     likedTrackIds = likedTrackIds,
-                                    onTrackClick = { viewModel.playCatalogTrack(it, likedSongs) },
+                                    onTrackClick = { viewModel.playTrack(it, likedSongs) },
                                     onLikeClick = { viewModel.toggleLike(it) },
                                     onAddToQueue = { viewModel.addToQueue(it) },
                                     onAddToPlaylist = { playlistTargetTrack = it }
@@ -667,7 +659,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularTamil) },
+                                onTrackClick = { viewModel.playTrack(it, popularTamil) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -682,7 +674,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularSinhala) },
+                                onTrackClick = { viewModel.playTrack(it, popularSinhala) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -697,7 +689,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularEnglish) },
+                                onTrackClick = { viewModel.playTrack(it, popularEnglish) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -729,7 +721,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, acousticMelodies) },
+                                onTrackClick = { viewModel.playTrack(it, acousticMelodies) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -761,7 +753,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, newReleases) },
+                                onTrackClick = { viewModel.playTrack(it, newReleases) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -776,7 +768,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, tamilEvergreen) },
+                                onTrackClick={ viewModel.playTrack(it,tamilEvergreen) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -791,7 +783,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, tamilRomantic) },
+                                onTrackClick={ viewModel.playTrack(it,tamilRomantic) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -806,7 +798,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, tamilDance) },
+                                onTrackClick={ viewModel.playTrack(it,tamilDance) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -821,7 +813,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaClassics) },
+                                onTrackClick={ viewModel.playTrack(it,sinhalaClassics) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -836,7 +828,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaRomantic) },
+                                onTrackClick={ viewModel.playTrack(it,sinhalaRomantic) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -851,7 +843,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaTrending) },
+                                onTrackClick={ viewModel.playTrack(it,sinhalaTrending) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -866,7 +858,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, englishPop) },
+                                onTrackClick={ viewModel.playTrack(it,englishPop) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -881,7 +873,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, chillRelax) },
+                                onTrackClick={ viewModel.playTrack(it,chillRelax) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -896,7 +888,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, partyHits) },
+                                onTrackClick={ viewModel.playTrack(it,partyHits) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -911,7 +903,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, throwbacks) },
+                                onTrackClick={ viewModel.playTrack(it,throwbacks) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -951,7 +943,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                             createdPlaylistsCount = cloudPlaylists.count { !it.description.startsWith("Imported from Spotify", ignoreCase = true) && !it.description.startsWith("Imported from YouTube", ignoreCase = true) },
                             importedPlaylistsCount = cloudPlaylists.count { it.description.startsWith("Imported from Spotify", ignoreCase = true) || it.description.startsWith("Imported from YouTube", ignoreCase = true) },
                             onLogout = { authViewModel.logout() },
-                            onSettingsClick = { isSettingsPageVisible = true },
+                            onSettingsClick = { isSettingsDialogVisible = true },
                             onEditProfileClick = { isEditProfileDialogVisible = true }
                         )
                     }
@@ -1232,21 +1224,63 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 }
             )
         }
-        if (isSettingsPageVisible) {
-            SabdhamSettingsPage(
-                onBack = {
-                    isSettingsPageVisible = false
+
+        if (isSettingsDialogVisible) {
+            AlertDialog(
+                onDismissRequest = { isSettingsDialogVisible = false },
+                containerColor = Color(0xFF0A1710),
+                shape = RoundedCornerShape(24.dp),
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            tint = Color(0xFF00E676)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text("Settings", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 },
-                onEqualizerClick = {
-                    isSettingsPageVisible = false
-                    isEqDialogVisible = true
+                text = {
+                    Column {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    isSettingsDialogVisible = false
+                                    isEqDialogVisible = true
+                                },
+                            color = Color(0xFF102018),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Equalizer,
+                                    contentDescription = null,
+                                    tint = Color(0xFF39FF88)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Audio & Playback", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    Text("Equalizer and playback settings", color = Color(0xFFA1A1AA), fontSize = 12.sp)
+                                }
+                                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF39FF88))
+                            }
+                        }
+                    }
                 },
-                onClearSearchHistory = {
-                    recentSearches = emptyList()
+                confirmButton = {
+                    TextButton(onClick = { isSettingsDialogVisible = false }) {
+                        Text("Close", color = Color(0xFF00E676))
+                    }
                 }
             )
         }
-if (isEditProfileDialogVisible && authUser != null) {
+
+        if (isEditProfileDialogVisible && authUser != null) {
             var editedName by remember(authUser!!.name) {
                 mutableStateOf(authUser!!.name)
             }
@@ -4359,28 +4393,6 @@ private fun SignedInProfileView(
         ?.uppercaseChar()
         ?.toString() ?: "S"
 
-    val context = androidx.compose.ui.platform.LocalContext.current
-
-    var showProfileAbout by remember { mutableStateOf(false) }
-
-    val profileSupportEmail = "sabdhammusic@gmail.com"
-
-    fun openProfileSupport() {
-        try {
-            val intent = android.content.Intent(
-                android.content.Intent.ACTION_SENDTO
-            ).apply {
-                data = android.net.Uri.parse(
-                    "mailto:" + profileSupportEmail +
-                        "?subject=" +
-                        android.net.Uri.encode("SABDHAM Support Request")
-                )
-            }
-            context.startActivity(intent)
-        } catch (_: Exception) {
-        }
-    }
-
     val memberSince = if (user.createdAt.isNotBlank()) {
         user.createdAt.take(10)
     } else {
@@ -4721,8 +4733,7 @@ private fun SignedInProfileView(
                     icon = Icons.Default.Person,
                     title = "Account Information",
                     subtitle = user.email,
-                    green = green,
-                    onClick = onEditProfileClick
+                    green = green
                 )
 
                 SabdhamProfileDivider()
@@ -4735,15 +4746,22 @@ private fun SignedInProfileView(
                     onClick = onSettingsClick
                 )
 
+                SabdhamProfileDivider()
+
+                SabdhamProfileMenuRow(
+                    icon = Icons.Default.Notifications,
+                    title = "Notifications",
+                    subtitle = "Manage your notifications",
+                    green = green
+                )
 
                 SabdhamProfileDivider()
 
                 SabdhamProfileMenuRow(
                     icon = Icons.Default.Help,
                     title = "Help & Support",
-                    subtitle = "Contact SABDHAM support",
-                    green = green,
-                    onClick = { openProfileSupport() }
+                    subtitle = "Get help with SABDHAM",
+                    green = green
                 )
 
                 SabdhamProfileDivider()
@@ -4751,9 +4769,8 @@ private fun SignedInProfileView(
                 SabdhamProfileMenuRow(
                     icon = Icons.Default.Info,
                     title = "About SABDHAM",
-                    subtitle = "Santh Creatives • Legal & privacy",
-                    green = green,
-                    onClick = { showProfileAbout = true }
+                    subtitle = "Music without boundaries",
+                    green = green
                 )
             }
         }
@@ -4879,20 +4896,6 @@ private fun SignedInProfileView(
             color = muted,
             fontSize = 10.sp
         )
-
-        if (showProfileAbout) {
-            SabdhamLegalDialog(
-                title = "About SABDHAM",
-                body = SABDHAM_ABOUT_TEXT + "\n\n" +
-                    "Developer / Publisher: Santh Creatives\n\n" +
-                    "Privacy Policy and Terms & Conditions are available inside App Settings.",
-                onDismiss = { showProfileAbout = false },
-                onSupport = {
-                    showProfileAbout = false
-                    openProfileSupport()
-                }
-            )
-        }
     }
     }
 }
@@ -5076,1428 +5079,6 @@ private fun ProfileInfoRow(
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-private fun applySabdhamAudioPreferences(
-    context: android.content.Context
-) {
-    val appPrefs =
-        context.getSharedPreferences(
-            "sabdham_app_settings",
-            android.content.Context.MODE_PRIVATE
-        )
-
-    val eqPrefs =
-        context.getSharedPreferences(
-            "sabdham_equalizer_settings",
-            android.content.Context.MODE_PRIVATE
-        )
-
-    val service =
-        com.morningmusic.app.service.PlaybackService.instance
-            ?: return
-
-    service.setAutoplay(
-        appPrefs.getBoolean(
-            "autoplay",
-            false
-        )
-    )
-
-    service.setGapless(
-        appPrefs.getBoolean(
-            "gapless",
-            false
-        )
-    )
-
-    service.setCrossfade(
-        if (
-            appPrefs.getBoolean(
-                "crossfade",
-                false
-            )
-        ) {
-            4
-        } else {
-            0
-        }
-    )
-
-    service.setVolumeNormalization(
-        appPrefs.getBoolean(
-            "volume_normalization",
-            false
-        )
-    )
-
-    service.setEqualizer(
-        enabled =
-            eqPrefs.getBoolean(
-                "equalizer_enabled",
-                false
-            ),
-        preset =
-            eqPrefs.getString(
-                "equalizer_preset",
-                "Flat"
-            ) ?: "Flat",
-        bands =
-            intArrayOf(
-                eqPrefs.getFloat("eq_bass", 0f).toInt(),
-                eqPrefs.getFloat("eq_low_mid", 0f).toInt(),
-                eqPrefs.getFloat("eq_mid", 0f).toInt(),
-                eqPrefs.getFloat("eq_high_mid", 0f).toInt(),
-                eqPrefs.getFloat("eq_treble", 0f).toInt()
-            )
-    )
-}
-// ============================================================================
-// SABDHAM FULL SETTINGS PAGE
-// Isolated UI/preferences implementation.
-// Does not change MusicViewModel, MusicSearchService or playback resolution.
-// ============================================================================
-
-@Composable
-private fun SabdhamSettingsPage(
-    onBack: () -> Unit,
-    onEqualizerClick: () -> Unit,
-    onClearSearchHistory: () -> Unit
-) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-
-    val prefs = remember {
-        context.getSharedPreferences(
-            "sabdham_app_settings",
-            android.content.Context.MODE_PRIVATE
-        )
-    }
-
-    var crossfade by remember {
-        mutableStateOf(prefs.getBoolean("crossfade", false))
-    }
-
-    var gapless by remember {
-        mutableStateOf(prefs.getBoolean("gapless", false))
-    }
-
-    var autoplay by remember {
-        mutableStateOf(prefs.getBoolean("autoplay", false))
-    }
-
-    var volumeNormalization by remember {
-        mutableStateOf(prefs.getBoolean("volume_normalization", false))
-    }
-
-    var wifiOnlyDownloads by remember {
-        mutableStateOf(prefs.getBoolean("wifi_only_downloads", false))
-    }
-
-    var mobileStreaming by remember {
-        mutableStateOf(prefs.getBoolean("mobile_streaming", false))
-    }
-
-    var playbackQuality by remember {
-        mutableStateOf(prefs.getString("playback_quality", "Normal") ?: "Normal")
-    }
-
-    var downloadQuality by remember {
-        mutableStateOf(prefs.getString("download_quality", "Normal") ?: "Normal")
-    }
-
-    var themeMode by remember {
-        mutableStateOf(prefs.getString("theme_mode", "Dark") ?: "Dark")
-    }
-
-    var playbackQualityDialog by remember { mutableStateOf(false) }
-    var downloadQualityDialog by remember { mutableStateOf(false) }
-    var themeDialog by remember { mutableStateOf(false) }
-    var clearDataDialog by remember { mutableStateOf(false) }
-    var equalizerPageVisible by remember { mutableStateOf(false) }
-
-    var message by remember { mutableStateOf<String?>(null) }
-
-    var showPrivacyPolicy by remember { mutableStateOf(false) }
-    var showTermsConditions by remember { mutableStateOf(false) }
-    var showAboutSabdham by remember { mutableStateOf(false) }
-    var showCopyrightNotice by remember { mutableStateOf(false) }
-
-    // Internal support destination. Never print this address in visible UI.
-    val sabdhamSupportAddress = "sabdhammusic@gmail.com"
-
-    fun openSabdhamSupport(subject: String) {
-        try {
-            val intent = android.content.Intent(
-                android.content.Intent.ACTION_SENDTO
-            ).apply {
-                data = android.net.Uri.parse(
-                    "mailto:" + sabdhamSupportAddress +
-                        "?subject=" + android.net.Uri.encode(subject)
-                )
-            }
-            context.startActivity(intent)
-        } catch (_: Exception) {
-            message = "No email application is available"
-        }
-    }
-    var settingsServerReady by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        com.morningmusic.app.data.network.SabdhamSettingsSyncService
-            .syncFromServer(context)
-        applySabdhamAudioPreferences(context)
-
-        crossfade =
-            prefs.getBoolean("crossfade", false)
-
-        gapless =
-            prefs.getBoolean("gapless", false)
-
-        autoplay =
-            prefs.getBoolean("autoplay", false)
-
-        volumeNormalization =
-            prefs.getBoolean(
-                "volume_normalization",
-                false
-            )
-
-        wifiOnlyDownloads =
-            prefs.getBoolean(
-                "wifi_only_downloads",
-                false
-            )
-
-        mobileStreaming =
-            prefs.getBoolean(
-                "mobile_streaming",
-                false
-            )
-
-        playbackQuality =
-            prefs.getString(
-                "playback_quality",
-                "Normal"
-            ) ?: "Normal"
-
-        downloadQuality =
-            prefs.getString(
-                "download_quality",
-                "Normal"
-            ) ?: "Normal"
-
-        themeMode =
-            prefs.getString(
-                "theme_mode",
-                "Dark"
-            ) ?: "Dark"
-
-        settingsServerReady = true
-    }
-
-    LaunchedEffect(
-        settingsServerReady,
-        crossfade,
-        gapless,
-        autoplay,
-        volumeNormalization,
-        wifiOnlyDownloads,
-        mobileStreaming,
-        playbackQuality,
-        downloadQuality,
-        themeMode
-    ) {
-        if (settingsServerReady) {
-            kotlinx.coroutines.delay(350)
-
-            com.morningmusic.app.data.network.SabdhamSettingsSyncService
-                .saveFromLocal(context)
-        }
-    }
-
-    androidx.activity.compose.BackHandler(enabled = true) {
-        if (equalizerPageVisible) {
-            equalizerPageVisible = false
-        } else {
-            onBack()
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF020403))
-            .systemBarsPadding()
-    ) {
-        androidx.compose.foundation.lazy.LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 42.dp)
-        ) {
-
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.IconButton(
-                        onClick = onBack
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-
-                    Spacer(Modifier.width(6.dp))
-
-                    Text(
-                        text = "Settings",
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            item {
-                SabdhamSettingsSectionTitle("AUDIO & PLAYBACK")
-            }
-
-
-
-
-            item {
-                SabdhamSettingsSwitchRow(
-                    title = "Crossfade",
-                    subtitle = "Smooth 4 second transition between songs",
-                    checked = crossfade,
-                    onCheckedChange = {
-                        crossfade = it
-
-                        prefs.edit()
-                            .putBoolean("crossfade", it)
-                            .apply()
-
-                        com.morningmusic.app.service.PlaybackService.instance
-                            ?.setCrossfade(
-                                if (it) 4 else 0
-                            )
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsSwitchRow(
-                    title = "Gapless Playback",
-                    subtitle = "Play consecutive tracks without an added pause",
-                    checked = gapless,
-                    onCheckedChange = {
-                        gapless = it
-
-                        prefs.edit()
-                            .putBoolean("gapless", it)
-                            .apply()
-
-                        com.morningmusic.app.service.PlaybackService.instance
-                            ?.setGapless(it)
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsSwitchRow(
-                    title = "Autoplay",
-                    subtitle = "Continue playing recommended music",
-                    checked = autoplay,
-                    onCheckedChange = {
-                        autoplay = it
-                        prefs.edit().putBoolean("autoplay", it).apply()
-                        applySabdhamAudioPreferences(context)
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsSwitchRow(
-                    title = "Volume Normalization",
-                    subtitle = "Keep songs at a consistent volume",
-                    checked = volumeNormalization,
-                    onCheckedChange = {
-                        volumeNormalization = it
-                        prefs.edit()
-                            .putBoolean("volume_normalization", it)
-                            .apply()
-                        applySabdhamAudioPreferences(context)
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsValueRow(
-                    title = "Equalizer",
-                    subtitle = "Adjust sound frequencies",
-                    value = "",
-                    onClick = {
-                        equalizerPageVisible = true
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsSectionTitle("STORAGE")
-            }
-
-
-
-            item {
-                SabdhamSettingsValueRow(
-                    title = "Storage",
-                    subtitle = "View SABDHAM storage usage",
-                    value = "",
-                    onClick = {
-                        try {
-                            val intent = android.content.Intent(
-                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                android.net.Uri.parse("package:${context.packageName}")
-                            )
-                            context.startActivity(intent)
-                        } catch (_: Exception) {
-                            message = "Unable to open storage settings"
-                        }
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsValueRow(
-                    title = "Clear Cache",
-                    subtitle = "Delete temporary SABDHAM files",
-                    value = "",
-                    onClick = {
-                        try {
-                            context.cacheDir.deleteRecursively()
-                            context.externalCacheDir?.deleteRecursively()
-                            message = "Cache cleared"
-                        } catch (_: Exception) {
-                            message = "Unable to clear cache"
-                        }
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsValueRow(
-                    title = "Clear Search History",
-                    subtitle = "Remove recent searches from this device",
-                    value = "",
-                    onClick = {
-                        onClearSearchHistory()
-                        message = "Search history cleared"
-                    }
-                )
-            }
-
-
-
-            item {
-                SabdhamSettingsSectionTitle("NOTIFICATIONS")
-            }
-
-
-
-
-
-
-item {
-                SabdhamSettingsValueRow(
-                    title = "Report a Problem",
-                    subtitle = "Send feedback about the app",
-                    value = "",
-                    onClick = {
-                        try {
-                            val intent = android.content.Intent(
-                                android.content.Intent.ACTION_SENDTO
-                            ).apply {
-                                data = android.net.Uri.parse(
-                                    "mailto:" + sabdhamSupportAddress +
-                                        "?subject=" +
-                                        android.net.Uri.encode("SABDHAM App Feedback")
-                                )
-                            }
-
-                            context.startActivity(intent)
-                        } catch (_: Exception) {
-                            message = "No email app available"
-                        }
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsValueRow(
-                    title = "Copyright & Rights Holders",
-                    subtitle = "Content ownership and removal requests",
-                    value = "",
-                    onClick = {
-                        showCopyrightNotice = true
-                    }
-                )
-            }
-
-            item {
-                val versionName = remember {
-                    try {
-                        val info = context.packageManager.getPackageInfo(
-                            context.packageName,
-                            0
-                        )
-                        info.versionName ?: "1.0"
-                    } catch (_: Exception) {
-                        "1.0"
-                    }
-                }
-
-                SabdhamSettingsValueRow(
-                    title = "About SABDHAM",
-                    subtitle = "Santh Creatives • Independent project",
-                    value = "v$versionName",
-                    onClick = {
-                        showAboutSabdham = true
-                    }
-                )
-            }
-        }
-
-        if (showPrivacyPolicy) {
-            SabdhamLegalDialog(
-                title = "Privacy Policy",
-                body = SABDHAM_PRIVACY_TEXT,
-                onDismiss = { showPrivacyPolicy = false },
-                onSupport = {
-                    showPrivacyPolicy = false
-                    openSabdhamSupport("SABDHAM Privacy Request")
-                }
-            )
-        }
-
-        if (showTermsConditions) {
-            SabdhamLegalDialog(
-                title = "Terms & Conditions",
-                body = SABDHAM_TERMS_TEXT,
-                onDismiss = { showTermsConditions = false },
-                onSupport = {
-                    showTermsConditions = false
-                    openSabdhamSupport("SABDHAM Legal / Terms Enquiry")
-                }
-            )
-        }
-
-        if (showAboutSabdham) {
-            SabdhamLegalDialog(
-                title = "About SABDHAM",
-                body = SABDHAM_ABOUT_TEXT,
-                onDismiss = { showAboutSabdham = false },
-                onSupport = {
-                    showAboutSabdham = false
-                    openSabdhamSupport("SABDHAM Support Request")
-                }
-            )
-        }
-
-        if (showCopyrightNotice) {
-            SabdhamLegalDialog(
-                title = "Copyright & Rights Holders",
-                body = SABDHAM_COPYRIGHT_TEXT,
-                onDismiss = { showCopyrightNotice = false },
-                onSupport = {
-                    showCopyrightNotice = false
-                    openSabdhamSupport("SABDHAM Copyright / Removal Request")
-                }
-            )
-        }
-        if (message != null) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(20.dp),
-                color = Color(0xFF152019),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Text(
-                    text = message!!,
-                    color = Color.White,
-                    modifier = Modifier.padding(
-                        horizontal = 18.dp,
-                        vertical = 12.dp
-                    )
-                )
-            }
-
-            LaunchedEffect(message) {
-                kotlinx.coroutines.delay(1800)
-                message = null
-            }
-        }
-    }
-
-    if (equalizerPageVisible) {
-        SabdhamEqualizerSettingsPage(
-            onBack = {
-                equalizerPageVisible = false
-            }
-        )
-    }
-
-    if (playbackQualityDialog) {
-        SabdhamChoiceDialog(
-            title = "Playback Quality",
-            current = playbackQuality,
-            options = listOf("Low", "Normal", "High", "Very High"),
-            onDismiss = { playbackQualityDialog = false },
-            onSelected = {
-                playbackQuality = it
-                prefs.edit().putString("playback_quality", it).apply()
-                playbackQualityDialog = false
-            }
-        )
-    }
-
-    if (downloadQualityDialog) {
-        SabdhamChoiceDialog(
-            title = "Download Quality",
-            current = downloadQuality,
-            options = listOf("Normal", "High", "Very High"),
-            onDismiss = { downloadQualityDialog = false },
-            onSelected = {
-                downloadQuality = it
-                prefs.edit().putString("download_quality", it).apply()
-                downloadQualityDialog = false
-            }
-        )
-    }
-
-    if (themeDialog) {
-        SabdhamChoiceDialog(
-            title = "Theme",
-            current = themeMode,
-            options = listOf("Dark", "Light", "System"),
-            onDismiss = { themeDialog = false },
-            onSelected = {
-                themeMode = it
-                prefs.edit().putString("theme_mode", it).apply()
-                themeDialog = false
-            }
-        )
-    }
-
-    if (clearDataDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                clearDataDialog = false
-            },
-            containerColor = Color(0xFF111713),
-            title = {
-                Text(
-                    "Reset local settings?",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    "This resets SABDHAM settings stored on this device. " +
-                        "Your account, liked songs and cloud playlists are not deleted.",
-                    color = Color(0xFFA6ADA8)
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        prefs.edit().clear().apply()
-
-                        crossfade = false
-                        gapless = true
-                        autoplay = true
-                        volumeNormalization = false
-                        wifiOnlyDownloads = true
-                        mobileStreaming = true
-                        playbackQuality = "High"
-                        downloadQuality = "High"
-                        themeMode = "Dark"
-
-                        clearDataDialog = false
-                        message = "Local settings reset"
-                    }
-                ) {
-                    Text(
-                        "Reset",
-                        color = Color(0xFFFF6B6B)
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        clearDataDialog = false
-                    }
-                ) {
-                    Text(
-                        "Cancel",
-                        color = Color(0xFF39FF88)
-                    )
-                }
-            }
-        )
-    }
-}
-
-@Composable
-private fun SabdhamSettingsSectionTitle(
-    title: String
-) {
-    Text(
-        text = title,
-        color = Color(0xFF38EF7D),
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(
-            start = 20.dp,
-            end = 20.dp,
-            top = 23.dp,
-            bottom = 8.dp
-        )
-    )
-}
-
-@Composable
-private fun SabdhamSettingsSwitchRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = 20.dp,
-                vertical = 13.dp
-            ),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium
-            )
-
-            Spacer(Modifier.height(3.dp))
-
-            Text(
-                text = subtitle,
-                color = Color(0xFF8C9590),
-                fontSize = 13.sp
-            )
-        }
-
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = androidx.compose.material3.SwitchDefaults.colors(
-                checkedThumbColor = Color.Black,
-                checkedTrackColor = Color(0xFF39FF88),
-                uncheckedThumbColor = Color(0xFF9A9A9A),
-                uncheckedTrackColor = Color(0xFF303531)
-            )
-        )
-    }
-}
-
-@Composable
-private fun SabdhamSettingsValueRow(
-    title: String,
-    subtitle: String,
-    value: String,
-    danger: Boolean = false,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(
-                horizontal = 20.dp,
-                vertical = 15.dp
-            ),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = title,
-                color = if (danger) {
-                    Color(0xFFFF6666)
-                } else {
-                    Color.White
-                },
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium
-            )
-
-            Spacer(Modifier.height(3.dp))
-
-            Text(
-                text = subtitle,
-                color = Color(0xFF8C9590),
-                fontSize = 13.sp
-            )
-        }
-
-        if (value.isNotBlank()) {
-            Text(
-                text = value,
-                color = Color(0xFF39FF88),
-                fontSize = 14.sp
-            )
-
-            Spacer(Modifier.width(9.dp))
-        }
-
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = Color(0xFF68706B)
-        )
-    }
-}
-
-@Composable
-private fun SabdhamChoiceDialog(
-    title: String,
-    current: String,
-    options: List<String>,
-    onDismiss: () -> Unit,
-    onSelected: (String) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF101512),
-        title = {
-            Text(
-                title,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column {
-                options.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onSelected(option)
-                            }
-                            .padding(vertical = 13.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = option,
-                            color = Color.White,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        if (option == current) {
-                            Text(
-                                text = "✓",
-                                color = Color(0xFF39FF88),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {}
-    )
-}
-
-
-
-// ============================================================================
-// SABDHAM EQUALIZER SETTINGS
-// ============================================================================
-
-@Composable
-private fun SabdhamEqualizerSettingsPage(
-    onBack: () -> Unit
-) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-
-    val prefs = remember {
-        context.getSharedPreferences(
-            "sabdham_equalizer_settings",
-            android.content.Context.MODE_PRIVATE
-        )
-    }
-
-    var enabled by remember {
-        mutableStateOf(
-            prefs.getBoolean("equalizer_enabled", false)
-        )
-    }
-
-    var preset by remember {
-        mutableStateOf(
-            prefs.getString("equalizer_preset", "Flat") ?: "Flat"
-        )
-    }
-
-    var bass by remember {
-        mutableFloatStateOf(
-            prefs.getFloat("eq_bass", 0f)
-        )
-    }
-
-    var lowMid by remember {
-        mutableFloatStateOf(
-            prefs.getFloat("eq_low_mid", 0f)
-        )
-    }
-
-    var mid by remember {
-        mutableFloatStateOf(
-            prefs.getFloat("eq_mid", 0f)
-        )
-    }
-
-    var highMid by remember {
-        mutableFloatStateOf(
-            prefs.getFloat("eq_high_mid", 0f)
-        )
-    }
-
-    var treble by remember {
-        mutableFloatStateOf(
-            prefs.getFloat("eq_treble", 0f)
-        )
-    }
-
-    var presetDialog by remember {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(
-        enabled,
-        preset,
-        bass,
-        lowMid,
-        mid,
-        highMid,
-        treble
-    ) {
-        applySabdhamAudioPreferences(context)
-    }
-
-    var eqServerReady by remember {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(Unit) {
-        com.morningmusic.app.data.network.SabdhamSettingsSyncService
-            .syncFromServer(context)
-
-        enabled =
-            prefs.getBoolean(
-                "equalizer_enabled",
-                false
-            )
-
-        preset =
-            prefs.getString(
-                "equalizer_preset",
-                "Flat"
-            ) ?: "Flat"
-
-        bass =
-            prefs.getFloat(
-                "eq_bass",
-                0f
-            )
-
-        lowMid =
-            prefs.getFloat(
-                "eq_low_mid",
-                0f
-            )
-
-        mid =
-            prefs.getFloat(
-                "eq_mid",
-                0f
-            )
-
-        highMid =
-            prefs.getFloat(
-                "eq_high_mid",
-                0f
-            )
-
-        treble =
-            prefs.getFloat(
-                "eq_treble",
-                0f
-            )
-
-        eqServerReady = true
-    }
-
-    LaunchedEffect(
-        eqServerReady,
-        enabled,
-        preset,
-        bass,
-        lowMid,
-        mid,
-        highMid,
-        treble
-    ) {
-        if (eqServerReady) {
-            kotlinx.coroutines.delay(350)
-
-            com.morningmusic.app.data.network.SabdhamSettingsSyncService
-                .saveFromLocal(context)
-        }
-    }
-
-    fun saveBands() {
-        prefs.edit()
-            .putFloat("eq_bass", bass)
-            .putFloat("eq_low_mid", lowMid)
-            .putFloat("eq_mid", mid)
-            .putFloat("eq_high_mid", highMid)
-            .putFloat("eq_treble", treble)
-            .apply()
-    }
-
-    fun applyPreset(name: String) {
-        preset = name
-
-        when (name) {
-            "Flat" -> {
-                bass = 0f
-                lowMid = 0f
-                mid = 0f
-                highMid = 0f
-                treble = 0f
-            }
-
-            "Bass Boost" -> {
-                bass = 7f
-                lowMid = 4f
-                mid = 0f
-                highMid = -1f
-                treble = 1f
-            }
-
-            "Treble Boost" -> {
-                bass = -1f
-                lowMid = 0f
-                mid = 1f
-                highMid = 4f
-                treble = 7f
-            }
-
-            "Vocal" -> {
-                bass = -2f
-                lowMid = 1f
-                mid = 5f
-                highMid = 4f
-                treble = 1f
-            }
-
-            "Rock" -> {
-                bass = 5f
-                lowMid = 2f
-                mid = -1f
-                highMid = 3f
-                treble = 5f
-            }
-
-            "Pop" -> {
-                bass = 2f
-                lowMid = 3f
-                mid = 4f
-                highMid = 3f
-                treble = 2f
-            }
-        }
-
-        prefs.edit()
-            .putString("equalizer_preset", name)
-            .apply()
-
-        saveBands()
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF020403))
-            .systemBarsPadding()
-    ) {
-        androidx.compose.foundation.lazy.LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 40.dp)
-        ) {
-
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = 12.dp,
-                            vertical = 14.dp
-                        ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.IconButton(
-                        onClick = onBack
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    Column {
-                        Text(
-                            text = "Equalizer",
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Text(
-                            text = "Customize your sound",
-                            color = Color(0xFF8C9590),
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = 20.dp,
-                            vertical = 14.dp
-                        ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            "Equalizer",
-                            color = Color.White,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        Text(
-                            if (enabled)
-                                "Sound adjustment enabled"
-                            else
-                                "Sound adjustment disabled",
-                            color = Color(0xFF8C9590),
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    Switch(
-                        checked = enabled,
-                        onCheckedChange = {
-                            enabled = it
-                            prefs.edit()
-                                .putBoolean(
-                                    "equalizer_enabled",
-                                    it
-                                )
-                                .apply()
-                        },
-                        colors =
-                            androidx.compose.material3.SwitchDefaults.colors(
-                                checkedThumbColor = Color.Black,
-                                checkedTrackColor = Color(0xFF39FF88)
-                            )
-                    )
-                }
-            }
-
-            item {
-                SabdhamSettingsSectionTitle("PRESET")
-            }
-
-            item {
-                SabdhamSettingsValueRow(
-                    title = "Sound Preset",
-                    subtitle = "Choose a predefined sound profile",
-                    value = preset,
-                    onClick = {
-                        presetDialog = true
-                    }
-                )
-            }
-
-            item {
-                SabdhamSettingsSectionTitle("FREQUENCIES")
-            }
-
-            item {
-                SabdhamEqualizerBand(
-                    title = "Bass",
-                    frequency = "60 Hz",
-                    value = bass,
-                    enabled = enabled,
-                    onValueChange = {
-                        bass = it
-                        preset = "Custom"
-                        prefs.edit()
-                            .putString(
-                                "equalizer_preset",
-                                "Custom"
-                            )
-                            .apply()
-                        saveBands()
-                    }
-                )
-            }
-
-            item {
-                SabdhamEqualizerBand(
-                    title = "Low Mid",
-                    frequency = "230 Hz",
-                    value = lowMid,
-                    enabled = enabled,
-                    onValueChange = {
-                        lowMid = it
-                        preset = "Custom"
-                        prefs.edit()
-                            .putString(
-                                "equalizer_preset",
-                                "Custom"
-                            )
-                            .apply()
-                        saveBands()
-                    }
-                )
-            }
-
-            item {
-                SabdhamEqualizerBand(
-                    title = "Mid",
-                    frequency = "910 Hz",
-                    value = mid,
-                    enabled = enabled,
-                    onValueChange = {
-                        mid = it
-                        preset = "Custom"
-                        prefs.edit()
-                            .putString(
-                                "equalizer_preset",
-                                "Custom"
-                            )
-                            .apply()
-                        saveBands()
-                    }
-                )
-            }
-
-            item {
-                SabdhamEqualizerBand(
-                    title = "High Mid",
-                    frequency = "3.6 kHz",
-                    value = highMid,
-                    enabled = enabled,
-                    onValueChange = {
-                        highMid = it
-                        preset = "Custom"
-                        prefs.edit()
-                            .putString(
-                                "equalizer_preset",
-                                "Custom"
-                            )
-                            .apply()
-                        saveBands()
-                    }
-                )
-            }
-
-            item {
-                SabdhamEqualizerBand(
-                    title = "Treble",
-                    frequency = "14 kHz",
-                    value = treble,
-                    enabled = enabled,
-                    onValueChange = {
-                        treble = it
-                        preset = "Custom"
-                        prefs.edit()
-                            .putString(
-                                "equalizer_preset",
-                                "Custom"
-                            )
-                            .apply()
-                        saveBands()
-                    }
-                )
-            }
-
-            item {
-                Spacer(
-                    modifier = Modifier.height(16.dp)
-                )
-
-                TextButton(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    onClick = {
-                        applyPreset("Flat")
-                    }
-                ) {
-                    Text(
-                        text = "Reset Equalizer",
-                        color = Color(0xFF39FF88),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-    }
-
-    if (presetDialog) {
-        SabdhamChoiceDialog(
-            title = "Equalizer Preset",
-            current = preset,
-            options = listOf(
-                "Flat",
-                "Bass Boost",
-                "Treble Boost",
-                "Vocal",
-                "Rock",
-                "Pop"
-            ),
-            onDismiss = {
-                presetDialog = false
-            },
-            onSelected = {
-                applyPreset(it)
-                presetDialog = false
-            }
-        )
-    }
-}
-
-@Composable
-private fun SabdhamEqualizerBand(
-    title: String,
-    frequency: String,
-    value: Float,
-    enabled: Boolean,
-    onValueChange: (Float) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = 20.dp,
-                vertical = 10.dp
-            )
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = title,
-                    color = if (enabled)
-                        Color.White
-                    else
-                        Color(0xFF686E6A),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
-                )
-
-                Text(
-                    text = frequency,
-                    color = Color(0xFF78817C),
-                    fontSize = 12.sp
-                )
-            }
-
-            Text(
-                text = String.format(
-                    java.util.Locale.US,
-                    "%+.1f dB",
-                    value
-                ),
-                color = if (enabled)
-                    Color(0xFF39FF88)
-                else
-                    Color(0xFF686E6A),
-                fontSize = 13.sp
-            )
-        }
-
-        androidx.compose.material3.Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = -10f..10f,
-            enabled = enabled,
-            colors =
-                androidx.compose.material3.SliderDefaults.colors(
-                    thumbColor = Color(0xFF39FF88),
-                    activeTrackColor = Color(0xFF39FF88),
-                    inactiveTrackColor = Color(0xFF29302B)
-                )
-        )
-    }
-}
 
 
 
