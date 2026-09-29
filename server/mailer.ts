@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+﻿import nodemailer from 'nodemailer';
 import https from 'https';
 
 type MailTransporter = ReturnType<typeof nodemailer.createTransport>;
@@ -100,7 +100,7 @@ function getTransporter(): MailTransporter | null {
     try {
       cachedTransporter = nodemailer.createTransport(config);
       const hostLabel = config.service ? `service: ${config.service}` : `${config.host}:${config.port}`;
-      console.log(`✉️ [Mailer] Initialized transporter (${hostLabel}) for: ${config.auth?.user}`);
+      console.log(`âœ‰ï¸ [Mailer] Initialized transporter (${hostLabel}) for: ${config.auth?.user}`);
       return cachedTransporter;
     } catch (err) {
       console.error('Failed to initialize nodemailer transporter:', err);
@@ -123,7 +123,7 @@ async function sendViaResend(
 ): Promise<SendMailResult> {
   return new Promise((resolve) => {
     const payload = JSON.stringify({
-      from: process.env.EMAIL_FROM || process.env.SMTP_FROM || 'SABDHAM Music <onboarding@resend.dev>',
+      from: process.env.RESEND_FROM_EMAIL || 'SABDHAM <auth@sabdham.cyou>',
       to: [toEmail],
       subject,
       html: htmlContent,
@@ -201,7 +201,7 @@ Use this code to complete your ${purposeLabel}.
 This code is valid for 10 minutes.
 
 If you did not request this verification code, please ignore this email.
-— SABDHAM Music
+â€” SABDHAM Music
   `.trim();
 
   const htmlContent = `
@@ -286,7 +286,7 @@ If you did not request this verification code, please ignore this email.
       textContent
     );
     if (res.success) {
-      console.log(`📨 [Email Delivered via Resend] To: ${toEmail} | Code: [${code}] | ID: ${res.messageId}`);
+      console.log(`ðŸ“¨ [Email Delivered via Resend] To: ${toEmail} | Code: [${code}] | ID: ${res.messageId}`);
       return res;
     }
   }
@@ -311,7 +311,7 @@ If you did not request this verification code, please ignore this email.
         html: htmlContent,
       });
 
-      console.log(`📨 [Email Delivered via SMTP] To: ${toEmail} | MessageId: ${info.messageId}`);
+      console.log(`ðŸ“¨ [Email Delivered via SMTP] To: ${toEmail} | MessageId: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
       const errMsg = err?.message || String(err);
@@ -323,7 +323,7 @@ If you did not request this verification code, please ignore this email.
 
   // C. Fallback: Log email dispatch to console
   console.log(`\n======================================================`);
-  console.log(`📨 [EMAIL DISPATCH TO INBOX]`);
+  console.log(`ðŸ“¨ [EMAIL DISPATCH TO INBOX]`);
   console.log(`To: ${toEmail}`);
   console.log(`Subject: ${subject}`);
   console.log(`Verification Code: [${code}] (Valid for 10 minutes)`);
@@ -332,3 +332,4 @@ If you did not request this verification code, please ignore this email.
 
   return { success: false, error: 'No email delivery provider is configured.' };
 }
+
