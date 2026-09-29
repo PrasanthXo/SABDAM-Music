@@ -304,7 +304,13 @@ export async function saveUserLibraryToDb(
   data: Partial<DbUserLibrary>
 ): Promise<boolean> {
   try {
-    // 1. Sync Favorites
+    // ========================================================
+    // 1. Favorites
+    // ========================================================
+    // NON-DESTRUCTIVE ONLY.
+    // Full-library synchronization must never interpret a
+    // missing favorite as an unlike.
+    // Real unlikes use removeUserFavorite().
     if (Array.isArray(data.likedTrackIds)) {
       const uniqueIds = Array.from(
         new Set(
@@ -316,29 +322,24 @@ export async function saveUserLibraryToDb(
         )
       );
 
-      /*
-       * Preserve metadata that is already stored in PostgreSQL.
-       * This is critical because settings synchronization also sends
-       * the full user library and must NEVER convert favorites into
-       * bare IDs.
-       */
-      const existingFavorites = await db
-        .select()
-        .from(userFavorites)
-        .where(eq(userFavorites.userUid, uid));
-
-      const existingTrackData = new Map<string, string | null>();
-
-      for (const favorite of existingFavorites) {
-        if (!existingTrackData.has(favorite.trackId)) {
-          existingTrackData.set(
-            favorite.trackId,
-            favorite.trackData || null
+      const existingFavorites =
+        await db
+          .select()
+          .from(userFavorites)
+          .where(
+            eq(userFavorites.userUid, uid)
           );
-        }
-      }
 
-      const incomingTracks = new Map<string, DbTrack>();
+      const existingIds =
+        new Set(
+          existingFavorites.map(
+            (favorite) =>
+              favorite.trackId
+          )
+        );
+
+      const incomingTracks =
+        new Map<string, DbTrack>();
 
       if (Array.isArray(data.likedTracks)) {
         for (const track of data.likedTracks) {
@@ -355,228 +356,474 @@ export async function saveUserLibraryToDb(
         }
       }
 
-      await db
-        .delete(userFavorites)
-        .where(eq(userFavorites.userUid, uid));
+      for (const trackId of uniqueIds) {
+        const incoming =
+          incomingTracks.get(trackId);
 
-      if (uniqueIds.length > 0) {
-        await db.insert(userFavorites).values(
-          uniqueIds.map((trackId) => {
-            const incoming = incomingTracks.get(trackId);
+        if (existingIds.has(trackId)) {
+          if (incoming) {
+            await db
+              .update(userFavorites)
+              .set({
+                trackData:
+                  JSON.stringify(incoming),
+              })
+              .where(
+                and(
+                  eq(
+                    userFavorites.userUid,
+                    uid
+                  ),
+                  eq(
+                    userFavorites.trackId,
+                    trackId
+                  )
+                )
+              );
+          }
 
-            return {
-              userUid: uid,
-              trackId,
-              trackData: incoming
-                ? JSON.stringify(incoming)
-                : existingTrackData.get(trackId) || null,
-            };
-          })
-        );
+          continue;
+        }
+
+        await db
+          .insert(userFavorites)
+          .values({
+            userUid: uid,
+            trackId,
+            trackData: incoming
+              ? JSON.stringify(incoming)
+              : null,
+          });
+
+        existingIds.add(trackId);
       }
     }
 
-
-    // 2. Sync Custom Playlists (Upsert by ID + Clean up removed)
+    // ========================================================
+    // 2. Custom Playlists
+    // ========================================================
     if (Array.isArray(data.customPlaylists)) {
-      // De-duplicate incoming playlists by ID
-      const playlistMap = new Map<string, DbPlaylist>();
-      for (const pl of data.customPlaylists) {
-        if (pl && pl.id && pl.title) {
-          playlistMap.set(pl.id, pl);
+      const playlistMap =
+        new Map<string, DbPlaylist>();
+
+      for (const playlist of data.customPlaylists) {
+        if (
+          playlist &&
+          playlist.id &&
+          playlist.title
+        ) {
+          playlistMap.set(
+            playlist.id,
+            playlist
+          );
         }
       }
-      const uniquePlaylists = Array.from(playlistMap.values());
-      const currentPlaylistIds = uniquePlaylists.map((p) => p.id);
 
-      // SABDHAM_PLAYLIST_NON_DESTRUCTIVE_SYNC
-      //
-      // IMPORTANT:
-      // A customPlaylists array received through /api/user/data is only
-      // a client snapshot. Missing playlist IDs must NOT be interpreted
-      // as deletion.
-      //
-      // Real deletion is performed exclusively through
-      // deleteUserPlaylist(uid, playlistId).
+      const uniquePlaylists =
+        Array.from(
+          playlistMap.values()
+        );
 
-      // Upsert each unique playlist and its tracks
-      for (const pl of uniquePlaylists) {
+      for (const playlist of uniquePlaylists) {
         await db
           .insert(userPlaylists)
           .values({
-            id: pl.id,
+            id: playlist.id,
             userUid: uid,
-            title: pl.title,
-            description: pl.description || '',
-            coverUrl: pl.coverUrl || '',
-            isCustom: pl.isCustom ?? true,
-            createdAt: pl.createdAt ? new Date(pl.createdAt) : new Date(),
-            updatedAt: new Date(),
+            title: playlist.title,
+            description:
+              playlist.description || '',
+            coverUrl:
+              playlist.coverUrl || '',
+            isCustom:
+              playlist.isCustom ?? true,
+            createdAt:
+              playlist.createdAt
+                ? new Date(
+                    playlist.createdAt
+                  )
+                : new Date(),
+            updatedAt:
+              new Date(),
           })
           .onConflictDoUpdate({
             target: userPlaylists.id,
             set: {
               userUid: uid,
-              title: pl.title,
-              description: pl.description || '',
-              coverUrl: pl.coverUrl || '',
-              isCustom: pl.isCustom ?? true,
-              updatedAt: new Date(),
+              title: playlist.title,
+              description:
+                playlist.description || '',
+              coverUrl:
+                playlist.coverUrl || '',
+              isCustom:
+                playlist.isCustom ?? true,
+              updatedAt:
+                new Date(),
             },
           });
 
-        // Refresh tracks for this playlist
-        await db.delete(playlistTracks).where(eq(playlistTracks.playlistId, pl.id));
-        const tracksList = pl.tracks || (pl.trackIds ? pl.trackIds.map((id) => ({ id })) : []);
-        if (tracksList.length > 0) {
-          await db.insert(playlistTracks).values(
-            tracksList.map((tr, index) => ({
-              playlistId: pl.id,
-              trackId: typeof tr === 'string' ? tr : tr.id,
-              trackData: typeof tr === 'object' ? JSON.stringify(tr) : null,
-              position: index,
-            }))
+        const rawTracks =
+          Array.isArray(playlist.tracks)
+            ? playlist.tracks
+            : Array.isArray(
+                playlist.trackIds
+              )
+              ? playlist.trackIds.map(
+                  (id) => ({ id })
+                )
+              : [];
+
+        const validTracks =
+          rawTracks.filter(
+            (track: any) => {
+              const id =
+                typeof track === 'string'
+                  ? track
+                  : track?.id;
+
+              return (
+                typeof id === 'string' &&
+                id.trim().length > 0
+              );
+            }
           );
+
+        // IMPORTANT:
+        // Empty/stale snapshots must not erase tracks already stored.
+        // Explicit playlist deletion is handled by deleteUserPlaylist().
+        if (validTracks.length > 0) {
+          await db
+            .delete(playlistTracks)
+            .where(
+              eq(
+                playlistTracks.playlistId,
+                playlist.id
+              )
+            );
+
+          await db
+            .insert(playlistTracks)
+            .values(
+              validTracks.map(
+                (track: any, index) => ({
+                  playlistId:
+                    playlist.id,
+                  trackId:
+                    typeof track === 'string'
+                      ? track
+                      : String(track.id),
+                  trackData:
+                    typeof track === 'object'
+                      ? JSON.stringify(track)
+                      : null,
+                  position: index,
+                })
+              )
+            );
         }
       }
     }
 
-    // 3. Sync Custom Songs (Upsert by ID + Clean up removed)
+    // ========================================================
+    // 3. Custom Songs
+    // ========================================================
+    // Upsert-only from full snapshots.
+    // A stale empty device must never delete durable songs.
     if (Array.isArray(data.customSongs)) {
-      const songMap = new Map<string, DbTrack>();
-      for (const s of data.customSongs) {
-        if (s && s.id && s.title && s.audioUrl) {
-          songMap.set(s.id, s);
+      const songMap =
+        new Map<string, DbTrack>();
+
+      for (const song of data.customSongs) {
+        if (
+          song &&
+          song.id &&
+          song.title &&
+          song.audioUrl
+        ) {
+          songMap.set(
+            song.id,
+            song
+          );
         }
       }
-      const uniqueSongs = Array.from(songMap.values());
-      const currentSongIds = uniqueSongs.map((s) => s.id);
 
-      if (currentSongIds.length > 0) {
-        await db
-          .delete(userCustomSongs)
-          .where(and(eq(userCustomSongs.userUid, uid), notInArray(userCustomSongs.id, currentSongIds)));
-      } else {
-        await db.delete(userCustomSongs).where(eq(userCustomSongs.userUid, uid));
-      }
-
-      for (const s of uniqueSongs) {
+      for (const song of songMap.values()) {
         await db
           .insert(userCustomSongs)
           .values({
-            id: s.id,
+            id: song.id,
             userUid: uid,
-            title: s.title,
-            artist: s.artist || 'Unknown Artist',
-            audioUrl: s.audioUrl,
-            artwork: s.artwork || '',
-            duration: s.duration || 0,
-            youtubeId: s.youtubeId || null,
-            lyrics: s.lyrics || null,
-            createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
+            title: song.title,
+            artist:
+              song.artist ||
+              'Unknown Artist',
+            audioUrl: song.audioUrl,
+            artwork:
+              song.artwork || '',
+            duration:
+              song.duration || 0,
+            youtubeId:
+              song.youtubeId || null,
+            lyrics:
+              song.lyrics || null,
+            createdAt:
+              song.createdAt
+                ? new Date(
+                    song.createdAt
+                  )
+                : new Date(),
           })
           .onConflictDoUpdate({
             target: userCustomSongs.id,
             set: {
               userUid: uid,
-              title: s.title,
-              artist: s.artist || 'Unknown Artist',
-              audioUrl: s.audioUrl,
-              artwork: s.artwork || '',
-              duration: s.duration || 0,
-              youtubeId: s.youtubeId || null,
-              lyrics: s.lyrics || null,
+              title: song.title,
+              artist:
+                song.artist ||
+                'Unknown Artist',
+              audioUrl:
+                song.audioUrl,
+              artwork:
+                song.artwork || '',
+              duration:
+                song.duration || 0,
+              youtubeId:
+                song.youtubeId ||
+                null,
+              lyrics:
+                song.lyrics || null,
             },
           });
       }
     }
 
-    // 4. Sync Recently Played
-    if (Array.isArray(data.recentlyPlayed)) {
-      await db.delete(userRecentlyPlayed).where(eq(userRecentlyPlayed.userUid, uid));
-      const recentSlice = data.recentlyPlayed.slice(0, 50);
-      if (recentSlice.length > 0) {
-        await db.insert(userRecentlyPlayed).values(
-          recentSlice.map((r) => ({
-            userUid: uid,
-            trackId: r.id,
-            trackData: JSON.stringify(r),
-            playedAt: new Date(),
-          }))
+    // ========================================================
+    // 4. Recently Played
+    // ========================================================
+    if (
+      Array.isArray(
+        data.recentlyPlayed
+      )
+    ) {
+      await db
+        .delete(userRecentlyPlayed)
+        .where(
+          eq(
+            userRecentlyPlayed.userUid,
+            uid
+          )
         );
+
+      const recentSlice =
+        data.recentlyPlayed
+          .filter(
+            (track: any) =>
+              track &&
+              typeof track.id === 'string' &&
+              track.id.trim().length > 0
+          )
+          .slice(0, 50);
+
+      if (recentSlice.length > 0) {
+        await db
+          .insert(userRecentlyPlayed)
+          .values(
+            recentSlice.map(
+              (track: any) => ({
+                userUid: uid,
+                trackId:
+                  track.id,
+                trackData:
+                  JSON.stringify(track),
+                playedAt:
+                  new Date(),
+              })
+            )
+          );
       }
     }
 
-    // 5. Sync Settings
-    if (data.settings && typeof data.settings === 'object') {
-      const s = data.settings;
+    // ========================================================
+    // 5. Settings
+    // ========================================================
+    if (
+      data.settings &&
+      typeof data.settings === 'object'
+    ) {
+      const settings = data.settings;
 
       await db
         .insert(userSettings)
         .values({
           userUid: uid,
 
-          audioQuality: s.audioQuality || 'Normal',
+          audioQuality:
+            settings.audioQuality ||
+            'Normal',
 
-          crossfade: s.crossfade ?? false,
-          gapless: s.gapless ?? false,
-          autoplay: s.autoplay ?? false,
-          volumeNormalization: s.volumeNormalization ?? false,
+          crossfade:
+            settings.crossfade ??
+            false,
 
-          wifiOnlyDownloads: s.wifiOnlyDownloads ?? false,
-          mobileStreaming: s.mobileStreaming ?? false,
+          gapless:
+            settings.gapless ??
+            false,
 
-          downloadQuality: s.downloadQuality || 'Normal',
-          themeMode: s.themeMode || 'Dark',
+          autoplay:
+            settings.autoplay ??
+            false,
 
-          equalizerEnabled: s.equalizerEnabled ?? false,
-          equalizerPreset: s.equalizerPreset || 'Flat',
+          volumeNormalization:
+            settings.volumeNormalization ??
+            false,
 
-          eqBass: Number(s.eqBass ?? 0),
-          eqLowMid: Number(s.eqLowMid ?? 0),
-          eqMid: Number(s.eqMid ?? 0),
-          eqHighMid: Number(s.eqHighMid ?? 0),
-          eqTreble: Number(s.eqTreble ?? 0),
+          wifiOnlyDownloads:
+            settings.wifiOnlyDownloads ??
+            false,
 
-          offlineMode: s.offlineMode ?? false,
+          mobileStreaming:
+            settings.mobileStreaming ??
+            false,
 
-          updatedAt: new Date(),
+          downloadQuality:
+            settings.downloadQuality ||
+            'Normal',
+
+          themeMode:
+            settings.themeMode ||
+            'Dark',
+
+          equalizerEnabled:
+            settings.equalizerEnabled ??
+            false,
+
+          equalizerPreset:
+            settings.equalizerPreset ||
+            'Flat',
+
+          eqBass:
+            Number(
+              settings.eqBass ?? 0
+            ),
+
+          eqLowMid:
+            Number(
+              settings.eqLowMid ?? 0
+            ),
+
+          eqMid:
+            Number(
+              settings.eqMid ?? 0
+            ),
+
+          eqHighMid:
+            Number(
+              settings.eqHighMid ?? 0
+            ),
+
+          eqTreble:
+            Number(
+              settings.eqTreble ?? 0
+            ),
+
+          offlineMode:
+            settings.offlineMode ??
+            false,
+
+          updatedAt:
+            new Date(),
         })
         .onConflictDoUpdate({
-          target: userSettings.userUid,
+          target:
+            userSettings.userUid,
+
           set: {
-            audioQuality: s.audioQuality || 'Normal',
+            audioQuality:
+              settings.audioQuality ||
+              'Normal',
 
-            crossfade: s.crossfade ?? false,
-            gapless: s.gapless ?? false,
-            autoplay: s.autoplay ?? false,
-            volumeNormalization: s.volumeNormalization ?? false,
+            crossfade:
+              settings.crossfade ??
+              false,
 
-            wifiOnlyDownloads: s.wifiOnlyDownloads ?? false,
-            mobileStreaming: s.mobileStreaming ?? false,
+            gapless:
+              settings.gapless ??
+              false,
 
-            downloadQuality: s.downloadQuality || 'Normal',
-            themeMode: s.themeMode || 'Dark',
+            autoplay:
+              settings.autoplay ??
+              false,
 
-            equalizerEnabled: s.equalizerEnabled ?? false,
-            equalizerPreset: s.equalizerPreset || 'Flat',
+            volumeNormalization:
+              settings.volumeNormalization ??
+              false,
 
-            eqBass: Number(s.eqBass ?? 0),
-            eqLowMid: Number(s.eqLowMid ?? 0),
-            eqMid: Number(s.eqMid ?? 0),
-            eqHighMid: Number(s.eqHighMid ?? 0),
-            eqTreble: Number(s.eqTreble ?? 0),
+            wifiOnlyDownloads:
+              settings.wifiOnlyDownloads ??
+              false,
 
-            offlineMode: s.offlineMode ?? false,
+            mobileStreaming:
+              settings.mobileStreaming ??
+              false,
 
-            updatedAt: new Date(),
+            downloadQuality:
+              settings.downloadQuality ||
+              'Normal',
+
+            themeMode:
+              settings.themeMode ||
+              'Dark',
+
+            equalizerEnabled:
+              settings.equalizerEnabled ??
+              false,
+
+            equalizerPreset:
+              settings.equalizerPreset ||
+              'Flat',
+
+            eqBass:
+              Number(
+                settings.eqBass ?? 0
+              ),
+
+            eqLowMid:
+              Number(
+                settings.eqLowMid ?? 0
+              ),
+
+            eqMid:
+              Number(
+                settings.eqMid ?? 0
+              ),
+
+            eqHighMid:
+              Number(
+                settings.eqHighMid ?? 0
+              ),
+
+            eqTreble:
+              Number(
+                settings.eqTreble ?? 0
+              ),
+
+            offlineMode:
+              settings.offlineMode ??
+              false,
+
+            updatedAt:
+              new Date(),
           },
         });
     }
 
     return true;
   } catch (error) {
-    console.error('[Cloud SQL] saveUserLibraryToDb failed:', error);
+    console.error(
+      '[Cloud SQL] saveUserLibraryToDb failed:',
+      error
+    );
+
     return false;
   }
 }

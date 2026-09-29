@@ -565,18 +565,7 @@ function initUserData(userId: string, email?: string) {
   const initialData: UserDataRecord = {
     likedTrackIds: [],
     recentlyPlayed: [],
-    customPlaylists: [
-      {
-        id: `pl_${Date.now()}_fav`,
-        title: 'My Morning Favorites',
-        description: 'My personalized morning playlist',
-        coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80',
-        trackIds: ['ta-01', 'en-01'],
-        isCustom: true,
-        createdAt: new Date().toISOString(),
-        userId,
-      }
-    ],
+    customPlaylists: [],
     customSongs: [],
     settings: {
       audioQuality: 'Normal',
@@ -1483,184 +1472,428 @@ app.delete('/api/db/playlists/:playlistId', async (req, res) => {
   }
 });
 
-// 7. API: Get User's Isolated Private Data (Synchronized with PostgreSQL Cloud SQL)
+function isLegacyGeneratedFavoritesPlaylist(playlist: any): boolean {
+  if (!playlist || typeof playlist !== 'object') {
+    return false;
+  }
+
+  const id = String(playlist.id || '').trim().toLowerCase();
+  const title = String(
+    playlist.title || playlist.name || ''
+  ).trim().toLowerCase();
+
+  return (
+    title === 'my morning favorites' &&
+    id.startsWith('pl_') &&
+    id.endsWith('_fav')
+  );
+}
+
+// 7. API: Get User's Isolated Private Data
+// PostgreSQL is the ONLY durable source of truth.
 app.get('/api/user/data', async (req, res) => {
   const user = await getAuthUser(req);
+
   if (!user) {
-    return res.status(401).json({ error: 'Authentication required to access user data.' });
+    return res.status(401).json({
+      error: 'Authentication required to access user data.'
+    });
   }
 
-  // 1. First, attempt to retrieve persistent library from Cloud SQL PostgreSQL
-  try {
-    const dbLibrary = await getUserLibraryFromDb(user.id) || (user.email ? await getUserLibraryFromDb(user.email.toLowerCase()) : null);
-    if (
-      dbLibrary &&
-      (dbLibrary.customPlaylists.length > 0 ||
-        dbLibrary.likedTrackIds.length > 0 ||
-        dbLibrary.customSongs.length > 0 ||
-        dbLibrary.recentlyPlayed.length > 0 ||
-        !!dbLibrary.settings)
-    ) {
-      // Update memory store with latest SQL database state
-      userDataStore.set(user.id, dbLibrary as UserDataRecord);
-      if (user.email) {
-        userDataStore.set(user.email.toLowerCase(), dbLibrary as UserDataRecord);
-      }
-      savePersistedData();
-      return res.json({ data: dbLibrary });
-    }
-  } catch (sqlErr) {
-    console.warn('[Cloud SQL] Failed to query user library on GET /api/user/data, falling back to memory/local store:', sqlErr);
+  const dbUser = await getOrCreateUser(
+    user.id,
+    user.email,
+    user.name,
+    user.avatarUrl
+  );
+
+  if (!dbUser) {
+    console.error(
+      '[DB AUTHORITATIVE] Could not resolve PostgreSQL user for ' +
+      user.email
+    );
+
+    return res.status(503).json({
+      success: false,
+      error: 'Your library is temporarily unavailable.',
+      code: 'USER_DB_UNAVAILABLE'
+    });
   }
 
-  // 2. Fall back to in-memory / JSON persistent store
-  let data = userDataStore.get(user.id) || (user.email ? userDataStore.get(user.email.toLowerCase()) : null);
+  const dbLibrary = await getUserLibraryFromDb(dbUser.uid);
 
-  if (!data) {
-    data = {
-      likedTrackIds: [],
-      recentlyPlayed: [],
-      customPlaylists: [],
-      customSongs: [],
-    };
-    userDataStore.set(user.id, data);
-    if (user.email) {
-      userDataStore.set(user.email.toLowerCase(), data);
-    }
-    savePersistedData();
-  } else {
-    // Ensure both maps are populated
-    userDataStore.set(user.id, data);
-    if (user.email) {
-      userDataStore.set(user.email.toLowerCase(), data);
-    }
+  if (!dbLibrary) {
+    console.error(
+      '[DB AUTHORITATIVE] Library read failed for ' +
+      dbUser.uid
+    );
+
+    return res.status(503).json({
+      success: false,
+      error: 'Your library is temporarily unavailable.',
+      code: 'USER_LIBRARY_DB_UNAVAILABLE'
+    });
   }
 
-  // Async push initial/cached data into SQL if database is empty for this user
-  try {
-    getOrCreateUser(user.id, user.email, user.name, user.avatarUrl).then(() => {
-      saveUserLibraryToDb(user.id, data as any);
-    }).catch(() => {});
-  } catch {}
-
-  return res.json({ data });
-});
-
-// 8. API: Save/Sync User's Isolated Private Data (Synchronized with PostgreSQL Cloud SQL)
-app.post('/api/user/data', async (req, res) => {
-  const user = await getAuthUser(req);
-  if (!user) {
-    return res.status(401).json({ error: 'Authentication required to save user data.' });
-  }
-
-  const { likedTrackIds, likedTracks, recentlyPlayed, customPlaylists, customSongs, settings, isExplicitClear } = req.body || {};
-
-  const current = userDataStore.get(user.id) || (user.email ? userDataStore.get(user.email.toLowerCase()) : null) || {
-    likedTrackIds: [],
-    recentlyPlayed: [],
-    customPlaylists: [],
-    customSongs: [],
+  // Old generated Favorites playlists are retained in PostgreSQL for
+  // recovery, but they must no longer appear as normal playlists.
+  const cleanLibrary: UserDataRecord = {
+    ...(dbLibrary as UserDataRecord),
+    likedTrackIds: [...(dbLibrary.likedTrackIds || [])],
+    likedTracks: [...(dbLibrary.likedTracks || [])],
+    recentlyPlayed: [...(dbLibrary.recentlyPlayed || [])],
+    customPlaylists: (dbLibrary.customPlaylists || []).filter(
+      (playlist: any) =>
+        !isLegacyGeneratedFavoritesPlaylist(playlist)
+    ),
+    customSongs: [...(dbLibrary.customSongs || [])],
   };
 
-  // Safeguard: Protect existing user library items from being wiped by uninitialized empty client syncs
-  if (Array.isArray(likedTrackIds)) {
-    const cleanLikes = likedTrackIds.filter((id) => typeof id === 'string' && id.trim().length > 0);
-    if (cleanLikes.length > 0 || isExplicitClear || (current.likedTrackIds || []).length === 0) {
-      current.likedTrackIds = cleanLikes;
-    } else {
-      console.warn(`[Data Safeguard] Preserved ${current.likedTrackIds.length} existing liked tracks for ${user.id} against empty sync.`);
-    }
-  }
+  // Cache receives PostgreSQL state only AFTER a successful DB read.
+  userDataStore.set(dbUser.uid, cleanLibrary);
+  userDataStore.set(user.id, cleanLibrary);
 
-  if (Array.isArray(likedTracks)) {
-    current.likedTracks = likedTracks.filter(
-      (track: any) =>
-        track &&
-        typeof track === 'object' &&
-        typeof track.id === 'string' &&
-        track.id.trim().length > 0
+  if (user.email) {
+    userDataStore.set(
+      user.email.toLowerCase(),
+      cleanLibrary
     );
   }
 
+  savePersistedData();
+
+  return res.json({
+    data: cleanLibrary,
+    source: 'postgresql'
+  });
+});
+
+// 8. API: Save/Sync User's Isolated Private Data
+// PostgreSQL is read first, written first, then cache is refreshed.
+// Favorite mutations are exclusively handled by /api/db/favorites.
+app.post('/api/user/data', async (req, res) => {
+  const user = await getAuthUser(req);
+
+  if (!user) {
+    return res.status(401).json({
+      error: 'Authentication required to save user data.'
+    });
+  }
+
+  const dbUser = await getOrCreateUser(
+    user.id,
+    user.email,
+    user.name,
+    user.avatarUrl
+  );
+
+  if (!dbUser) {
+    return res.status(503).json({
+      success: false,
+      error: 'Unable to access your account database.',
+      code: 'USER_DB_UNAVAILABLE'
+    });
+  }
+
+  // IMPORTANT:
+  // Never merge a write against RAM/cache. Always start from PostgreSQL.
+  const dbCurrent = await getUserLibraryFromDb(dbUser.uid);
+
+  if (!dbCurrent) {
+    console.error(
+      '[DB AUTHORITATIVE] Refusing user-data write because DB read failed for ' +
+      dbUser.uid
+    );
+
+    return res.status(503).json({
+      success: false,
+      error: 'Your library could not be loaded safely. Nothing was changed.',
+      code: 'USER_LIBRARY_DB_UNAVAILABLE'
+    });
+  }
+
+  const {
+    likedTrackIds,
+    likedTracks,
+    recentlyPlayed,
+    customPlaylists,
+    customSongs,
+    settings,
+    isExplicitClear
+  } = req.body || {};
+
+  const current: UserDataRecord = {
+    ...(dbCurrent as UserDataRecord),
+    likedTrackIds: [...(dbCurrent.likedTrackIds || [])],
+    likedTracks: [...(dbCurrent.likedTracks || [])],
+    recentlyPlayed: [...(dbCurrent.recentlyPlayed || [])],
+    customPlaylists: (dbCurrent.customPlaylists || []).filter(
+      (playlist: any) =>
+        !isLegacyGeneratedFavoritesPlaylist(playlist)
+    ),
+    customSongs: [...(dbCurrent.customSongs || [])],
+  };
+
+  const dbPatch: any = {};
+
+  // ==========================================================
+  // FAVORITES SAFETY
+  // ==========================================================
+  // Full-library snapshots are NOT allowed to add/remove favorites.
+  // This prevents an old Android cache/settings sync from restoring
+  // deleted likes or wiping newly-added likes.
+  if (
+    Array.isArray(likedTrackIds) ||
+    Array.isArray(likedTracks)
+  ) {
+    console.log(
+      '[DB AUTHORITATIVE] Ignored snapshot favorite fields for ' +
+      dbUser.uid +
+      '; use atomic /api/db/favorites endpoints.'
+    );
+  }
+
+  // ==========================================================
+  // RECENTLY PLAYED
+  // ==========================================================
   if (Array.isArray(recentlyPlayed)) {
-    if (recentlyPlayed.length > 0 || isExplicitClear || (current.recentlyPlayed || []).length === 0) {
-      current.recentlyPlayed = recentlyPlayed.slice(0, 50);
+    if (
+      recentlyPlayed.length > 0 ||
+      isExplicitClear ||
+      current.recentlyPlayed.length === 0
+    ) {
+      current.recentlyPlayed =
+        recentlyPlayed
+          .filter(
+            (item: any) =>
+              item &&
+              typeof item === 'object' &&
+              typeof item.id === 'string' &&
+              item.id.trim().length > 0
+          )
+          .slice(0, 50);
+
+      dbPatch.recentlyPlayed =
+        current.recentlyPlayed;
     }
   }
+
+  // ==========================================================
+  // PLAYLISTS
+  // ==========================================================
   if (Array.isArray(customPlaylists)) {
-    // SABDHAM_PLAYLIST_MERGE_SYNC
-    // Client playlist arrays are snapshots, NOT deletion instructions.
-    // Merge by playlist ID so a stale client cannot erase another
-    // playlist or an imported Spotify/YouTube playlist.
-    const incomingPlaylists =
+    const playlistsById =
+      new Map<string, any>();
+
+    for (const existing of current.customPlaylists) {
+      if (
+        existing &&
+        typeof existing.id === 'string' &&
+        existing.id.trim().length > 0
+      ) {
+        playlistsById.set(existing.id, existing);
+      }
+    }
+
+    const incoming =
       customPlaylists.filter(
         (playlist: any) =>
           playlist &&
           typeof playlist.id === 'string' &&
-          playlist.id.trim().length > 0
+          playlist.id.trim().length > 0 &&
+          !isLegacyGeneratedFavoritesPlaylist(playlist)
       );
 
-    if (incomingPlaylists.length > 0) {
-      const playlistsById = new Map<string, any>();
+    for (const playlist of incoming) {
+      const existing =
+        playlistsById.get(playlist.id);
 
-      for (const existingPlaylist of current.customPlaylists || []) {
+      const merged = {
+        ...(existing || {}),
+        ...playlist,
+      };
+
+      // A stale/partial client sending an empty track array must NEVER
+      // erase tracks that PostgreSQL already has.
+      if (existing) {
+        const existingTracks =
+          Array.isArray(existing.tracks)
+            ? existing.tracks
+            : [];
+
+        const existingTrackIds =
+          Array.isArray(existing.trackIds)
+            ? existing.trackIds
+            : [];
+
         if (
-          existingPlaylist &&
-          typeof existingPlaylist.id === 'string' &&
-          existingPlaylist.id.trim().length > 0
+          Array.isArray(playlist.tracks) &&
+          playlist.tracks.length === 0 &&
+          existingTracks.length > 0
         ) {
-          playlistsById.set(
-            existingPlaylist.id,
-            existingPlaylist
+          merged.tracks = existingTracks;
+        }
+
+        if (
+          Array.isArray(playlist.trackIds) &&
+          playlist.trackIds.length === 0 &&
+          existingTrackIds.length > 0
+        ) {
+          merged.trackIds = existingTrackIds;
+        }
+      }
+
+      playlistsById.set(
+        playlist.id,
+        merged
+      );
+    }
+
+    current.customPlaylists =
+      Array.from(playlistsById.values());
+
+    dbPatch.customPlaylists =
+      current.customPlaylists;
+  }
+
+  // ==========================================================
+  // CUSTOM SONGS
+  // ==========================================================
+  if (Array.isArray(customSongs)) {
+    if (customSongs.length > 0) {
+      const songsById =
+        new Map<string, any>();
+
+      for (const existing of current.customSongs) {
+        if (
+          existing &&
+          typeof existing.id === 'string'
+        ) {
+          songsById.set(
+            existing.id,
+            existing
           );
         }
       }
 
-      for (const incomingPlaylist of incomingPlaylists) {
-        const existingPlaylist =
-          playlistsById.get(incomingPlaylist.id) || {};
-
-        playlistsById.set(
-          incomingPlaylist.id,
-          {
-            ...existingPlaylist,
-            ...incomingPlaylist,
-          }
-        );
+      for (const song of customSongs) {
+        if (
+          song &&
+          typeof song.id === 'string' &&
+          song.id.trim().length > 0
+        ) {
+          songsById.set(
+            song.id,
+            {
+              ...(songsById.get(song.id) || {}),
+              ...song,
+            }
+          );
+        }
       }
 
-      current.customPlaylists =
-        Array.from(playlistsById.values());
-    }
-  }
+      current.customSongs =
+        Array.from(songsById.values());
 
-  if (Array.isArray(customSongs)) {
-    if (customSongs.length > 0 || isExplicitClear || (current.customSongs || []).length === 0) {
-      current.customSongs = customSongs;
+      dbPatch.customSongs =
+        current.customSongs;
+    } else if (
+      current.customSongs.length === 0
+    ) {
+      dbPatch.customSongs = [];
     } else {
-      console.warn(`[Data Safeguard] Preserved ${current.customSongs.length} existing custom songs for ${user.id} against empty sync.`);
+      console.warn(
+        '[DB AUTHORITATIVE] Ignored empty custom-song snapshot for ' +
+        dbUser.uid
+      );
     }
   }
-  if (settings && typeof settings === 'object') {
-    current.settings = { ...current.settings, ...settings };
+
+  // ==========================================================
+  // SETTINGS
+  // ==========================================================
+  if (
+    settings &&
+    typeof settings === 'object'
+  ) {
+    current.settings = {
+      ...(current.settings || {}),
+      ...settings,
+    } as UserDataRecord['settings'];
+
+    dbPatch.settings = current.settings;
   }
 
-  // 1. Update in-memory & local cache immediately for low-latency response
-  userDataStore.set(user.id, current);
-  if (user.email) {
-    userDataStore.set(user.email.toLowerCase(), current);
+  // PostgreSQL must succeed BEFORE RAM/JSON cache can change.
+  if (Object.keys(dbPatch).length > 0) {
+    const saved = await saveUserLibraryToDb(
+      dbUser.uid,
+      dbPatch
+    );
+
+    if (!saved) {
+      console.error(
+        '[DB AUTHORITATIVE] Database save failed for ' +
+        dbUser.uid
+      );
+
+      return res.status(503).json({
+        success: false,
+        error: 'Your changes could not be saved safely. Nothing was cached.',
+        code: 'USER_LIBRARY_DB_SAVE_FAILED'
+      });
+    }
   }
+
+  // Re-read PostgreSQL after the write.
+  const confirmed =
+    await getUserLibraryFromDb(dbUser.uid);
+
+  if (!confirmed) {
+    return res.status(503).json({
+      success: false,
+      error: 'Changes were written but could not be verified.',
+      code: 'USER_LIBRARY_DB_VERIFY_FAILED'
+    });
+  }
+
+  const confirmedClean: UserDataRecord = {
+    ...(confirmed as UserDataRecord),
+    likedTrackIds: [...(confirmed.likedTrackIds || [])],
+    likedTracks: [...(confirmed.likedTracks || [])],
+    recentlyPlayed: [...(confirmed.recentlyPlayed || [])],
+    customPlaylists: (confirmed.customPlaylists || []).filter(
+      (playlist: any) =>
+        !isLegacyGeneratedFavoritesPlaylist(playlist)
+    ),
+    customSongs: [...(confirmed.customSongs || [])],
+  };
+
+  userDataStore.set(
+    dbUser.uid,
+    confirmedClean
+  );
+
+  userDataStore.set(
+    user.id,
+    confirmedClean
+  );
+
+  if (user.email) {
+    userDataStore.set(
+      user.email.toLowerCase(),
+      confirmedClean
+    );
+  }
+
   savePersistedData();
 
-  // 2. Persist to Cloud SQL PostgreSQL
-  try {
-    await getOrCreateUser(user.id, user.email, user.name, user.avatarUrl);
-    await saveUserLibraryToDb(user.id, current);
-  } catch (sqlErr) {
-    console.error('[Cloud SQL] Failed to save user library to database:', sqlErr);
-  }
-
-  return res.json({ success: true, message: 'User data saved to SQL database.' });
+  return res.json({
+    success: true,
+    message: 'User data saved to PostgreSQL.',
+    data: confirmedClean,
+    source: 'postgresql'
+  });
 });
 
 function getSpotifyRedirectUri(req: express.Request): string {
