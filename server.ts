@@ -1,4 +1,4 @@
-﻿import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import express from 'express';
 import https from 'https';
 import path from 'path';
@@ -521,7 +521,12 @@ async function createSessionToken(user: UserRecord): Promise<string> {
     user.avatarUrl
   );
 
-  const canonicalUid = dbUser?.uid || user.id;
+  // Durable sessions must always reference a real PostgreSQL user.
+  if (!dbUser) {
+    throw new Error('AUTH_DB_USER_PERSIST_FAILED');
+  }
+
+  const canonicalUid = dbUser.uid;
   user.id = canonicalUid;
 
   const saved = await createAuthSession(
@@ -533,7 +538,7 @@ async function createSessionToken(user: UserRecord): Promise<string> {
   );
 
   if (!saved) {
-    throw new Error('Unable to persist SABDHAM authentication session.');
+    throw new Error('AUTH_SESSION_PERSIST_FAILED');
   }
 
   sessions.set(token, {
@@ -623,7 +628,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     // Check if user already exists
-    const existing = users.get(email);
+    const existing = users.get(email) || await getUserByEmail(email);
     if (existing) {
       return res.status(400).json({
         error: 'An account with this email already exists. Please sign in instead.'
@@ -653,14 +658,19 @@ app.post('/api/auth/register', async (req, res) => {
       lastLoginAt: new Date().toISOString(),
     };
 
-    users.set(email, newUser);
-    usersById.set(id, newUser);
-    initUserData(id);
-    savePersistedData();
-    // Synchronize with PostgreSQL Cloud SQL
-    getOrCreateUser(newUser.id, newUser.email, newUser.name, undefined).catch(() => {});
-
+    // PostgreSQL user + durable session must succeed first.
+    // This prevents failed registrations from creating ghost accounts.
     const token = await createSessionToken(newUser);
+
+    // createSessionToken replaces the temporary ID with the
+    // canonical PostgreSQL SABDHAM UID.
+    const canonicalId = newUser.id;
+
+    users.set(email, newUser);
+    usersById.set(canonicalId, newUser);
+    initUserData(canonicalId, email);
+    savePersistedData();
+
     setAuthCookie(res, token, 7);
 
     console.log(`\nÃ¢Å“â€¦ [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
