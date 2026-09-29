@@ -1,4 +1,4 @@
-﻿package com.morningmusic.app.ui.screens
+package com.morningmusic.app.ui.screens
 
 
 import androidx.compose.ui.draw.blur
@@ -1168,11 +1168,15 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                     .background(Color(0xFF24242A)),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Text(
-                                                    text = "â™«",
-                                                    color = Color(0xFF1DB954),
-                                                    fontSize = 18.sp,
-                                                    fontWeight = FontWeight.Bold
+                                                androidx.compose.foundation.Image(
+                                                    painter = androidx.compose.ui.res.painterResource(
+                                                        com.sabdham.music.R.drawable.ic_playlist_sabdham
+                                                    ),
+                                                    contentDescription = "Playlist",
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .clip(RoundedCornerShape(8.dp))
                                                 )
                                             }
 
@@ -1616,21 +1620,30 @@ fun HorizontalTrackGrid(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        text = if (track.id in likedTrackIds) "Liked" else "Like",
-                                        color = if (track.id in likedTrackIds)
+                                        text = if (likedTrackIds.contains(track.id)) "Liked" else "Like",
+                                        color = if (likedTrackIds.contains(track.id))
                                             Color(0xFF1DB954)
                                         else
                                             Color.White
                                     )
                                 },
                                 leadingIcon = {
-                                    Text(
-                                        text = if (track.id in likedTrackIds) "♥" else "♡",
-                                        color = if (track.id in likedTrackIds)
-                                            Color(0xFF1DB954)
-                                        else
-                                            Color.White,
-                                        fontSize = 22.sp
+                                    Icon(
+                                        imageVector =
+                                            if (likedTrackIds.contains(track.id))
+                                                Icons.Default.Favorite
+                                            else
+                                                Icons.Outlined.FavoriteBorder,
+                                        contentDescription =
+                                            if (likedTrackIds.contains(track.id))
+                                                "Liked"
+                                            else
+                                                "Like",
+                                        tint =
+                                            if (likedTrackIds.contains(track.id))
+                                                Color(0xFF1DB954)
+                                            else
+                                                Color.White
                                     )
                                 },
                                 onClick = {
@@ -1926,7 +1939,7 @@ fun TrackListItem(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${track.artist} â€¢ ${track.album.ifEmpty { "Single" }}",
+                text = "${track.artist} ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ${track.album.ifEmpty { "Single" }}",
                 color = Color(0xFF888899),
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -2295,7 +2308,7 @@ fun FullPlayerSheet(
                             ) {
                                 item {
                                     Text(
-                                        text = "Lyrics â€¢ ${track.title}",
+                                        text = "Lyrics ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ${track.title}",
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -2458,7 +2471,7 @@ fun FullPlayerSheet(
                                 text = buildString {
                                     append(track.artist)
                                     if (track.album.isNotBlank()) {
-                                        append(" â€¢ ")
+                                        append(" ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ")
                                         append(track.album)
                                     }
                                 },
@@ -3690,7 +3703,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
                                     )
 
                                     Text(
-                                        text = "${albumTracks.firstOrNull()?.artist.orEmpty()} • ${albumTracks.size} ${if (albumTracks.size == 1) "song" else "songs"}",
+                                        text = "${albumTracks.firstOrNull()?.artist.orEmpty()} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${albumTracks.size} ${if (albumTracks.size == 1) "song" else "songs"}",
                                         color = muted,
                                         fontSize = 12.sp,
                                         maxLines = 1,
@@ -3876,7 +3889,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
                 Spacer(Modifier.height(8.dp))
 
                 LibrarySyncRow(
-                    iconText = "â–¶",
+                    iconText = "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¶",
                     iconColor = Color(0xFFFF2D2D),
                     title = "Connect YouTube",
                     subtitle = "Sync your playlists",
@@ -3892,7 +3905,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
                 Spacer(Modifier.height(8.dp))
 
                 LibrarySyncRow(
-                    iconText = "ðŸ”—",
+                    iconText = "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â",
                     iconColor = Color(0xFF2563EB),
                     title = "Import Playlist by URL",
                     subtitle = "Spotify or YouTube playlist link",
@@ -3932,7 +3945,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
         LibraryPlaylistRow(
             title = "Liked Songs",
             subtitle = "${likedTracks.size} ${if (likedTracks.size == 1) "song" else "songs"}",
-            iconText = "♥",
+            iconText = "ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¥",
             iconColor = Color(0xFF9B5DE5),
             onClick = { librarySection = "liked" }
         )
@@ -4296,12 +4309,42 @@ private fun LibraryPlaylistRow(
                 .background(iconColor),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = iconText,
-                color = Color.White,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
+            when {
+                title == "Liked Songs" -> {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(
+                            com.sabdham.music.R.drawable.ic_liked_songs
+                        ),
+                        contentDescription = "Liked Songs",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+
+                iconText == "S" -> {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(
+                            com.sabdham.music.R.drawable.ic_playlist_sabdham
+                        ),
+                        contentDescription = "Playlist",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+
+                else -> {
+                    Text(
+                        text = iconText,
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.width(12.dp))
@@ -4325,7 +4368,7 @@ private fun LibraryPlaylistRow(
             )
         }
 
-        IconButton(onClick = { }) {
+        IconButton(onClick = onClick) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = "Playlist options",
@@ -4362,23 +4405,10 @@ private fun SignedInProfileView(
     val context = androidx.compose.ui.platform.LocalContext.current
 
     var showProfileAbout by remember { mutableStateOf(false) }
-
-    val profileSupportEmail = "sabdhammusic@gmail.com"
-
+    // SABDHAM_PROFILE_SUPPORT_CENTER
+    var showProfileSupport by remember { mutableStateOf(false) }
     fun openProfileSupport() {
-        try {
-            val intent = android.content.Intent(
-                android.content.Intent.ACTION_SENDTO
-            ).apply {
-                data = android.net.Uri.parse(
-                    "mailto:" + profileSupportEmail +
-                        "?subject=" +
-                        android.net.Uri.encode("SABDHAM Support Request")
-                )
-            }
-            context.startActivity(intent)
-        } catch (_: Exception) {
-        }
+        showProfileSupport = true
     }
 
     val memberSince = if (user.createdAt.isNotBlank()) {
@@ -4741,7 +4771,7 @@ private fun SignedInProfileView(
                 SabdhamProfileMenuRow(
                     icon = Icons.Default.Help,
                     title = "Help & Support",
-                    subtitle = "Contact SABDHAM support",
+                    subtitle = "FAQs and report a problem",
                     green = green,
                     onClick = { openProfileSupport() }
                 )
@@ -4751,7 +4781,7 @@ private fun SignedInProfileView(
                 SabdhamProfileMenuRow(
                     icon = Icons.Default.Info,
                     title = "About SABDHAM",
-                    subtitle = "Santh Creatives • Legal & privacy",
+                    subtitle = "Santh Creatives",
                     green = green,
                     onClick = { showProfileAbout = true }
                 )
@@ -4812,7 +4842,7 @@ private fun SignedInProfileView(
                 )
 
                 Text(
-                    text = user.id.ifBlank { "—" },
+                    text = user.id.ifBlank { "ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â" },
                     color = Color.White,
                     fontSize = 12.sp,
                     maxLines = 1,
@@ -4880,6 +4910,14 @@ private fun SignedInProfileView(
             fontSize = 10.sp
         )
 
+        if (showProfileSupport) {
+            SabdhamProfileSupportDialog(
+                onDismiss = {
+                    showProfileSupport = false
+                }
+            )
+        }
+
         if (showProfileAbout) {
             SabdhamLegalDialog(
                 title = "About SABDHAM",
@@ -4894,6 +4932,452 @@ private fun SignedInProfileView(
             )
         }
     }
+    }
+}
+
+private fun sabdhamSupportWordCount(text: String): Int =
+    text.trim()
+        .split(Regex("\\s+"))
+        .count { it.isNotBlank() }
+
+private fun sabdhamSupportContainsSensitiveData(
+    text: String
+): Boolean {
+    if (text.isBlank()) return false
+
+    val patterns = listOf(
+        Regex("""(?i)\b(?:password|passwd|pwd|api[_ -]?key|secret|token|otp|passcode|verification\s*code)\s*[:=]\s*\S+"""),
+        Regex("""(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{12,}"""),
+        Regex("""(?i)\b(?:re_|sk_|ghp_|xox[baprs]-|AIza)[A-Za-z0-9_-]{10,}"""),
+        Regex("""-----BEGIN [A-Z ]*PRIVATE KEY-----"""),
+        Regex("""[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"""),
+        Regex("""(?<!\d)\+?\d[\d\s()\-]{7,}\d(?!\d)""")
+    )
+
+    return patterns.any { it.containsMatchIn(text) }
+}
+
+@Composable
+private fun SabdhamProfileSupportDialog(
+    onDismiss: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val green = Color(0xFF00E676)
+    val brightGreen = Color(0xFFB8FF20)
+    val background = Color(0xFF050706)
+    val card = Color(0xFF111511)
+    val muted = Color(0xFF9CA39C)
+
+    var report by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    var resultMessage by remember { mutableStateOf<String?>(null) }
+    var resultSuccess by remember { mutableStateOf(false) }
+
+    val expandedFaqs = remember {
+        mutableStateMapOf<Int, Boolean>()
+    }
+
+    val faqs = remember {
+        listOf(
+            "Why am I unable to sign in?" to
+                "Check your internet connection and use the same verified account. Never send a password, OTP, verification code, authentication token or secret to support.",
+
+            "I did not receive my verification code." to
+                "Check the email address, Spam or Junk folder, wait for the resend timer and request another code. SABDHAM Support will never ask you to send your OTP.",
+
+            "Google sign-in is not working." to
+                "Check your internet connection and Google services, then retry with the same Google account. Describe the error without sending credentials.",
+
+            "Why are my liked songs or playlists missing?" to
+                "Make sure you are signed in to the same SABDHAM account and allow synchronization to finish. Avoid clearing app data unless necessary.",
+
+            "A song will not play. What should I report?" to
+                "Include the song title, artist, where you opened it from, the steps that reproduce the problem, what you expected and what actually happened.",
+
+            "Playback does not move to the next song." to
+                "Explain whether the song came from Search, a playlist or the catalogue, your network state and the exact steps that reproduce the issue.",
+
+            "Can support ask for my password or OTP?" to
+                "No. SABDHAM Support does not need passwords, OTPs, API keys, authentication tokens, private keys, payment information or secret credentials.",
+
+            "What should I include in a report?" to
+                "Write at least 50 words describing the feature, steps to reproduce the issue, expected behaviour and actual behaviour. Do not include email addresses, phone numbers, passwords, codes, tokens or other private information.",
+
+            "Where are the Privacy Policy and Terms?" to
+                "Open App Settings to read SABDHAM Privacy Policy, Terms & Conditions, copyright information and related notices."
+        )
+    }
+
+    val wordCount = sabdhamSupportWordCount(report)
+    val containsSensitiveData =
+        sabdhamSupportContainsSensitiveData(report)
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = {
+            if (!sending) onDismiss()
+        },
+        properties =
+            androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.92f),
+            shape = RoundedCornerShape(22.dp),
+            color = background,
+            border = BorderStroke(
+                1.dp,
+                green.copy(alpha = 0.28f)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Help & Support",
+                            color = Color.White,
+                            fontSize = 23.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "SABDHAM Support Center",
+                            color = green,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            if (!sending) onDismiss()
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement =
+                        Arrangement.spacedBy(10.dp)
+                ) {
+                    item {
+                        Text(
+                            "Frequently Asked Questions",
+                            color = brightGreen,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Tap a question to read the answer.",
+                            color = muted,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    item {
+                        Column(
+                            verticalArrangement =
+                                Arrangement.spacedBy(10.dp)
+                        ) {
+                            faqs.forEachIndexed { index, faq ->
+                                val expanded =
+                                    expandedFaqs[index] == true
+
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            expandedFaqs[index] =
+                                                !expanded
+                                        },
+                                    colors =
+                                        CardDefaults.cardColors(
+                                            containerColor = card
+                                        ),
+                                    shape =
+                                        RoundedCornerShape(14.dp),
+                                    border =
+                                        BorderStroke(
+                                            1.dp,
+                                            Color.White.copy(
+                                                alpha = 0.06f
+                                            )
+                                        )
+                                ) {
+                                    Column(
+                                        Modifier.padding(14.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment =
+                                                Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                faq.first,
+                                                modifier =
+                                                    Modifier.weight(1f),
+                                                color = Color.White,
+                                                fontSize = 14.sp,
+                                                fontWeight =
+                                                    FontWeight.SemiBold
+                                            )
+                                            Icon(
+                                                if (expanded)
+                                                    Icons.Default.KeyboardArrowUp
+                                                else
+                                                    Icons.Default.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                tint = green
+                                            )
+                                        }
+
+                                        if (expanded) {
+                                            Spacer(
+                                                Modifier.height(9.dp)
+                                            )
+                                            Text(
+                                                faq.second,
+                                                color = muted,
+                                                fontSize = 13.sp,
+                                                lineHeight = 19.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(
+                            color =
+                                Color.White.copy(alpha = 0.08f)
+                        )
+                        Spacer(Modifier.height(18.dp))
+
+                        Text(
+                            "Send a Report",
+                            color = brightGreen,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(Modifier.height(5.dp))
+
+                        Text(
+                            "Explain the issue in at least 50 words.",
+                            color = muted,
+                            fontSize = 12.sp
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Surface(
+                            color = Color(0xFF201B08),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                Color(0xFFFFC107)
+                                    .copy(alpha = 0.35f)
+                            )
+                        ) {
+                            Text(
+                                "Security: Never include passwords, OTP codes, verification codes, API keys, authentication tokens, private keys, email addresses, phone numbers or other private details.",
+                                modifier = Modifier.padding(12.dp),
+                                color = Color(0xFFFFD54F),
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp
+                            )
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = report,
+                            onValueChange = {
+                                if (it.length <= 6000) {
+                                    report = it
+                                    resultMessage = null
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = {
+                                Text("Describe the problem")
+                            },
+                            placeholder = {
+                                Text(
+                                    "Tell us what happened, how to reproduce it, what you expected and what actually happened..."
+                                )
+                            },
+                            enabled = !sending,
+                            minLines = 7,
+                            maxLines = 12,
+                            colors =
+                                OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = green,
+                                    focusedLabelColor = green,
+                                    cursorColor = green,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                        )
+
+                        Spacer(Modifier.height(7.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement =
+                                Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "$wordCount / 50 words minimum",
+                                color =
+                                    if (wordCount >= 50)
+                                        green
+                                    else
+                                        muted,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                "${report.length} / 6000",
+                                color = muted,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        if (containsSensitiveData) {
+                            Spacer(Modifier.height(7.dp))
+                            Text(
+                                "Remove private or secret information before sending.",
+                                color = Color(0xFFFF6B6B),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        resultMessage?.let { status ->
+                            Spacer(Modifier.height(9.dp))
+                            Text(
+                                status,
+                                color =
+                                    if (resultSuccess)
+                                        green
+                                    else
+                                        Color(0xFFFF6B6B),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            enabled =
+                                wordCount >= 50 &&
+                                !containsSensitiveData &&
+                                !sending,
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = green,
+                                    contentColor = Color.Black,
+                                    disabledContainerColor =
+                                        Color(0xFF303630),
+                                    disabledContentColor = muted
+                                ),
+                            shape = RoundedCornerShape(14.dp),
+                            onClick = {
+                                if (
+                                    wordCount >= 50 &&
+                                    !containsSensitiveData &&
+                                    !sending
+                                ) {
+                                    scope.launch {
+                                        sending = true
+                                        resultMessage = null
+
+                                        val result =
+                                            com.morningmusic.app.data.network
+                                                .SabdhamSupportService
+                                                .sendReport(
+                                                    context,
+                                                    report
+                                                )
+
+                                        resultSuccess =
+                                            result.success
+
+                                        resultMessage =
+                                            if (
+                                                result.success &&
+                                                !result.reference
+                                                    .isNullOrBlank()
+                                            ) {
+                                                result.message +
+                                                    " Reference: " +
+                                                    result.reference
+                                            } else {
+                                                result.message
+                                            }
+
+                                        if (result.success) {
+                                            report = ""
+                                        }
+
+                                        sending = false
+                                    }
+                                }
+                            }
+                        ) {
+                            if (sending) {
+                                CircularProgressIndicator(
+                                    modifier =
+                                        Modifier.size(21.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color.Black
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text("Sending...")
+                            } else {
+                                Icon(
+                                    Icons.Default.Send,
+                                    contentDescription = null
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Send Report",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -5578,7 +6062,7 @@ item {
 
                 SabdhamSettingsValueRow(
                     title = "About SABDHAM",
-                    subtitle = "Santh Creatives • Independent project",
+                    subtitle = "Santh Creatives\nIndependent project",
                     value = "v$versionName",
                     onClick = {
                         showAboutSabdham = true
@@ -5933,7 +6417,7 @@ private fun SabdhamChoiceDialog(
 
                         if (option == current) {
                             Text(
-                                text = "✓",
+                                text = "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ",
                                 color = Color(0xFF39FF88),
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold

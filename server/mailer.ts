@@ -1,4 +1,4 @@
-﻿import nodemailer from 'nodemailer';
+import nodemailer from 'nodemailer';
 import https from 'https';
 
 type MailTransporter = ReturnType<typeof nodemailer.createTransport>;
@@ -333,3 +333,109 @@ If you did not request this verification code, please ignore this email.
   return { success: false, error: 'No email delivery provider is configured.' };
 }
 
+/*
+ * SABDHAM_SUPPORT_MAILER
+ * Sends support reports without exposing the support destination in the app UI.
+ * No account email, token, password, OTP, API key, cookie, device identifier,
+ * or other credential is automatically added to the email.
+ */
+export async function sendSupportReportEmail(
+  report: string,
+  reference: string
+): Promise<SendMailResult> {
+  const toEmail =
+    process.env.SABDHAM_SUPPORT_EMAIL ||
+    'sabdhammusic@gmail.com';
+
+  const subject = `SABDHAM Support Report [${reference}]`;
+  const cleanReport = report.trim();
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const textContent = `SABDHAM SUPPORT REPORT
+
+Reference: ${reference}
+
+${cleanReport}
+
+---
+Submitted through the SABDHAM in-app Support Center.
+No credentials or account secrets were automatically attached.`;
+
+  const htmlContent = `
+<!doctype html>
+<html>
+<body style="font-family:Arial,sans-serif;background:#090b09;color:#ffffff;padding:24px">
+  <div style="max-width:680px;margin:auto;background:#121612;border-radius:16px;padding:24px">
+    <h2 style="color:#b8ff20">SABDHAM Support Report</h2>
+    <p><strong>Reference:</strong> ${escapeHtml(reference)}</p>
+    <div style="white-space:pre-wrap;line-height:1.6;color:#e5e7eb">${escapeHtml(cleanReport)}</div>
+    <hr style="border:0;border-top:1px solid #30372f;margin:24px 0">
+    <p style="color:#9ca39c;font-size:12px">
+      Submitted through the SABDHAM in-app Support Center.
+      No authentication credentials were automatically attached.
+    </p>
+  </div>
+</body>
+</html>`.trim();
+
+  if (
+    process.env.RESEND_API_KEY &&
+    process.env.RESEND_API_KEY.startsWith('re_')
+  ) {
+    const resendResult = await sendViaResend(
+      process.env.RESEND_API_KEY,
+      toEmail,
+      subject,
+      htmlContent,
+      textContent
+    );
+
+    if (resendResult.success) {
+      return resendResult;
+    }
+  }
+
+  const transporter = getTransporter();
+
+  if (transporter) {
+    try {
+      const fromAddr =
+        process.env.SMTP_FROM ||
+        process.env.EMAIL_FROM ||
+        process.env.GMAIL_USER ||
+        process.env.EMAIL_USER ||
+        process.env.SMTP_USER ||
+        'SABDHAM Music <auth@sabdham.cyou>';
+
+      const info = await transporter.sendMail({
+        from: fromAddr,
+        to: toEmail,
+        subject,
+        text: textContent,
+        html: htmlContent,
+      });
+
+      return {
+        success: true,
+        messageId: info.messageId
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message || 'Support email delivery failed.'
+      };
+    }
+  }
+
+  return {
+    success: false,
+    error: 'Support email delivery is not configured.'
+  };
+}

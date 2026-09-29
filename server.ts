@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs';
 import { GoogleGenAI } from '@google/genai';
 import { fetchTrendingSongsFromGemini } from './src/services/geminiService';
 import { youtubeConfig } from './server/youtubeConfig';
-import { sendOtpEmail } from './server/mailer.ts';
+import { sendOtpEmail, sendSupportReportEmail } from './server/mailer.ts';
 import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
 import { adminAuth } from './src/lib/firebase-admin.ts';
 import { initializeApp as initializeClientApp } from 'firebase/app';
@@ -599,6 +599,93 @@ function initUserData(userId: string, email?: string) {
     userDataStore.set(normalizedEmail, initialData);
   }
 }
+
+
+// SABDHAM_SUPPORT_REPORT_ENDPOINT
+app.post('/api/support/report', async (req, res) => {
+  try {
+    const user = await getAuthUser(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: 'Please sign in before sending a support report.'
+      });
+    }
+
+    const rawReport = req.body?.report;
+
+    if (typeof rawReport !== 'string') {
+      return res.status(400).json({
+        error: 'Support report is required.'
+      });
+    }
+
+    const report = rawReport.trim();
+    const wordCount =
+      report.length === 0
+        ? 0
+        : report.split(/\s+/).filter(Boolean).length;
+
+    if (wordCount < 50) {
+      return res.status(400).json({
+        error: `Please provide at least 50 words. Current count: ${wordCount}.`
+      });
+    }
+
+    if (report.length > 6000) {
+      return res.status(400).json({
+        error: 'Support reports are limited to 6000 characters.'
+      });
+    }
+
+    const sensitivePatterns = [
+      /\b(?:password|passwd|pwd|api[_ -]?key|secret|token|otp|passcode|verification\s*code)\s*[:=]\s*\S+/i,
+      /\bbearer\s+[A-Za-z0-9._~+/=-]{12,}/i,
+      /\b(?:re_|sk_|ghp_|xox[baprs]-|AIza)[A-Za-z0-9_-]{10,}/i,
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----/i,
+      /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+      /(?:^|[^\d])\+?\d[\d\s()\-]{7,}\d(?:$|[^\d])/
+    ];
+
+    if (sensitivePatterns.some((pattern) => pattern.test(report))) {
+      return res.status(400).json({
+        error:
+          'Remove passwords, OTP codes, API keys, tokens, email addresses, phone numbers or other private details before sending.'
+      });
+    }
+
+    const reference =
+      crypto.randomBytes(6).toString('hex').toUpperCase();
+
+    // Deliberately send only the report text and random reference.
+    const result =
+      await sendSupportReportEmail(report, reference);
+
+    if (!result.success) {
+      console.error(
+        '[Support] Delivery failed:',
+        result.error || 'Unknown mail error'
+      );
+
+      return res.status(502).json({
+        error:
+          'SABDHAM Support could not receive the report right now. Please try again later.'
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Report sent to SABDHAM Support.',
+      reference
+    });
+  } catch (error) {
+    console.error('[Support] Report error:', error);
+
+    return res.status(500).json({
+      error: 'Unable to send the support report right now.'
+    });
+  }
+});
 
 // 1. API: Create Account with Email & Password (Secure Salted Hash via bcrypt)
 app.post('/api/auth/register', async (req, res) => {
