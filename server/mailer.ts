@@ -52,6 +52,9 @@ function normalizeSmtpConfig(): any | null {
   if (isGmailHost || (isGmailUser && !host)) {
     return {
       service: 'gmail',
+      connectionTimeout: 6000,
+      greetingTimeout: 4000,
+      socketTimeout: 8000,
       auth: {
         user: rawUser,
         pass: rawPass,
@@ -74,6 +77,9 @@ function normalizeSmtpConfig(): any | null {
     host,
     port: finalPort,
     secure: isSecure,
+    connectionTimeout: 6000,
+    greetingTimeout: 4000,
+    socketTimeout: 8000,
     auth: {
       user: rawUser,
       pass: rawPass,
@@ -160,6 +166,11 @@ async function sendViaResend(
     req.on('error', (err) => {
       console.error('Resend request failed:', err);
       resolve({ success: false, error: err.message });
+    });
+
+    // Never allow OTP authentication to hang indefinitely.
+    req.setTimeout(7000, () => {
+      req.destroy(new Error('RESEND_REQUEST_TIMEOUT'));
     });
 
     req.write(payload);
@@ -319,5 +330,5 @@ If you did not request this verification code, please ignore this email.
   console.log(`Purpose: ${purpose}`);
   console.log(`======================================================\n`);
 
-  return { success: true };
+  return { success: false, error: 'No email delivery provider is configured.' };
 }

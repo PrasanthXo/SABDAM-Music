@@ -910,8 +910,18 @@ app.post('/api/auth/otp/send', async (req, res) => {
 
     const isNew = !existing;
 
-    if (!mailResult.success && mailResult.error) {
-      console.warn(`[OTP Mailer] Delivery notice for ${email}: ${mailResult.error}`);
+    if (!mailResult.success) {
+      otpStore.delete(email);
+
+      console.error(
+        `[OTP Mailer] Delivery failed for ${email}: ${mailResult.error || 'Unknown mail error'}`
+      );
+
+      return res.status(503).json({
+        success: false,
+        error: 'Unable to send the verification email. Please try again.',
+        code: 'OTP_DELIVERY_FAILED',
+      });
     }
 
     return res.json({
