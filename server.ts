@@ -1011,9 +1011,8 @@ app.post('/api/auth/otp/verify', async (req, res) => {
       });
     }
 
-    // OTP verified successfully! Clear single-use code
-    otpStore.delete(email);
-
+    // OTP verified successfully.
+    // Keep the code until durable DB/session creation succeeds.
     // Fetch existing or create new account
     let user = users.get(email);
     let isNewUser = false;
@@ -1037,17 +1036,9 @@ app.post('/api/auth/otp/verify', async (req, res) => {
         lastLoginAt: new Date().toISOString(),
       };
 
-      users.set(email, user);
-      usersById.set(id, user);
-      initUserData(id);
-      savePersistedData();
-
-      // Synchronize with PostgreSQL Cloud SQL
-      try {
-        await getOrCreateUser(user.id, user.email, user.name, undefined);
-      } catch (dbErr) {
-        console.warn('Cloud SQL user upsert notification (OTP signup):', dbErr);
-      }
+      // Do not cache a brand-new OTP account locally yet.
+      // createSessionToken() below must first confirm the PostgreSQL
+      // user and durable authentication session.
     } else {
       user.lastLoginAt = new Date().toISOString();
       users.set(email, user);
@@ -1063,6 +1054,19 @@ app.post('/api/auth/otp/verify', async (req, res) => {
     }
 
     const token = await createSessionToken(user);
+
+    if (isNewUser) {
+      // createSessionToken() has now replaced user.id with the
+      // canonical PostgreSQL SABDHAM UID.
+      users.set(email, user);
+      usersById.set(user.id, user);
+      initUserData(user.id, email);
+      savePersistedData();
+    }
+
+    // Consume the single-use OTP only after durable auth succeeds.
+    otpStore.delete(email);
+
     setAuthCookie(res, token, 7);
 
     console.log(`\nÃ°Å¸Å½â€° [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
@@ -1078,7 +1082,15 @@ app.post('/api/auth/otp/verify', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Error in /api/auth/otp/verify:', err);
-    return res.status(500).json({ error: 'Failed to verify OTP code. Please try again.' });
+    return res.status(500).json({
+      success: false,
+      error: 'Authentication service could not complete verification. Please try again.',
+      code:
+        err?.message === 'AUTH_DB_USER_PERSIST_FAILED' ||
+        err?.message === 'AUTH_SESSION_PERSIST_FAILED'
+          ? err.message
+          : 'AUTH_VERIFY_FAILED',
+    });
   }
 });
 
