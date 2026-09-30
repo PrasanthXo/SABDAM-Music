@@ -121,6 +121,44 @@ async function robustFetchJson(url: string, options: any = {}) {
   return data;
 }
 
+
+// ==========================================
+// SABDHAM ANDROID APP UPDATE CONTROL
+// ==========================================
+app.get('/api/app/update', (_req, res) => {
+  const latestVersionCode =
+    Number(process.env.ANDROID_LATEST_VERSION_CODE || '1');
+
+  const minimumVersionCode =
+    Number(process.env.ANDROID_MINIMUM_VERSION_CODE || '1');
+
+  const latestVersionName =
+    process.env.ANDROID_LATEST_VERSION_NAME || '1.0.0';
+
+  const downloadUrl =
+    process.env.ANDROID_DOWNLOAD_URL || '';
+
+  const forceUpdate =
+    String(process.env.ANDROID_FORCE_UPDATE || 'false')
+      .trim()
+      .toLowerCase() === 'true';
+
+  const message =
+    process.env.ANDROID_UPDATE_MESSAGE ||
+    'A new SABDHAM version is available.';
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+
+  return res.status(200).json({
+    platform: 'android',
+    latestVersionCode,
+    minimumVersionCode,
+    latestVersionName,
+    downloadUrl,
+    forceUpdate,
+    message
+  });
+});
 // Health check endpoints for Cloud Run deployment, kubernetes probes, and load balancers
 app.get(['/api/health', '/health', '/healthz'], (_req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
@@ -749,7 +787,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     setAuthCookie(res, token, 7);
 
-    console.log(`\nÃ¢Å“â€¦ [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
+    console.log(`\nÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ [Auth] New account created: ${email} (${displayName}) [Email/Password]`);
 
     return res.status(201).json({
       success: true,
@@ -790,7 +828,7 @@ app.post('/api/auth/login', async (req, res) => {
     const token = await createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nÃ°Å¸â€â€˜ [Auth] User signed in: ${email} (${user.name})`);
+    console.log(`\nÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ¢â‚¬Ëœ [Auth] User signed in: ${email} (${user.name})`);
 
     return res.json({
       success: true,
@@ -830,7 +868,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     resetCodes.set(email, { code, expiresAt });
 
-    console.log(`\nÃ°Å¸â€Â [Auth] Password Reset Code generated for ${email}: [REDACTED]`);
+    console.log(`\nÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ‚Â [Auth] Password Reset Code generated for ${email}: [REDACTED]`);
 
     // Dispatch real email to user's inbox
     await sendOtpEmail(email, code, 'signin', user.name);
@@ -895,7 +933,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const token = await createSessionToken(user);
     setAuthCookie(res, token, 7);
 
-    console.log(`\nÃ°Å¸Å½â€° [Auth] Password reset successfully for ${email}`);
+    console.log(`\nÃƒÂ°Ã…Â¸Ã…Â½Ã¢â‚¬Â° [Auth] Password reset successfully for ${email}`);
 
     return res.json({
       success: true,
@@ -979,7 +1017,7 @@ app.post('/api/auth/otp/send', async (req, res) => {
       attempts: 0,
     });
 
-    console.log(`\nÃ°Å¸â€œÂ¨ [Auth Email OTP] Code generated for ${email}: [REDACTED] (purpose: ${purpose}, existing: ${!!existing})`);
+    console.log(`\nÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â¨ [Auth Email OTP] Code generated for ${email}: [REDACTED] (purpose: ${purpose}, existing: ${!!existing})`);
 
     // Dispatch real email to user's inbox
     const mailResult = await sendOtpEmail(email, code, purpose as any, rawName);
@@ -1155,7 +1193,7 @@ app.post('/api/auth/otp/verify', async (req, res) => {
 
     setAuthCookie(res, token, 7);
 
-    console.log(`\nÃ°Å¸Å½â€° [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
+    console.log(`\nÃƒÂ°Ã…Â¸Ã…Â½Ã¢â‚¬Â° [Auth OTP] Successful authentication: ${user.email} (${user.name}) [isNewUser: ${isNewUser}]`);
 
     return res.json({
       success: true,
@@ -2044,7 +2082,7 @@ app.get('/oauth/spotify/callback', (req, res) => {
     <head><title>Spotify Authorization</title></head>
     <body style="background:#121212;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
       <div style="text-align:center;padding:20px;">
-        <div style="width:40px;height:40px;border-radius:50%;background:#1db954;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;font-size:20px;">Ã¢Å“â€œ</div>
+        <div style="width:40px;height:40px;border-radius:50%;background:#1db954;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;font-size:20px;">ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“</div>
         <h3 style="margin:0 0 8px;">Spotify Connected</h3>
         <p style="color:#a1a1aa;font-size:14px;margin:0;">Returning to Sabdham...</p>
         <script>
@@ -3408,7 +3446,7 @@ async function resolveAudioStreamInfo(
   // "Aathi - Video Song | Kaththi | Vijay | ..." -> "Aathi"
   let saavnTitle = activeTitle
     .split('|')[0]
-    .replace(/\s*[-â€“â€”]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
+    .replace(/\s*[-Ã¢â‚¬â€œÃ¢â‚¬â€]\s*(official\s*)?(music\s*)?(video|audio|lyric(s)?\s*video).*$/i, '')
     .replace(/\s*\((official\s*)?(music\s*)?(video|audio|lyrics?).*?\)\s*/gi, ' ')
     .replace(/\s*\[(official\s*)?(music\s*)?(video|audio|lyrics?).*?\]\s*/gi, ' ')
     .replace(/\b(official\s+video|official\s+audio|video\s+song|lyric\s+video|lyrics\s+video)\b/gi, '')
