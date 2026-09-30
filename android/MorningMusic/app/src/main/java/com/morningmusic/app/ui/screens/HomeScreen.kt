@@ -2214,14 +2214,15 @@ fun FullPlayerSheet(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Top bar
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(58.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .height(58.dp)
             ) {
-                IconButton(onClick = onDismiss) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
                     Icon(
                         Icons.Default.KeyboardArrowDown,
                         contentDescription = "Minimize",
@@ -2231,6 +2232,7 @@ fun FullPlayerSheet(
                 }
 
                 Column(
+                    modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -2248,15 +2250,6 @@ fun FullPlayerSheet(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.widthIn(max = 180.dp)
-                    )
-                }
-
-                IconButton(onClick = onOpenEq) {
-                    Icon(
-                        Icons.Outlined.Tune,
-                        contentDescription = "Audio settings",
-                        tint = Color(0xFFB3B3B3),
-                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
@@ -2696,19 +2689,6 @@ fun FullPlayerSheet(
                             )
                         }
 
-                        Spacer(Modifier.width(12.dp))
-
-                        IconButton(
-                            onClick = onOpenEq,
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.Tune,
-                                contentDescription = "Equalizer",
-                                tint = Color(0xFFBBBBBB),
-                                modifier = Modifier.size(21.dp)
-                            )
-                        }
                     }
 
                     Spacer(Modifier.height(10.dp))
