@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   createContext,
   useContext,
   useState,
@@ -1196,10 +1196,17 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           activeAudio.volume = targetVol;
         }
 
-        // If gapless playback is enabled, trigger immediate transition 6 seconds before track end
-        if (gaplessPlaybackRef.current && activeAudio.duration && (activeAudio.duration - activeAudio.currentTime <= 6.0) && !gaplessTriggeredRef.current) {
+        // SABDHAM FIX: never skip the final seconds of a song.
+        // Near the end we only prepare the next stream.
+        // Real queue advancement happens from the actual ended event.
+        if (
+          gaplessPlaybackRef.current &&
+          activeAudio.duration &&
+          activeAudio.duration - activeAudio.currentTime < 8 &&
+          !gaplessTriggeredRef.current
+        ) {
           gaplessTriggeredRef.current = true;
-          handleSongEndedRef.current();
+          prefetchNextTrackRef.current();
         }
 
         // If there are less than 35 seconds left in the song, ensure the next track is prefetched
@@ -1587,7 +1594,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       // Update browser tab title
       if (typeof document !== 'undefined') {
-        document.title = `${strictlyResolvedTrack.title} • ${strictlyResolvedTrack.artist} | Sabdham`;
+        document.title = `${strictlyResolvedTrack.title} â€¢ ${strictlyResolvedTrack.artist} | Sabdham`;
       }
 
       if (newQueue) {
@@ -1657,6 +1664,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             isPlayingRef.current = true;
             setIsLoading(false);
             consecutiveErrorCountRef.current = 0;
+            const successKey = strictlyResolvedTrack.id || `${strictlyResolvedTrack.title}_${strictlyResolvedTrack.artist}`;
+            trackRetryAttemptsRef.current.delete(successKey);
+            trackFailedVideoIdsRef.current.delete(successKey);
           } catch (err) {
             console.warn('[Audio Engine] YouTube playback error:', err);
           }
@@ -1718,6 +1728,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                   isPlayingRef.current = true;
                   setIsLoading(false);
                   consecutiveErrorCountRef.current = 0;
+                  const successKey = strictlyResolvedTrack.id || `${strictlyResolvedTrack.title}_${strictlyResolvedTrack.artist}`;
+                  trackRetryAttemptsRef.current.delete(successKey);
+                  trackFailedVideoIdsRef.current.delete(successKey);
                 })
                 .catch((err) => {
                   if (err.name === 'AbortError') return;
@@ -2544,7 +2557,7 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             : cover;
 
         const notif = new Notification(currentTrack.title, {
-          body: `${currentTrack.artist}${currentTrack.album ? ` • ${currentTrack.album}` : ''}`,
+          body: `${currentTrack.artist}${currentTrack.album ? ` â€¢ ${currentTrack.album}` : ''}`,
           icon: fullCoverUrl,
           badge: '/pwa-192x192.png',
           tag: 'sabdham-now-playing',
@@ -2728,3 +2741,5 @@ export function useMusic() {
   }
   return context;
 }
+
+
