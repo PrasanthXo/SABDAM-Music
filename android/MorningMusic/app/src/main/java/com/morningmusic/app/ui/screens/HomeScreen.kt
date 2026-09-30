@@ -1939,7 +1939,7 @@ fun TrackListItem(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${track.artist} ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ${track.album.ifEmpty { "Single" }}",
+                text = "${track.artist} - ${track.album.ifEmpty { "Single" }}",
                 color = Color(0xFF888899),
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -2308,7 +2308,7 @@ fun FullPlayerSheet(
                             ) {
                                 item {
                                     Text(
-                                        text = "Lyrics ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ${track.title}",
+                                        text = "Lyrics - ${track.title}",
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -2471,7 +2471,7 @@ fun FullPlayerSheet(
                                 text = buildString {
                                     append(track.artist)
                                     if (track.album.isNotBlank()) {
-                                        append(" ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ ")
+                                        append(" - ")
                                         append(track.album)
                                     }
                                 },
@@ -3703,7 +3703,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
                                     )
 
                                     Text(
-                                        text = "${albumTracks.firstOrNull()?.artist.orEmpty()} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${albumTracks.size} ${if (albumTracks.size == 1) "song" else "songs"}",
+                                        text = "${albumTracks.firstOrNull()?.artist.orEmpty()} - ${albumTracks.size} ${if (albumTracks.size == 1) "song" else "songs"}",
                                         color = muted,
                                         fontSize = 12.sp,
                                         maxLines = 1,
@@ -3889,7 +3889,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
                 Spacer(Modifier.height(8.dp))
 
                 LibrarySyncRow(
-                    iconText = "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¶",
+                    iconText = "YT",
                     iconColor = Color(0xFFFF2D2D),
                     title = "Connect YouTube",
                     subtitle = "Sync your playlists",
@@ -3905,7 +3905,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
                 Spacer(Modifier.height(8.dp))
 
                 LibrarySyncRow(
-                    iconText = "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â",
+                    iconText = "URL",
                     iconColor = Color(0xFF2563EB),
                     title = "Import Playlist by URL",
                     subtitle = "Spotify or YouTube playlist link",
@@ -3945,7 +3945,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
         LibraryPlaylistRow(
             title = "Liked Songs",
             subtitle = "${likedTracks.size} ${if (likedTracks.size == 1) "song" else "songs"}",
-            iconText = "ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¥",
+            iconText = "L",
             iconColor = Color(0xFF9B5DE5),
             onClick = { librarySection = "liked" }
         )
@@ -4842,7 +4842,7 @@ private fun SignedInProfileView(
                 )
 
                 Text(
-                    text = user.id.ifBlank { "ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â" },
+                    text = user.id.ifBlank { "N/A" },
                     color = Color.White,
                     fontSize = 12.sp,
                     maxLines = 1,
@@ -6417,7 +6417,7 @@ private fun SabdhamChoiceDialog(
 
                         if (option == current) {
                             Text(
-                                text = "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ",
+                                text = "\u2713",
                                 color = Color(0xFF39FF88),
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
