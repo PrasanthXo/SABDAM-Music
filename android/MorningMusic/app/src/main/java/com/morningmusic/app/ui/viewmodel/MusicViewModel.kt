@@ -449,42 +449,160 @@ if (incoming.isEmpty()) {
         }
     }
 
+    private fun normalizeSearchText(value: String): String {
+        return value
+            .trim()
+            .replace(Regex("\\s+"), " ")
+            .lowercase()
+    }
+
+    private fun hasSearchPlaybackSource(track: Track): Boolean {
+        val audio = track.audioUrl.trim()
+
+        if (track.youtubeVideoId.isNotBlank()) return true
+        if (audio.startsWith("yt:", ignoreCase = true)) return true
+        if (audio.startsWith("yt-", ignoreCase = true)) return true
+
+        // Mirror the player's direct-audio fast path.
+        return audio.isNotBlank() &&
+            !audio.contains("youtube", ignoreCase = true)
+    }
+
+    private fun searchScore(track: Track, rawQuery: String): Int {
+        val query = normalizeSearchText(rawQuery)
+        if (query.isBlank()) return 0
+
+        val title = normalizeSearchText(track.title)
+        val artist = normalizeSearchText(track.artist)
+        val album = normalizeSearchText(track.album)
+        val movie = normalizeSearchText(track.movie)
+        val genre = normalizeSearchText(track.genre)
+        val searchable = "$title $artist $album $movie $genre"
+
+        var score = 0
+
+        score += when {
+            title == query -> 1200
+            title.startsWith(query) -> 1000
+            title.contains(query) -> 800
+            else -> 0
+        }
+
+        score += when {
+            artist == query -> 900
+            artist.startsWith(query) -> 750
+            artist.contains(query) -> 600
+            else -> 0
+        }
+
+        score += when {
+            album == query -> 700
+            album.startsWith(query) -> 550
+            album.contains(query) -> 450
+            else -> 0
+        }
+
+        if (movie.contains(query)) score += 350
+        if (genre.contains(query)) score += 200
+
+        val tokens = query.split(" ").filter { it.isNotBlank() }
+        val matchedTokens = tokens.count { searchable.contains(it) }
+
+        if (tokens.isNotEmpty() && matchedTokens == tokens.size) {
+            score += 300
+        }
+
+        score += matchedTokens * 40
+        return score
+    }
+
+    private fun rankSearchResults(
+        tracks: List<Track>,
+        query: String,
+        limit: Int = 50
+    ): List<Track> {
+        return tracks
+            .asSequence()
+            .filter { hasSearchPlaybackSource(it) }
+            .map { track -> track to searchScore(track, query) }
+            .filter { (_, score) -> score > 0 }
+            .sortedByDescending { (_, score) -> score }
+            .map { (track, _) -> track }
+            .distinctBy { track ->
+                normalizeSearchText(track.title) +
+                    "|" +
+                    normalizeSearchText(track.artist)
+            }
+            .take(limit)
+            .toList()
+    }
+
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
-        val trimmed = query.trim()
+
+        val trimmed = query
+            .trim()
+            .replace(Regex("\\s+"), " ")
+
+        lastSearchJob?.cancel()
+
         if (trimmed.isEmpty()) {
             _searchResults.value = emptyList()
             _suggestions.value = emptyList()
+            _isSearching.value = false
             return
         }
 
-        // Generate similar word suggestions with at least 5 results
         _suggestions.value = generateSuggestions(trimmed)
 
-        lastSearchJob?.cancel()
+        val localResults = rankSearchResults(
+            tracks = allTracks,
+            query = trimmed,
+            limit = 40
+        )
+
+        // Local playable matches appear immediately.
+        _searchResults.value = localResults
+
+        val requestedQuery = normalizeSearchText(trimmed)
+
         lastSearchJob = viewModelScope.launch {
             _isSearching.value = true
-            
-            // First search local catalog instantly
-            val localMatches = allTracks.filter {
-                it.title.contains(trimmed, ignoreCase = true) ||
-                it.artist.contains(trimmed, ignoreCase = true) ||
-                it.album.contains(trimmed, ignoreCase = true) ||
-                it.movie.contains(trimmed, ignoreCase = true) ||
-                it.genre.contains(trimmed, ignoreCase = true)
-            }
 
-            // Debounce for 400ms before making remote API search
-            delay(400)
-            val remoteResults = try {
-                MusicSearchService.searchSongs(query)
+            try {
+                // Short debounce prevents one API request per keystroke.
+                delay(300)
+
+                val remoteResults = MusicSearchService.searchSongs(
+                    query = trimmed,
+                    language = "all",
+                    page = 1,
+                    maxResults = 40
+                )
+
+                // Ignore an old request if the user already typed something else.
+                if (normalizeSearchText(_searchQuery.value) != requestedQuery) {
+                    return@launch
+                }
+
+                _searchResults.value = rankSearchResults(
+                    tracks = localResults + remoteResults,
+                    query = trimmed,
+                    limit = 50
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                emptyList()
+                android.util.Log.w(
+                    "SABDHAM_SEARCH",
+                    "Search failed for query=$trimmed",
+                    e
+                )
+            } finally {
+                if (normalizeSearchText(_searchQuery.value) == requestedQuery) {
+                    _isSearching.value = false
+                }
             }
-
-            val combined = (localMatches + remoteResults).distinctBy { it.id }
-            _searchResults.value = combined
-            _isSearching.value = false
         }
     }
 
@@ -798,9 +916,17 @@ if (incoming.isEmpty()) {
             if (selectedPlayable == null) {
                 _isPlaying.value = false
 
+                // This search result cannot be resolved to playable audio.
+                // Remove it immediately so the user is not offered a dead song again.
+                _searchResults.value =
+                    _searchResults.value.filterNot { it.id == track.id }
+
+                _queue.value =
+                    _queue.value.filterNot { it.id == track.id }
+
                 android.util.Log.e(
                     "SABDHAM_SEARCH_QUEUE",
-                    "Unable to resolve selected search song: " +
+                    "Hidden unplayable search song: " +
                         "${track.title} - ${track.artist}"
                 )
 
