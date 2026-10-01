@@ -94,15 +94,14 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
     val likedSongs = likedTracks
 
+    // Do not flood the backend when Home opens.
+    // Each section already has local/seeded content and loads more on demand.
+    // Keeping startup network pressure low leaves the resolver free for playback.
     LaunchedEffect(Unit) {
-        viewModel.loadMoreTamilEvergreen()
-        viewModel.loadMoreTamilRomantic()
-        viewModel.loadMoreTamilDance()
-        viewModel.loadMoreSinhalaClassics()
-        viewModel.loadMoreEnglishPop()
-        viewModel.loadMoreChillRelax()
-        viewModel.loadMorePartyHits()
-        viewModel.loadMoreThrowbacks()
+        android.util.Log.d(
+            "SABDHAM_HOME",
+            "Deferred catalog expansion; sections load more on demand"
+        )
     }
     val greeting = remember { viewModel.getTimeGreeting() }
 
