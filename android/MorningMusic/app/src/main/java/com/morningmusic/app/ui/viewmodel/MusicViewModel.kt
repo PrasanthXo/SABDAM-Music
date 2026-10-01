@@ -488,6 +488,7 @@ if (incoming.isEmpty()) {
         val value = normalizeSearchText(track.title)
 
         return listOf(
+            "karaoke",
             "teaser",
             "trailer",
             "reaction",
@@ -495,7 +496,17 @@ if (incoming.isEmpty()) {
             "behind the scenes",
             "making of",
             "shorts",
-            "status video"
+            "status video",
+            "instrumental",
+            "slowed",
+            "reverb",
+            "lyric",
+            "lyrical",
+            "video song",
+            "full video",
+            "4k",
+            "remix",
+            "cover song"
         ).any { value.contains(it) }
     }
 
@@ -508,6 +519,15 @@ if (incoming.isEmpty()) {
 
         return track.copy(
             title = cleanSearchVideoTitle(track.title),
+            artist = track.artist
+                .replace(Regex("(?i)\\s*-\\s*Topic\\s*$"), "")
+                .trim(),
+            album =
+                if (track.album.equals("YouTube Audio", ignoreCase = true)) {
+                    "Single"
+                } else {
+                    track.album
+                },
             // Never expose YouTube thumbnail artwork in SABDHAM.
             coverUrl = if (isYouTubeSearchItem) "" else track.coverUrl
         )
