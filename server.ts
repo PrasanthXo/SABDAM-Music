@@ -4338,8 +4338,35 @@ app.get(['/api/youtube/stream', '/api/youtube/mp3'], async (req, res) => {
         };
 
         const proxyReq = https.request(streamInfo.url, options, (proxyRes) => {
-          // Force pure audio mime type to tell Chrome/Safari background audio is permitted!
-          res.setHeader('Content-Type', 'audio/mp4');
+          const statusCode = proxyRes.statusCode || 200;
+          const location = proxyRes.headers.location;
+
+          // Some YouTube/CDN audio URLs answer with a redirect first.
+          // Never forward a bare 3xx to Media3: Android treats a redirect
+          // without Location as "Null location redirect" and playback dies.
+          if (statusCode >= 300 && statusCode < 400) {
+            if (location) {
+              res.setHeader('Location', location);
+              res.status(statusCode).end();
+            } else {
+              console.error(
+                '[YouTube Stream Proxy] Upstream redirect missing Location',
+                { statusCode, videoId }
+              );
+              res.status(502).json({
+                error: 'Invalid upstream audio redirect',
+                retryable: true,
+              });
+            }
+            proxyRes.resume();
+            return;
+          }
+
+          // Force pure audio mime type to tell Chrome/Safari background audio is permitted.
+          res.setHeader(
+            'Content-Type',
+            proxyRes.headers['content-type'] || 'audio/mp4'
+          );
           res.setHeader('Accept-Ranges', 'bytes');
           res.setHeader('Access-Control-Allow-Origin', '*');
 
@@ -4350,7 +4377,7 @@ app.get(['/api/youtube/stream', '/api/youtube/mp3'], async (req, res) => {
             res.setHeader('Content-Length', proxyRes.headers['content-length']);
           }
 
-          res.writeHead(proxyRes.statusCode || 200);
+          res.writeHead(statusCode);
           proxyRes.pipe(res);
         });
 
