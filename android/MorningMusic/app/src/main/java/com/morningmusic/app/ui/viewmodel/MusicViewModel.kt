@@ -366,6 +366,7 @@ if (incoming.isEmpty()) {
 
     private var lastSearchJob: Job? = null
     private var playbackJob: Job? = null
+    private val playbackRequestGeneration = java.util.concurrent.atomic.AtomicLong(0L)
     private var searchQueueMode = false
     private var playlistPlaybackMode = false
     private var mediaController: MediaController? = null
@@ -895,6 +896,7 @@ if (incoming.isEmpty()) {
         _isPlaying.value = false
         _currentPosition.value = 0L
 
+        val playbackRequestId = playbackRequestGeneration.incrementAndGet()
         playbackJob?.cancel()
 
         playbackJob = viewModelScope.launch {
@@ -917,6 +919,8 @@ if (incoming.isEmpty()) {
                         normalizeBackendUrl = true
                     )
                 }
+
+            if (playbackRequestGeneration.get() != playbackRequestId) return@launch
 
             if (selectedPlayable == null) {
                 _isPlaying.value = false
@@ -973,6 +977,10 @@ if (incoming.isEmpty()) {
             val playableTracks =
                 mutableListOf(selectedPlayable.first)
 
+            // Give a new user tap priority over queue prefetch.
+            kotlinx.coroutines.delay(1500)
+            if (playbackRequestGeneration.get() != playbackRequestId) return@launch
+
             val remaining =
                 orderedQueue.filterNot {
                     it.id == track.id
@@ -980,7 +988,7 @@ if (incoming.isEmpty()) {
 
             for (candidate in remaining) {
 
-                if (playbackJob?.isActive != true) {
+                if (playbackRequestGeneration.get() != playbackRequestId) {
                     break
                 }
 
@@ -994,7 +1002,7 @@ if (incoming.isEmpty()) {
                         )
                     } ?: continue
 
-                if (playbackJob?.isActive != true) {
+                if (playbackRequestGeneration.get() != playbackRequestId) {
                     break
                 }
 
@@ -1020,7 +1028,7 @@ if (incoming.isEmpty()) {
             /*
              * Remove any tracks that failed stream resolution.
              */
-            if (playbackJob?.isActive == true) {
+            if (playbackRequestGeneration.get() == playbackRequestId) {
                 _queue.value =
                     playableTracks.distinctBy {
                         it.id
@@ -1086,6 +1094,7 @@ if (incoming.isEmpty()) {
         // Playlist playback starts in deterministic playlist order.
         _isShuffle.value = false
 
+        val playbackRequestId = playbackRequestGeneration.incrementAndGet()
         playbackJob?.cancel()
         playbackJob = viewModelScope.launch {
             val controller = mediaController ?: return@launch
@@ -1096,12 +1105,14 @@ if (incoming.isEmpty()) {
             // If the selected song cannot resolve, safely skip to the next
             // playable playlist item instead of stalling the whole playlist.
             for ((index, candidate) in forwardQueue.withIndex()) {
-                if (playbackJob?.isActive != true) return@launch
+                if (playbackRequestGeneration.get() != playbackRequestId) return@launch
 
                 val playable =
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         buildPlayableTrack(candidate)
                     }
+
+                if (playbackRequestGeneration.get() != playbackRequestId) return@launch
 
                 if (playable != null) {
                     firstPlayable = playable
@@ -1119,6 +1130,8 @@ if (incoming.isEmpty()) {
                 _isPlaying.value = false
                 return@launch
             }
+
+            if (playbackRequestGeneration.get() != playbackRequestId) return@launch
 
             controller.stop()
             controller.clearMediaItems()
@@ -1144,16 +1157,22 @@ if (incoming.isEmpty()) {
 
             val queuedIds = mutableSetOf(selectedPlayable.first.id)
 
+            // Give rapid track switching priority over background playlist resolution.
+            kotlinx.coroutines.delay(1500)
+            if (playbackRequestGeneration.get() != playbackRequestId) return@launch
+
             // Resolve and append the entire remaining playlist sequentially.
             // This avoids the previous take(3) limit and prevents a tiny
             // 3-song queue from looping while the playlist has many songs.
             for (candidate in forwardQueue.drop(firstPlayableIndex + 1)) {
-                if (playbackJob?.isActive != true) break
+                if (playbackRequestGeneration.get() != playbackRequestId) break
 
                 val playable =
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         buildPlayableTrack(candidate)
                     } ?: continue
+
+                if (playbackRequestGeneration.get() != playbackRequestId) break
 
                 if (!queuedIds.add(playable.first.id)) {
                     continue
@@ -1168,7 +1187,7 @@ if (incoming.isEmpty()) {
             }
 
             // Re-assert the playlist policy after progressive queue fill.
-            if (playbackJob?.isActive == true) {
+            if (playbackRequestGeneration.get() == playbackRequestId) {
                 controller.repeatMode =
                     if (_isRepeat.value) {
                         Player.REPEAT_MODE_ONE
@@ -1228,6 +1247,7 @@ if (incoming.isEmpty()) {
         _isPlaying.value = false
         _currentPosition.value = 0L
 
+        val playbackRequestId = playbackRequestGeneration.incrementAndGet()
         playbackJob?.cancel()
         playbackJob = viewModelScope.launch {
             val controller = mediaController ?: return@launch
@@ -1236,6 +1256,8 @@ if (incoming.isEmpty()) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     buildPlayableTrack(track, forceFreshResolve = true)
                 }
+
+            if (playbackRequestGeneration.get() != playbackRequestId) return@launch
 
             if (selectedPlayable == null) {
                 _isPlaying.value = false
@@ -1263,6 +1285,10 @@ if (incoming.isEmpty()) {
 
             if (remaining.isNotEmpty()) {
                 launch {
+                    // Do not let catalogue prefetch compete with a rapid second tap.
+                    kotlinx.coroutines.delay(1500)
+                    if (playbackRequestGeneration.get() != playbackRequestId) return@launch
+
                     val playableRest = buildPlayableQueue(remaining, forceFreshResolve = true)
                     if (playableRest.isNotEmpty()) {
                         controller.addMediaItems(playableRest.map { it.second })
@@ -1594,6 +1620,7 @@ if (incoming.isEmpty()) {
         _isPlaying.value = false
         _currentPosition.value = 0L
 
+        val playbackRequestId = playbackRequestGeneration.incrementAndGet()
         playbackJob?.cancel()
 
         playbackJob = viewModelScope.launch {
@@ -1605,6 +1632,8 @@ if (incoming.isEmpty()) {
              * Do NOT wait for the entire playlist.
              */
             val selectedPlayable = buildPlayableTrack(track)
+
+            if (playbackRequestGeneration.get() != playbackRequestId) return@launch
 
             if (selectedPlayable == null) {
                 _isPlaying.value = false
@@ -1642,6 +1671,10 @@ if (incoming.isEmpty()) {
             val remainingQueue =
                 requestedQueue.filterNot { it.id == track.id }
 
+            // Give a second tap priority before resolving background queue items.
+            kotlinx.coroutines.delay(1500)
+            if (playbackRequestGeneration.get() != playbackRequestId) return@launch
+
             // SABDHAM PROGRESSIVE QUEUE:
             // Preserve instant playback of the selected song, but keep a small
             // number of resolved MediaItems ready so Media3 can advance automatically.
@@ -1649,7 +1682,7 @@ if (incoming.isEmpty()) {
             val remainingPlayable: List<Pair<Track, MediaItem>> =
                 buildPlayableQueue(remainingQueue.take(3))
 
-            if (playbackJob?.isActive != true) return@launch
+            if (playbackRequestGeneration.get() != playbackRequestId) return@launch
 
             /*
              * Keep the currently playing MediaItem untouched.
