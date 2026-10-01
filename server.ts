@@ -5006,6 +5006,23 @@ app.get('/api/export/web-apk-zip', async (req, res) => {
   }
 });
 
+// Public APK download: serve the signed Android package directly.
+// This bypasses Vite/static SPA fallback and forces a real file download.
+app.get('/downloads/SABDHAM-signed.apk', (req, res) => {
+  const sourceApk = path.join(process.cwd(), 'public', 'downloads', 'SABDHAM-signed.apk');
+  const builtApk = path.join(process.cwd(), 'dist', 'downloads', 'SABDHAM-signed.apk');
+  const apkPath = fs.existsSync(sourceApk) ? sourceApk : builtApk;
+
+  if (!fs.existsSync(apkPath)) {
+    return res.status(404).type('text/plain').send('SABDHAM APK not found.');
+  }
+
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', 'attachment; filename="SABDHAM-signed.apk"');
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  return res.sendFile(apkPath);
+});
+
 // Public legal page: serve directly from source so SPA fallback/PWA routing
 // cannot swallow the privacy-policy URL on the live custom domain.
 app.get(['/privacy-policy', '/privacy-policy.html'], (req, res) => {
