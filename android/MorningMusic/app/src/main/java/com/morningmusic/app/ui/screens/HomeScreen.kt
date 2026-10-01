@@ -567,52 +567,52 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 when (selectedCategory) {
                     "Tamil Hits" -> {
                         item {
-                            SectionHeader("Popular Tamil Hits (${popularTamil.size})") { viewModel.playCatalog(popularTamil) }
+                            SectionHeader("Popular Tamil Hits (${popularTamil.size})") { viewModel.playCatalog(popularTamil, rotatingCatalog = true) }
                             VerticalTrackList(
                                 tracks = popularTamil,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularTamil) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, popularTamil, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
                     }
                     "Sinhala Pop" -> {
                         item {
-                            SectionHeader("Modern Sinhala & Classics (${popularSinhala.size})") { viewModel.playCatalog(popularSinhala) }
+                            SectionHeader("Modern Sinhala & Classics (${popularSinhala.size})") { viewModel.playCatalog(popularSinhala, rotatingCatalog = true) }
                             VerticalTrackList(
                                 tracks = popularSinhala,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularSinhala) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, popularSinhala, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
                     }
                     "English Pop" -> {
                         item {
-                            SectionHeader("Global Pop Chartbusters (${popularEnglish.size})") { viewModel.playCatalog(popularEnglish) }
+                            SectionHeader("Global Pop Chartbusters (${popularEnglish.size})") { viewModel.playCatalog(popularEnglish, rotatingCatalog = true) }
                             VerticalTrackList(
                                 tracks = popularEnglish,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularEnglish) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, popularEnglish, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
                     }
                     "Trending" -> {
                         item {
-                            SectionHeader("Trending Viral Hits (${viewModel.trending.size})") { viewModel.playCatalog(viewModel.trending) }
+                            SectionHeader("Trending Viral Hits (${viewModel.trending.size})") { viewModel.playCatalog(viewModel.trending, rotatingCatalog = true) }
                             VerticalTrackList(
                                 tracks = viewModel.trending,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, viewModel.trending) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, viewModel.trending, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
@@ -661,13 +661,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Popular Tamil Hits") { viewModel.playCatalog(popularTamil) }
+                            SectionHeader("Popular Tamil Hits") { viewModel.playCatalog(popularTamil, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks = popularTamil,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularTamil) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, popularTamil, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -676,13 +676,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Sinhala Hits & Masterpieces") { viewModel.playCatalog(popularSinhala) }
+                            SectionHeader("Sinhala Hits & Masterpieces") { viewModel.playCatalog(popularSinhala, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks = popularSinhala,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularSinhala) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, popularSinhala, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -691,13 +691,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Global English Chartbusters") { viewModel.playCatalog(popularEnglish) }
+                            SectionHeader("Global English Chartbusters") { viewModel.playCatalog(popularEnglish, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks = popularEnglish,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularEnglish) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, popularEnglish, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -723,13 +723,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
                         // Acoustic & Love Melodies
                         item {
-                            SectionHeader("Acoustic & Love Melodies") { viewModel.playCatalog(acousticMelodies) }
+                            SectionHeader("Acoustic & Love Melodies") { viewModel.playCatalog(acousticMelodies, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks = acousticMelodies,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, acousticMelodies) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, acousticMelodies, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -755,13 +755,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
                         // Fresh Releases
                         item {
-                            SectionHeader("Fresh New Releases") { viewModel.playCatalog(newReleases) }
+                            SectionHeader("Fresh New Releases") { viewModel.playCatalog(newReleases, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks = newReleases,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, newReleases) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, newReleases, rotatingCatalog = true) },
                                 onLikeClick = { viewModel.toggleLike(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onAddToPlaylist = { playlistTargetTrack = it },
@@ -770,13 +770,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Tamil Evergreen Classics") { viewModel.playCatalog(tamilEvergreen) }
+                            SectionHeader("Tamil Evergreen Classics") { viewModel.playCatalog(tamilEvergreen, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=tamilEvergreen,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, tamilEvergreen) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, tamilEvergreen, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -785,13 +785,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Tamil Romantic Hits") { viewModel.playCatalog(tamilRomantic) }
+                            SectionHeader("Tamil Romantic Hits") { viewModel.playCatalog(tamilRomantic, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=tamilRomantic,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, tamilRomantic) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, tamilRomantic, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -800,13 +800,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Tamil Party & Dance") { viewModel.playCatalog(tamilDance) }
+                            SectionHeader("Tamil Party & Dance") { viewModel.playCatalog(tamilDance, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=tamilDance,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, tamilDance) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, tamilDance, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -815,13 +815,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Sinhala Golden Classics") { viewModel.playCatalog(sinhalaClassics) }
+                            SectionHeader("Sinhala Golden Classics") { viewModel.playCatalog(sinhalaClassics, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=sinhalaClassics,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaClassics) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaClassics, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -830,13 +830,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Sinhala Romantic Hits") { viewModel.playCatalog(sinhalaRomantic) }
+                            SectionHeader("Sinhala Romantic Hits") { viewModel.playCatalog(sinhalaRomantic, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=sinhalaRomantic,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaRomantic) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaRomantic, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -845,13 +845,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Sinhala Trending") { viewModel.playCatalog(sinhalaTrending) }
+                            SectionHeader("Sinhala Trending") { viewModel.playCatalog(sinhalaTrending, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=sinhalaTrending,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaTrending) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaTrending, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -860,13 +860,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("English Pop Hits") { viewModel.playCatalog(englishPop) }
+                            SectionHeader("English Pop Hits") { viewModel.playCatalog(englishPop, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=englishPop,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, englishPop) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, englishPop, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -875,13 +875,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Chill & Relax") { viewModel.playCatalog(chillRelax) }
+                            SectionHeader("Chill & Relax") { viewModel.playCatalog(chillRelax, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=chillRelax,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, chillRelax) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, chillRelax, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -890,13 +890,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Party & Dance Hits") { viewModel.playCatalog(partyHits) }
+                            SectionHeader("Party & Dance Hits") { viewModel.playCatalog(partyHits, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=partyHits,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, partyHits) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, partyHits, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
@@ -905,13 +905,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("90s & 2000s Throwbacks") { viewModel.playCatalog(throwbacks) }
+                            SectionHeader("90s & 2000s Throwbacks") { viewModel.playCatalog(throwbacks, rotatingCatalog = true) }
                             HorizontalTrackGrid(
                                 tracks=throwbacks,
                                 currentTrack=currentTrack,
                                 isPlaying=isPlaying,
                                 likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, throwbacks) },
+                                onTrackClick={ viewModel.playCatalogTrack(it, throwbacks, rotatingCatalog = true) },
                                 onLikeClick={ viewModel.toggleLike(it) },
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
