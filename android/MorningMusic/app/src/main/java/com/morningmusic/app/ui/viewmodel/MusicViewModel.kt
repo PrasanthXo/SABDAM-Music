@@ -912,7 +912,10 @@ if (incoming.isEmpty()) {
                 kotlinx.coroutines.withContext(
                     kotlinx.coroutines.Dispatchers.IO
                 ) {
-                    buildPlayableTrack(track)
+                    buildPlayableTrack(
+                        queueTrack = track,
+                        normalizeBackendUrl = true
+                    )
                 }
 
             if (selectedPlayable == null) {
@@ -985,7 +988,10 @@ if (incoming.isEmpty()) {
                     kotlinx.coroutines.withContext(
                         kotlinx.coroutines.Dispatchers.IO
                     ) {
-                        buildPlayableTrack(candidate)
+                        buildPlayableTrack(
+                            queueTrack = candidate,
+                            normalizeBackendUrl = true
+                        )
                     } ?: continue
 
                 if (playbackJob?.isActive != true) {
@@ -1273,7 +1279,8 @@ if (incoming.isEmpty()) {
     }
     private suspend fun buildPlayableTrack(
         queueTrack: Track,
-        forceFreshResolve: Boolean = false
+        forceFreshResolve: Boolean = false,
+        normalizeBackendUrl: Boolean = false
     ): Pair<Track, MediaItem>? {
 
         android.util.Log.d(
@@ -1381,7 +1388,7 @@ if (incoming.isEmpty()) {
                     }
                 }
 
-        val resolvedUrl = when {
+        val rawResolvedUrl = when {
             /*
              * Catalogue first choice:
              * verified title/artist resolver result.
@@ -1452,6 +1459,29 @@ if (incoming.isEmpty()) {
                 }
             }
         }
+        val resolvedUrl =
+            if (normalizeBackendUrl) {
+                rawResolvedUrl
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { url ->
+                        when {
+                            url.startsWith("http://", ignoreCase = true) ||
+                                url.startsWith("https://", ignoreCase = true) ->
+                                url
+
+                            url.startsWith("/") ->
+                                MusicSearchService.activeBackendUrl.trimEnd('/') + url
+
+                            else ->
+                                MusicSearchService.activeBackendUrl.trimEnd('/') + "/" + url
+                        }
+                    }
+                    ?: return null
+            } else {
+                rawResolvedUrl
+            }
+
         val metadataBuilder =
             androidx.media3.common.MediaMetadata.Builder()
                 .setTitle(queueTrack.title)
