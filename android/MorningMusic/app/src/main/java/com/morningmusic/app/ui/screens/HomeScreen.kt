@@ -3201,7 +3201,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            viewModel.playCatalog(selectedPlaylist.tracks)
+                            viewModel.playPlaylist(selectedPlaylist.tracks)
                         },
                     shape = RoundedCornerShape(14.dp),
                     color = green
@@ -3240,7 +3240,7 @@ var importingPlaylist by remember { mutableStateOf(false) }
                             isPlaying && currentTrack?.id == track.id,
                         isLiked = track.id in likedTrackIds,
                         onTrackClick = {
-                            viewModel.playTrack(
+                            viewModel.playPlaylistTrack(
                                 track,
                                 selectedPlaylist.tracks
                             )
