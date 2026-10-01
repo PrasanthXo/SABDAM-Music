@@ -367,6 +367,7 @@ if (incoming.isEmpty()) {
     private var lastSearchJob: Job? = null
     private var playbackJob: Job? = null
     private var searchQueueMode = false
+    private var playlistPlaybackMode = false
     private var mediaController: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
 
@@ -1024,13 +1025,177 @@ if (incoming.isEmpty()) {
 
     fun playTrack(track: Track, sourceQueue: List<Track>? = null) {
         searchQueueMode = false
+        playlistPlaybackMode = false
         playTrackInternal(
             track = track,
             queueOverride = sourceQueue
         )
     }
 
+
+    /**
+     * Playlist-only playback.
+     *
+     * Guarantees a forward, duplicate-free queue and uses REPEAT_MODE_OFF
+     * when repeat is disabled, so a 100-song playlist ends after the last
+     * playable song instead of looping back to song #1.
+     *
+     * Search and catalogue playback are intentionally untouched.
+     */
+    fun playPlaylist(tracks: List<Track>) {
+        val playlistQueue = sanitizePlaylistQueue(tracks)
+        if (playlistQueue.isEmpty()) return
+
+        playPlaylistTrack(
+            track = playlistQueue.first(),
+            sourceQueue = playlistQueue
+        )
+    }
+
+    fun playPlaylistTrack(
+        track: Track,
+        sourceQueue: List<Track>
+    ) {
+        searchQueueMode = false
+        playlistPlaybackMode = true
+
+        val playlistQueue = sanitizePlaylistQueue(sourceQueue)
+        if (playlistQueue.isEmpty()) return
+
+        val selectedIndex =
+            playlistQueue.indexOfFirst { it.id == track.id }
+                .takeIf { it >= 0 }
+                ?: 0
+
+        val forwardQueue = playlistQueue.drop(selectedIndex)
+
+        // Keep the complete playlist available for UI + manual Next/Previous.
+        _queue.value = playlistQueue
+        _currentTrack.value = forwardQueue.first()
+        saveLastPlayedTrack(forwardQueue.first())
+        _isPlaying.value = false
+        _currentPosition.value = 0L
+
+        // Playlist playback starts in deterministic playlist order.
+        _isShuffle.value = false
+
+        playbackJob?.cancel()
+        playbackJob = viewModelScope.launch {
+            val controller = mediaController ?: return@launch
+
+            var firstPlayable: Pair<Track, MediaItem>? = null
+            var firstPlayableIndex = -1
+
+            // If the selected song cannot resolve, safely skip to the next
+            // playable playlist item instead of stalling the whole playlist.
+            for ((index, candidate) in forwardQueue.withIndex()) {
+                if (playbackJob?.isActive != true) return@launch
+
+                val playable =
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        buildPlayableTrack(candidate)
+                    }
+
+                if (playable != null) {
+                    firstPlayable = playable
+                    firstPlayableIndex = index
+                    break
+                }
+
+                android.util.Log.w(
+                    "SABDHAM_PLAYLIST",
+                    "SKIP UNPLAYABLE title=${candidate.title}"
+                )
+            }
+
+            val selectedPlayable = firstPlayable ?: run {
+                _isPlaying.value = false
+                return@launch
+            }
+
+            controller.stop()
+            controller.clearMediaItems()
+            controller.setMediaItem(selectedPlayable.second)
+
+            controller.repeatMode =
+                if (_isRepeat.value) {
+                    Player.REPEAT_MODE_ONE
+                } else {
+                    Player.REPEAT_MODE_OFF
+                }
+
+            controller.shuffleModeEnabled = false
+            controller.prepare()
+            controller.volume = 1f
+            _isMuted.value = false
+            controller.playWhenReady = true
+            controller.play()
+
+            _currentTrack.value = selectedPlayable.first
+            saveLastPlayedTrack(selectedPlayable.first)
+            _isPlaying.value = true
+
+            val queuedIds = mutableSetOf(selectedPlayable.first.id)
+
+            // Resolve and append the entire remaining playlist sequentially.
+            // This avoids the previous take(3) limit and prevents a tiny
+            // 3-song queue from looping while the playlist has many songs.
+            for (candidate in forwardQueue.drop(firstPlayableIndex + 1)) {
+                if (playbackJob?.isActive != true) break
+
+                val playable =
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        buildPlayableTrack(candidate)
+                    } ?: continue
+
+                if (!queuedIds.add(playable.first.id)) {
+                    continue
+                }
+
+                controller.addMediaItem(playable.second)
+
+                android.util.Log.d(
+                    "SABDHAM_PLAYLIST",
+                    "QUEUED title=${playable.first.title}"
+                )
+            }
+
+            // Re-assert the playlist policy after progressive queue fill.
+            if (playbackJob?.isActive == true) {
+                controller.repeatMode =
+                    if (_isRepeat.value) {
+                        Player.REPEAT_MODE_ONE
+                    } else {
+                        Player.REPEAT_MODE_OFF
+                    }
+            }
+        }
+    }
+
+    private fun sanitizePlaylistQueue(tracks: List<Track>): List<Track> {
+        val seen = mutableSetOf<String>()
+
+        return tracks.filter { track ->
+            val semanticKey =
+                listOf(
+                    track.title.trim().lowercase(),
+                    track.artist.trim().lowercase(),
+                    track.album.trim().lowercase()
+                ).joinToString("|")
+
+            val key =
+                if (semanticKey.replace("|", "").isNotBlank()) {
+                    semanticKey
+                } else {
+                    track.id
+                }
+
+            seen.add(key)
+        }
+    }
+
     fun playCatalog(tracks: List<Track>) {
+        playlistPlaybackMode = false
         if (tracks.isEmpty()) return
         val catalogQueue = tracks.distinctBy { it.id }
         playCatalogTrack(
@@ -1048,6 +1213,7 @@ if (incoming.isEmpty()) {
         sourceQueue: List<Track>
     ) {
         searchQueueMode = false
+        playlistPlaybackMode = false
         val catalogQueue = sourceQueue.distinctBy { it.id }
 
         _queue.value = catalogQueue
@@ -1589,6 +1755,18 @@ if (incoming.isEmpty()) {
         val currentIndex =
             queue.indexOfFirst { it.id == currentId }
 
+        if (playlistPlaybackMode) {
+            if (currentIndex < 0) {
+                playPlaylistTrack(queue.first(), queue)
+            } else if (currentIndex + 1 < queue.size) {
+                playPlaylistTrack(queue[currentIndex + 1], queue)
+            } else {
+                mediaController?.pause()
+                _isPlaying.value = false
+            }
+            return
+        }
+
         val nextIndex = when {
             currentIndex < 0 -> 0
             currentIndex + 1 < queue.size -> currentIndex + 1
@@ -1627,6 +1805,17 @@ if (incoming.isEmpty()) {
         val currentIndex =
             queue.indexOfFirst { it.id == currentId }
 
+        if (playlistPlaybackMode) {
+            if (currentIndex > 0) {
+                playPlaylistTrack(queue[currentIndex - 1], queue)
+            } else if (currentIndex < 0 && queue.isNotEmpty()) {
+                playPlaylistTrack(queue.first(), queue)
+            } else {
+                mediaController?.seekTo(0)
+            }
+            return
+        }
+
         val previousIndex = when {
             currentIndex < 0 -> 0
             currentIndex > 0 -> currentIndex - 1
@@ -1661,7 +1850,12 @@ if (incoming.isEmpty()) {
 
     fun toggleRepeat() {
         _isRepeat.value = !_isRepeat.value
-        mediaController?.repeatMode = if (_isRepeat.value) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_ALL
+        mediaController?.repeatMode =
+            when {
+                _isRepeat.value -> Player.REPEAT_MODE_ONE
+                playlistPlaybackMode -> Player.REPEAT_MODE_OFF
+                else -> Player.REPEAT_MODE_ALL
+            }
     }
 
     fun addToQueue(track: Track) {
