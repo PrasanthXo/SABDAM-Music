@@ -4321,90 +4321,168 @@ app.get(['/api/youtube/stream', '/api/youtube/mp3'], async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Accept-Ranges', 'bytes');
 
-    if (streamInfo && streamInfo.url) {
-      if (streamInfo.url.startsWith('http')) {
-        const headers: Record<string, string> = {
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'accept': '*/*',
-        };
+    if (!streamInfo || !streamInfo.url) {
+      return res.status(404).json({
+        error: 'Direct audio stream not available. Use YouTube player.',
+        useYouTube: true,
+        videoId: streamInfo?.videoId || videoId,
+      });
+    }
 
-        if (req.headers.range) {
-          headers['range'] = req.headers.range;
+    if (!streamInfo.url.startsWith('http')) {
+      return res.redirect(302, streamInfo.url);
+    }
+
+    const requestHeaders: Record<string, string> = {
+      'user-agent': 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36',
+      'accept': '*/*',
+      'accept-encoding': 'identity',
+    };
+
+    if (req.headers.range) {
+      requestHeaders['range'] = req.headers.range;
+    }
+
+    const proxyFinalAudio = (targetUrl: string, redirectsLeft: number) => {
+      let parsed: URL;
+      try {
+        parsed = new URL(targetUrl);
+      } catch {
+        if (!res.headersSent) {
+          res.status(502).json({ error: 'Invalid upstream audio URL' });
         }
+        return;
+      }
 
-        const options = {
+      if (parsed.protocol !== 'https:') {
+        if (!res.headersSent) {
+          res.status(502).json({ error: 'Unsupported upstream audio protocol' });
+        }
+        return;
+      }
+
+      const upstreamReq = https.request(
+        parsed,
+        {
           method: 'GET',
-          headers,
-        };
+          headers: requestHeaders,
+        },
+        (upstreamRes) => {
+          const statusCode = upstreamRes.statusCode || 500;
 
-        const proxyReq = https.request(streamInfo.url, options, (proxyRes) => {
-          const statusCode = proxyRes.statusCode || 200;
-          const location = proxyRes.headers.location;
-
-          // Some YouTube/CDN audio URLs answer with a redirect first.
-          // Never forward a bare 3xx to Media3: Android treats a redirect
-          // without Location as "Null location redirect" and playback dies.
           if (statusCode >= 300 && statusCode < 400) {
-            if (location) {
-              res.setHeader('Location', location);
-              res.status(statusCode).end();
-            } else {
+            const location = upstreamRes.headers.location;
+            upstreamRes.resume();
+
+            if (!location) {
               console.error(
-                '[YouTube Stream Proxy] Upstream redirect missing Location',
-                { statusCode, videoId }
+                '[YouTube Stream Proxy] Redirect missing Location',
+                { statusCode, videoId, targetUrl }
               );
+              if (!res.headersSent) {
+                res.status(502).json({
+                  error: 'Invalid upstream audio redirect',
+                  retryable: true,
+                });
+              }
+              return;
+            }
+
+            if (redirectsLeft <= 0) {
+              if (!res.headersSent) {
+                res.status(502).json({
+                  error: 'Too many upstream audio redirects',
+                  retryable: true,
+                });
+              }
+              return;
+            }
+
+            let nextUrl: string;
+            try {
+              nextUrl = new URL(location, parsed).toString();
+            } catch {
+              if (!res.headersSent) {
+                res.status(502).json({
+                  error: 'Invalid upstream redirect URL',
+                  retryable: true,
+                });
+              }
+              return;
+            }
+
+            return proxyFinalAudio(nextUrl, redirectsLeft - 1);
+          }
+
+          if (statusCode < 200 || statusCode >= 300) {
+            console.error(
+              '[YouTube Stream Proxy] Upstream audio request failed',
+              { statusCode, videoId, targetUrl }
+            );
+            upstreamRes.resume();
+            if (!res.headersSent) {
               res.status(502).json({
-                error: 'Invalid upstream audio redirect',
+                error: 'Upstream audio request failed',
+                upstreamStatus: statusCode,
                 retryable: true,
               });
             }
-            proxyRes.resume();
             return;
           }
 
-          // Force pure audio mime type to tell Chrome/Safari background audio is permitted.
-          res.setHeader(
-            'Content-Type',
-            proxyRes.headers['content-type'] || 'audio/mp4'
-          );
+          const contentType =
+            upstreamRes.headers['content-type'] || 'audio/mp4';
+
+          res.setHeader('Content-Type', contentType);
           res.setHeader('Accept-Ranges', 'bytes');
           res.setHeader('Access-Control-Allow-Origin', '*');
 
-          if (proxyRes.headers['content-range']) {
-            res.setHeader('Content-Range', proxyRes.headers['content-range']);
+          if (upstreamRes.headers['content-range']) {
+            res.setHeader(
+              'Content-Range',
+              upstreamRes.headers['content-range']
+            );
           }
-          if (proxyRes.headers['content-length']) {
-            res.setHeader('Content-Length', proxyRes.headers['content-length']);
+
+          if (upstreamRes.headers['content-length']) {
+            res.setHeader(
+              'Content-Length',
+              upstreamRes.headers['content-length']
+            );
           }
 
-          res.writeHead(statusCode);
-          proxyRes.pipe(res);
-        });
+          res.status(statusCode);
+          upstreamRes.pipe(res);
+        }
+      );
 
-        proxyReq.on('error', (e) => {
-          console.error('[YouTube Stream Proxy] Request error:', e);
-          if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to stream audio from source' });
-          }
-        });
+      upstreamReq.setTimeout(20000, () => {
+        upstreamReq.destroy(new Error('Upstream audio request timed out'));
+      });
 
-        req.on('close', () => {
-          proxyReq.destroy();
-        });
+      upstreamReq.on('error', (e) => {
+        console.error('[YouTube Stream Proxy] Request error:', e);
+        if (!res.headersSent) {
+          res.status(502).json({
+            error: 'Failed to stream audio from source',
+            retryable: true,
+          });
+        }
+      });
 
-        return proxyReq.end();
-      } else {
-        return res.redirect(302, streamInfo.url);
-      }
-    }
-    return res.status(404).json({
-      error: 'Direct audio stream not available. Use YouTube player.',
-      useYouTube: true,
-      videoId: streamInfo.videoId || videoId,
-    });
+      req.on('close', () => {
+        upstreamReq.destroy();
+      });
+
+      upstreamReq.end();
+    };
+
+    proxyFinalAudio(streamInfo.url, 5);
   } catch (err: any) {
     console.error('[YouTube Stream] Error in streaming endpoint:', err);
-    res.status(500).json({ error: 'Failed to stream audio' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to stream audio' });
+    }
   }
 });
 
