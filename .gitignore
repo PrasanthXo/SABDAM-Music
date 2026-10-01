@@ -13,6 +13,10 @@ android/MorningMusic/build/
 android/MorningMusic/app/build/
 android/MorningMusic/local.properties
 android/MorningMusic/.idea/
+android/MorningMusic/APK_AUDIT_TEMP/
+android/MorningMusic/restore_points/
+android/MorningMusic/*_backup_*/
+android/MorningMusic/sabdham_*_backup_*/
 *.jks
 *.keystore
 
