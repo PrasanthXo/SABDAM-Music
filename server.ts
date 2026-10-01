@@ -3646,6 +3646,132 @@ app.get('/api/youtube/search', async (req, res) => {
       return res.json({ tracks: MODULAR_CATALOG });
     }
 
+    // SABDHAM SEARCH:
+    // Prefer real music metadata + direct playable audio.
+    // YouTube is fallback only. This avoids karaoke / lyric / 4K video
+    // clutter and avoids relying on YouTube extraction for normal search.
+    try {
+      let saavnQuery = query;
+
+      if (language === 'tamil' && !query.toLowerCase().includes('tamil')) {
+        saavnQuery += ' tamil';
+      } else if (
+        language === 'sinhala' &&
+        !query.toLowerCase().includes('sinhala')
+      ) {
+        saavnQuery += ' sinhala';
+      }
+
+      const saavnUrl =
+        `https://www.jiosaavn.com/api.php?__call=search.getResults` +
+        `&_format=json&n=${maxResults}&p=1` +
+        `&q=${encodeURIComponent(saavnQuery)}&_marker=0`;
+
+      const saavnResponse = await fetch(saavnUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+            'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+            'Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (saavnResponse.ok) {
+        const saavnBody = await saavnResponse.text();
+        const saavnData = JSON.parse(saavnBody);
+
+        const musicOnly = (saavnData.results || [])
+          .filter((item: any) => {
+            if (!item || !item.id || !item.song) return false;
+
+            const name = String(item.song || '').toLowerCase();
+            const badTerms = [
+              'karaoke',
+              'instrumental',
+              'ringtone',
+              'tribute',
+              'nightcore',
+              'slowed',
+              'reverb',
+              '8d audio',
+              'status',
+              'remix'
+            ];
+
+            return !badTerms.some((term) => name.includes(term));
+          })
+          .map((item: any) => {
+            const encrypted =
+              item.encrypted_media_url ||
+              item.more_info?.encrypted_media_url ||
+              '';
+
+            const audioUrl =
+              encrypted ? decryptSaavnMediaUrl(encrypted) : null;
+
+            if (!audioUrl) return null;
+
+            const duration =
+              parseInt(
+                item.duration ||
+                item.more_info?.duration ||
+                '0',
+                10
+              ) || 0;
+
+            if (duration > 0 && (duration < 50 || duration > 650)) {
+              return null;
+            }
+
+            const rawImage =
+              item.image ||
+              item.more_info?.image ||
+              '';
+
+            const coverUrl = rawImage
+              ? rawImage.replace(/150x150|50x50/g, '500x500')
+              : SABDHAM_DEFAULT_ARTWORK;
+
+            const mins = Math.floor(duration / 60);
+            const secs = duration % 60;
+
+            return {
+              id: `saavn-${item.id}`,
+              audio_source_id: item.id,
+              title: item.song,
+              artist:
+                item.primary_artists ||
+                item.singers ||
+                'Unknown Artist',
+              album: item.album || 'Single',
+              duration,
+              durationFormatted:
+                `${mins}:${secs < 10 ? '0' : ''}${secs}`,
+              coverUrl,
+              audioUrl,
+              language:
+                item.language ||
+                (language === 'all' ? 'unknown' : language),
+              genre: 'Music',
+              year: item.year || null,
+              source: 'saavn'
+            };
+          })
+          .filter(Boolean);
+
+        if (musicOnly.length > 0) {
+          return res.json({ tracks: musicOnly });
+        }
+      }
+    } catch (err) {
+      console.warn(
+        '[SABDHAM Search] Saavn-first search failed, using YouTube fallback:',
+        err
+      );
+    }
+
     // Use clean search terms without arbitrary replacements
     let searchTerms = query;
     if (language === 'tamil' && !query.toLowerCase().includes('tamil')) {
@@ -3731,7 +3857,25 @@ app.get('/api/youtube/search', async (req, res) => {
                   source: 'youtube',
                 };
               })
-              .filter(Boolean);
+              .filter(Boolean)
+              .filter((track: any) => {
+                const text = String(track?.title || '').toLowerCase();
+                const badTerms = [
+                  'karaoke',
+                  'teaser',
+                  'trailer',
+                  'reaction',
+                  'interview',
+                  'behind the scenes',
+                  'making of',
+                  'shorts',
+                  'status',
+                  'instrumental',
+                  'slowed',
+                  'reverb'
+                ];
+                return !badTerms.some((term) => text.includes(term));
+              });
 
             return res.json({ tracks });
           }
