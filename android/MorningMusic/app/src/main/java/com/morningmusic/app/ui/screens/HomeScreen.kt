@@ -2702,6 +2702,7 @@ fun FullPlayerSheet(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .padding(bottom = 6.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(Color(0xFA09090B))
