@@ -3872,7 +3872,14 @@ app.get('/api/youtube/search', async (req, res) => {
                   'status',
                   'instrumental',
                   'slowed',
-                  'reverb'
+                  'reverb',
+                  'lyric',
+                  'lyrical',
+                  'video song',
+                  'full video',
+                  '4k',
+                  'remix',
+                  'cover song'
                 ];
                 return !badTerms.some((term) => text.includes(term));
               });
@@ -3888,7 +3895,36 @@ app.get('/api/youtube/search', async (req, res) => {
     // 2. Structured YouTube Scraper fallback (returns accurate live YouTube videos)
     const scrapedTracks = await scrapeYouTubeVideos(searchTerms, maxResults);
     if (scrapedTracks.length > 0) {
-      return res.json({ tracks: scrapedTracks });
+      const cleanScrapedTracks = scrapedTracks.filter((track: any) => {
+        const text = String(track?.title || '').toLowerCase();
+        const badTerms = [
+          'karaoke',
+          'teaser',
+          'trailer',
+          'reaction',
+          'interview',
+          'behind the scenes',
+          'making of',
+          'shorts',
+          'status',
+          'instrumental',
+          'slowed',
+          'reverb',
+          'lyric',
+          'lyrical',
+          'video song',
+          'full video',
+          '4k',
+          'remix',
+          'cover song'
+        ];
+
+        return !badTerms.some((term) => text.includes(term));
+      });
+
+      if (cleanScrapedTracks.length > 0) {
+        return res.json({ tracks: cleanScrapedTracks });
+      }
     }
 
     // 3. Fallback: filter local catalog by search tokens
