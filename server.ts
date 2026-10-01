@@ -5006,6 +5006,21 @@ app.get('/api/export/web-apk-zip', async (req, res) => {
   }
 });
 
+// Public legal page: serve directly from source so SPA fallback/PWA routing
+// cannot swallow the privacy-policy URL on the live custom domain.
+app.get(['/privacy-policy', '/privacy-policy.html'], (req, res) => {
+  const sourcePolicy = path.join(process.cwd(), 'public', 'privacy-policy.html');
+  const builtPolicy = path.join(process.cwd(), 'dist', 'privacy-policy.html');
+  const policyPath = fs.existsSync(sourcePolicy) ? sourcePolicy : builtPolicy;
+
+  if (!fs.existsSync(policyPath)) {
+    return res.status(404).type('text/plain').send('SABDHAM Privacy Policy not found.');
+  }
+
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  return res.sendFile(policyPath);
+});
+
 // Mount Vite middleware for dev or serve dist in production
 async function startServer() {
   const isProduction =
