@@ -458,6 +458,81 @@ if (incoming.isEmpty()) {
             .lowercase()
     }
 
+    private fun cleanSearchVideoTitle(raw: String): String {
+        var title = raw
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .trim()
+
+        val noisePatterns = listOf(
+            Regex("(?i)\\s*[\\(\\[]\\s*(official\\s*(music\\s*)?video|official\\s*audio|lyric(s)?(\\s*video)?|video\\s*song|full\\s*video|music\\s*video|audio)\\s*[\\)\\]]\\s*"),
+            Regex("(?i)\\s*[-|:]\\s*(official\\s*(music\\s*)?video|official\\s*audio|lyric(s)?(\\s*video)?|video\\s*song|full\\s*video|music\\s*video|audio)\\s*$"),
+            Regex("(?i)\\s+official\\s*(music\\s*)?video\\s*$"),
+            Regex("(?i)\\s+official\\s*audio\\s*$"),
+            Regex("(?i)\\s+lyric(s)?\\s*(video)?\\s*$"),
+            Regex("(?i)\\s+video\\s*song\\s*$")
+        )
+
+        noisePatterns.forEach { pattern ->
+            title = title.replace(pattern, " ").trim()
+        }
+
+        return title
+            .replace(Regex("\\s+"), " ")
+            .trim(' ', '-', '|', ':')
+            .ifBlank { raw.trim() }
+    }
+
+    private fun isSearchVideoJunk(track: Track): Boolean {
+        val value = normalizeSearchText(track.title)
+
+        return listOf(
+            "teaser",
+            "trailer",
+            "reaction",
+            "interview",
+            "behind the scenes",
+            "making of",
+            "shorts",
+            "status video"
+        ).any { value.contains(it) }
+    }
+
+    private fun sanitizeSearchTrack(track: Track): Track {
+        val isYouTubeSearchItem =
+            track.youtubeVideoId.isNotBlank() ||
+                track.id.startsWith("yt-", ignoreCase = true) ||
+                track.audioUrl.startsWith("yt:", ignoreCase = true) ||
+                track.audioUrl.startsWith("yt-", ignoreCase = true)
+
+        return track.copy(
+            title = cleanSearchVideoTitle(track.title),
+            // Never expose YouTube thumbnail artwork in SABDHAM.
+            coverUrl = if (isYouTubeSearchItem) "" else track.coverUrl
+        )
+    }
+
+    private fun searchVideoId(track: Track): String {
+        val audio = track.audioUrl.trim()
+
+        return when {
+            track.youtubeVideoId.isNotBlank() ->
+                track.youtubeVideoId.trim()
+
+            audio.startsWith("yt:", ignoreCase = true) ->
+                audio.substringAfter(":").trim()
+
+            audio.startsWith("yt-", ignoreCase = true) ->
+                audio.substring(3).trim()
+
+            track.id.startsWith("yt-", ignoreCase = true) ->
+                track.id.substring(3).trim()
+
+            else -> ""
+        }
+    }
+
     private fun hasSearchPlaybackSource(track: Track): Boolean {
         val audio = track.audioUrl.trim()
 
@@ -525,6 +600,8 @@ if (incoming.isEmpty()) {
     ): List<Track> {
         return tracks
             .asSequence()
+            .map { sanitizeSearchTrack(it) }
+            .filterNot { isSearchVideoJunk(it) }
             .filter { hasSearchPlaybackSource(it) }
             .map { track -> track to searchScore(track, query) }
             .filter { (_, score) -> score > 0 }
@@ -914,10 +991,7 @@ if (incoming.isEmpty()) {
                 kotlinx.coroutines.withContext(
                     kotlinx.coroutines.Dispatchers.IO
                 ) {
-                    buildPlayableTrack(
-                        queueTrack = track,
-                        normalizeBackendUrl = true
-                    )
+                    buildSearchPlayableTrack(track)
                 }
 
             if (playbackRequestGeneration.get() != playbackRequestId) return@launch
@@ -996,10 +1070,7 @@ if (incoming.isEmpty()) {
                     kotlinx.coroutines.withContext(
                         kotlinx.coroutines.Dispatchers.IO
                     ) {
-                        buildPlayableTrack(
-                            queueTrack = candidate,
-                            normalizeBackendUrl = true
-                        )
+                        buildSearchPlayableTrack(candidate)
                     } ?: continue
 
                 if (playbackRequestGeneration.get() != playbackRequestId) {
@@ -1037,6 +1108,97 @@ if (incoming.isEmpty()) {
         }
     }
 
+    /**
+     * Search-only playback resolver.
+     *
+     * Playlist playback is intentionally NOT routed through this function.
+     * Search results may carry a YouTube reference as yt:<id>, yt-<id>,
+     * youtubeVideoId, or yt-<id> in the Track id. Normalize that reference
+     * before asking the backend for an audio stream.
+     */
+    private suspend fun buildSearchPlayableTrack(
+        originalTrack: Track
+    ): Pair<Track, MediaItem>? {
+
+        val track = sanitizeSearchTrack(originalTrack)
+        val audio = originalTrack.audioUrl.trim()
+
+        val hasDirectAudio =
+            audio.isNotBlank() &&
+                !audio.startsWith("yt:", ignoreCase = true) &&
+                !audio.startsWith("yt-", ignoreCase = true) &&
+                !audio.contains("youtube", ignoreCase = true)
+
+        val exactVideoId = searchVideoId(originalTrack)
+
+        val rawUrl =
+            try {
+                when {
+                    hasDirectAudio ->
+                        audio
+
+                    exactVideoId.isNotBlank() ->
+                        MusicSearchService.getStreamUrl(exactVideoId)
+
+                    else ->
+                        MusicSearchService.resolveStream(
+                            title = track.title,
+                            artist = track.artist
+                        )?.url
+                }
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "SABDHAM_SEARCH_PLAY",
+                    "Exact search resolver failed id=$exactVideoId title=${track.title}",
+                    e
+                )
+                null
+            }
+
+        val resolvedUrl =
+            rawUrl
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { url ->
+                    when {
+                        url.startsWith("http://", ignoreCase = true) ||
+                            url.startsWith("https://", ignoreCase = true) ->
+                            url
+
+                        url.startsWith("/") ->
+                            MusicSearchService.activeBackendUrl.trimEnd('/') + url
+
+                        else ->
+                            MusicSearchService.activeBackendUrl.trimEnd('/') + "/" + url
+                    }
+                }
+                ?: return null
+
+        val metadataBuilder =
+            androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(track.title)
+                .setArtist(track.artist)
+                .setAlbumTitle(track.album)
+
+        // Search YouTube may be used only as the audio source.
+        // Do not attach YouTube thumbnails as SABDHAM artwork.
+        if (track.coverUrl.isNotBlank()) {
+            metadataBuilder.setArtworkUri(
+                android.net.Uri.parse(track.coverUrl)
+            )
+        }
+
+        android.util.Log.d(
+            "SABDHAM_SEARCH_PLAY",
+            "PLAY id=${track.id} videoId=$exactVideoId title=${track.title}"
+        )
+
+        return track to MediaItem.Builder()
+            .setUri(resolvedUrl)
+            .setMediaId(track.id)
+            .setMediaMetadata(metadataBuilder.build())
+            .build()
+    }
 
     fun playTrack(track: Track, sourceQueue: List<Track>? = null) {
         searchQueueMode = false
