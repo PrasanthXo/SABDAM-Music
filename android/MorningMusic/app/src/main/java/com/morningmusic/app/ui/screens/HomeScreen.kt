@@ -959,15 +959,17 @@ fun HomeScreen(viewModel: MusicViewModel) {
             }
         }
 
-        // AI Studio style native bottom navigation
+        // Compact/collapsed phone bottom navigation.
+        // Inactive tabs remain icon-only; the selected tab expands with its label.
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(Color(0xFA09090B))
                 .navigationBarsPadding()
-                .padding(horizontal = 10.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+                .padding(bottom = 6.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0xFA09090B))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SabdhamBottomNavItem(
@@ -2696,14 +2698,15 @@ fun FullPlayerSheet(
             }
         }
 
-        // SABDHAM bottom navigation inside full player
+        // Compact/collapsed navigation inside the full player on phones.
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
+                .padding(bottom = 6.dp)
+                .clip(RoundedCornerShape(28.dp))
                 .background(Color(0xFA09090B))
-                .padding(horizontal = 10.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SabdhamBottomNavItem(
@@ -2885,37 +2888,41 @@ private fun SabdhamBottomNavItem(
     val activeColor = Color(0xFF00E676)
     val inactiveColor = Color(0xFF71717A)
 
-    Column(
+    Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(9.dp))
-                .background(
-                    if (selected) Color(0x1A00E676)
-                    else Color.Transparent
-                )
-                .padding(4.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (selected) activeColor else inactiveColor,
-                modifier = Modifier.size(25.dp)
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(
+                if (selected) Color(0x1A00E676)
+                else Color.Transparent
             )
-        }
-
-        Text(
-            text = label,
-            color = if (selected) activeColor else inactiveColor,
-            fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.Black else FontWeight.Bold
+            .clickable(onClick = onClick)
+            .padding(
+                horizontal = if (selected) 12.dp else 10.dp,
+                vertical = 8.dp
+            ),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (selected) activeColor else inactiveColor,
+            modifier = Modifier.size(24.dp)
         )
+
+        AnimatedVisibility(visible = selected) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = label,
+                    color = activeColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 
