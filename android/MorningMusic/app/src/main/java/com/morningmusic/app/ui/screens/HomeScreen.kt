@@ -548,7 +548,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 isPlaying = isThisPlaying && isPlaying,
                                 isLiked = likedTrackIds.contains(track.id),
                                 onTrackClick = {
-                                    viewModel.playTrack(track, searchResults)
+                                    viewModel.playSearchTrack(track = track, sourceResults = searchResults)
                                 },
                                 onLikeClick = {
                                     viewModel.toggleLike(track)
