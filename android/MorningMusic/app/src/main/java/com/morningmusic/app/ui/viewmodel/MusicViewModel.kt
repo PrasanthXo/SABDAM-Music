@@ -91,9 +91,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private var tamilCatalogLoading = false
     private var tamilCatalogPage = 1
     private var tamilCatalogHasMore = true
+    private var tamilCatalogDay = ""
 
     fun loadMoreTamil() {
+        val today = refreshCatalogDayIfNeeded()
+
+        if (tamilCatalogDay != today) {
+            tamilCatalogDay = today
+            tamilCatalogPage = 1
+            tamilCatalogHasMore = true
+        }
+
         if (tamilCatalogLoading || !tamilCatalogHasMore) return
+
+        val isDailyFrontPage = tamilCatalogPage == 1
 
         tamilCatalogLoading = true
 
@@ -120,8 +131,15 @@ if (incoming.isEmpty()) {
                 }
 
                 if (newTracks.isNotEmpty()) {
+                    registerIncomingCatalogTracks(
+                        tracks = newTracks,
+                        allowAsNew = isDailyFrontPage
+                    )
+
                     _popularTamil.value =
-                        _popularTamil.value + newTracks
+                        rankCatalogTracks(
+                            _popularTamil.value + newTracks
+                        )
                 }
 
                 tamilCatalogPage++
@@ -139,7 +157,8 @@ if (incoming.isEmpty()) {
     private data class CatalogPagingState(
         var page: Int = 1,
         var loading: Boolean = false,
-        var hasMore: Boolean = true
+        var hasMore: Boolean = true,
+        var day: String = ""
     )
 
     private val _popularSinhala =
@@ -156,7 +175,8 @@ if (incoming.isEmpty()) {
     val popularEnglish: List<Track>
         get() = _popularEnglish.value
 
-    val trending: List<Track> = MusicRepository.trending
+    val trending: List<Track>
+        get() = rankCatalogTracks(MusicRepository.trending)
 
     private val _newReleases =
         MutableStateFlow<List<Track>>(MusicRepository.newReleases)
@@ -183,8 +203,18 @@ if (incoming.isEmpty()) {
         query: String,
         language: String
     ) {
+        val today = refreshCatalogDayIfNeeded()
+
+        if (paging.day != today) {
+            paging.day = today
+            paging.page = 1
+            paging.hasMore = true
+            paging.loading = false
+        }
+
         if (paging.loading || !paging.hasMore) return
 
+        val isDailyFrontPage = paging.page == 1
         paging.loading = true
 
         viewModelScope.launch {
@@ -242,7 +272,15 @@ if (incoming.isEmpty()) {
                     }
 
                 if (newTracks.isNotEmpty()) {
-                    target.value = target.value + newTracks
+                    registerIncomingCatalogTracks(
+                        tracks = newTracks,
+                        allowAsNew = isDailyFrontPage
+                    )
+
+                    target.value =
+                        rankCatalogTracks(
+                            target.value + newTracks
+                        )
                 }
 
                 paging.page++
@@ -364,6 +402,242 @@ if (incoming.isEmpty()) {
     val chillMidnight: List<Track> = MusicRepository.chillMidnight
     val allTracks: List<Track> = MusicRepository.allTracks
 
+    // SABDHAM_CATALOG_DAILY_ROTATION_V1
+    // Daily catalogue ordering only. Search/playlist playback is not changed.
+    private val catalogRotationPrefs by lazy {
+        getApplication<Application>().getSharedPreferences(
+            "sabdham_catalog_rotation",
+            android.content.Context.MODE_PRIVATE
+        )
+    }
+
+    private companion object {
+        const val CATALOG_ROTATION_DAY = "rotation_day"
+        const val CATALOG_BASELINE_DAY = "baseline_day"
+        const val CATALOG_INITIALIZED = "initialized"
+        const val CATALOG_KNOWN_IDS = "known_catalog_song_ids"
+        const val CATALOG_VIEWED_IDS = "viewed_catalog_song_ids"
+        const val CATALOG_NEW_TODAY_IDS = "new_catalog_song_ids_today"
+    }
+
+    private fun catalogDayKey(): String {
+        val c = Calendar.getInstance()
+
+        return java.lang.String.format(
+            java.util.Locale.US,
+            "%04d-%02d-%02d",
+            c.get(Calendar.YEAR),
+            c.get(Calendar.MONTH) + 1,
+            c.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    private fun catalogStringSet(key: String): Set<String> {
+        return catalogRotationPrefs
+            .getStringSet(key, emptySet())
+            ?.toSet()
+            ?: emptySet()
+    }
+
+    private fun mutableCatalogTargets(): List<MutableStateFlow<List<Track>>> {
+        return listOf(
+            _popularTamil,
+            _popularSinhala,
+            _popularEnglish,
+            _newReleases,
+            _acousticMelodies,
+            _tamilEvergreen,
+            _tamilRomantic,
+            _tamilDance,
+            _sinhalaClassics,
+            _sinhalaRomantic,
+            _sinhalaTrending,
+            _englishPop,
+            _chillRelax,
+            _partyHits,
+            _throwbacks
+        )
+    }
+
+    private fun rankCatalogTracks(
+        tracks: List<Track>
+    ): List<Track> {
+        if (tracks.isEmpty()) return tracks
+
+        val viewed = catalogStringSet(CATALOG_VIEWED_IDS)
+        val newToday = catalogStringSet(CATALOG_NEW_TODAY_IDS)
+        val liked = _likedTrackIds.value
+
+        return tracks
+            .distinctBy { it.id }
+            .withIndex()
+            .sortedWith(
+                compareBy<IndexedValue<Track>> { indexed ->
+                    val id = indexed.value.id
+
+                    when {
+                        id in newToday && id !in viewed -> 0
+                        id in liked || id !in viewed -> 1
+                        else -> 2
+                    }
+                }.thenBy { it.index }
+            )
+            .map { it.value }
+    }
+
+    private fun rerankAllCatalogs() {
+        mutableCatalogTargets().forEach { target ->
+            val ranked = rankCatalogTracks(target.value)
+
+            if (ranked.map { it.id } != target.value.map { it.id }) {
+                target.value = ranked
+            }
+        }
+    }
+
+    private fun refreshCatalogDayIfNeeded(): String {
+        val today = catalogDayKey()
+        val savedDay =
+            catalogRotationPrefs.getString(
+                CATALOG_ROTATION_DAY,
+                ""
+            ).orEmpty()
+
+        if (savedDay != today) {
+            catalogRotationPrefs.edit()
+                .putString(CATALOG_ROTATION_DAY, today)
+                .putStringSet(
+                    CATALOG_NEW_TODAY_IDS,
+                    emptySet()
+                )
+                .apply()
+
+            rerankAllCatalogs()
+        }
+
+        return today
+    }
+
+    private fun initializeCatalogRotationBaseline() {
+        val today = refreshCatalogDayIfNeeded()
+
+        if (!catalogRotationPrefs.getBoolean(
+                CATALOG_INITIALIZED,
+                false
+            )
+        ) {
+            val baselineIds =
+                mutableCatalogTargets()
+                    .flatMap { target ->
+                        target.value.map { it.id }
+                    }
+                    .plus(
+                        MusicRepository.trending.map { it.id }
+                    )
+                    .filter { it.isNotBlank() }
+                    .toSet()
+
+            catalogRotationPrefs.edit()
+                .putBoolean(CATALOG_INITIALIZED, true)
+                .putString(CATALOG_BASELINE_DAY, today)
+                .putString(CATALOG_ROTATION_DAY, today)
+                .putStringSet(
+                    CATALOG_KNOWN_IDS,
+                    baselineIds
+                )
+                .putStringSet(
+                    CATALOG_NEW_TODAY_IDS,
+                    emptySet()
+                )
+                .apply()
+        }
+
+        rerankAllCatalogs()
+    }
+
+    private fun registerIncomingCatalogTracks(
+        tracks: List<Track>,
+        allowAsNew: Boolean
+    ) {
+        if (tracks.isEmpty()) return
+
+        val today = refreshCatalogDayIfNeeded()
+        val ids =
+            tracks.map { it.id }
+                .filter { it.isNotBlank() }
+                .toSet()
+
+        if (ids.isEmpty()) return
+
+        val known = catalogStringSet(CATALOG_KNOWN_IDS)
+        val unknownIds = ids - known
+        val baselineDay =
+            catalogRotationPrefs.getString(
+                CATALOG_BASELINE_DAY,
+                today
+            ).orEmpty()
+
+        val editor =
+            catalogRotationPrefs.edit()
+                .putStringSet(
+                    CATALOG_KNOWN_IDS,
+                    known + ids
+                )
+
+        /*
+         * First day is baseline-only. This prevents old songs that were
+         * already in the server catalogue from being falsely labeled "new"
+         * merely because this feature was just installed.
+         *
+         * On later days, only IDs never seen before AND discovered on the
+         * refreshed first page can become genuine "new today" songs.
+         */
+        if (
+            allowAsNew &&
+            baselineDay != today &&
+            unknownIds.isNotEmpty()
+        ) {
+            val newToday =
+                catalogStringSet(
+                    CATALOG_NEW_TODAY_IDS
+                )
+
+            editor.putStringSet(
+                CATALOG_NEW_TODAY_IDS,
+                newToday + unknownIds
+            )
+        }
+
+        editor.apply()
+    }
+
+    private fun markCatalogViewed(trackId: String) {
+        if (trackId.isBlank()) return
+
+        // Liked songs are protected from catalogue demotion.
+        if (trackId in _likedTrackIds.value) {
+            return
+        }
+
+        val viewed =
+            catalogStringSet(
+                CATALOG_VIEWED_IDS
+            )
+
+        if (trackId in viewed) {
+            return
+        }
+
+        catalogRotationPrefs.edit()
+            .putStringSet(
+                CATALOG_VIEWED_IDS,
+                viewed + trackId
+            )
+            .apply()
+
+        rerankAllCatalogs()
+    }
+
     private var lastSearchJob: Job? = null
     private var playbackJob: Job? = null
     private var searchQueueMode = false
@@ -372,6 +646,7 @@ if (incoming.isEmpty()) {
 
     init {
         MusicSearchService.init(application)
+        initializeCatalogRotationBaseline()
         loadLikedSongsFromCloud()
         _currentTrack.value = restoreLastPlayedTrack()
         _isPlaying.value = false
@@ -1048,7 +1323,13 @@ if (incoming.isEmpty()) {
         sourceQueue: List<Track>
     ) {
         searchQueueMode = false
-        val catalogQueue = sourceQueue.distinctBy { it.id }
+        refreshCatalogDayIfNeeded()
+
+        val catalogQueue =
+            sourceQueue.distinctBy { it.id }
+
+        // A catalogue tap counts as viewed. Liked songs are exempt.
+        markCatalogViewed(track.id)
 
         _queue.value = catalogQueue
         _currentTrack.value = track
@@ -1059,48 +1340,140 @@ if (incoming.isEmpty()) {
         playbackJob = viewModelScope.launch {
             val controller = mediaController ?: return@launch
 
-            val selectedPlayable =
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    buildPlayableTrack(track, forceFreshResolve = true)
+            /*
+             * Resolve the requested catalogue song first.
+             * If that item is dead/unresolvable, continue forward until the
+             * first playable catalogue item is found instead of stopping.
+             *
+             * Search and playlist playback paths remain untouched.
+             */
+            val candidates =
+                (
+                    listOf(track) +
+                        catalogQueue.filterNot {
+                            it.id == track.id
+                        }
+                ).distinctBy { it.id }
+
+            var selectedPlayable: Pair<Track, MediaItem>? = null
+            var selectedCandidateIndex = -1
+
+            for ((index, candidate) in candidates.withIndex()) {
+                if (playbackJob?.isActive != true) {
+                    return@launch
                 }
 
-            if (selectedPlayable == null) {
-                _isPlaying.value = false
-                android.util.Log.e(
+                val playable =
+                    try {
+                        kotlinx.coroutines.withContext(
+                            kotlinx.coroutines.Dispatchers.IO
+                        ) {
+                            buildPlayableTrack(
+                                candidate,
+                                forceFreshResolve = true
+                            )
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w(
+                            "SABDHAM_CATALOG",
+                            "Skipping failed catalogue track: " +
+                                "${candidate.title} - ${candidate.artist}",
+                            e
+                        )
+                        null
+                    }
+
+                if (playable != null) {
+                    selectedPlayable = playable
+                    selectedCandidateIndex = index
+                    break
+                }
+
+                // Keep dead catalogue items behind unseen playable songs.
+                markCatalogViewed(candidate.id)
+
+                android.util.Log.w(
                     "SABDHAM_CATALOG",
-                    "Unable to resolve catalogue track: ${track.title} - ${track.artist}"
+                    "Skipped unplayable catalogue track: " +
+                        "${candidate.title} - ${candidate.artist}"
                 )
-                return@launch
             }
+
+            val selected =
+                selectedPlayable ?: run {
+                    _isPlaying.value = false
+
+                    android.util.Log.e(
+                        "SABDHAM_CATALOG",
+                        "No playable catalogue song found in current queue"
+                    )
+
+                    return@launch
+                }
+
+            markCatalogViewed(selected.first.id)
 
             controller.stop()
             controller.clearMediaItems()
-            controller.setMediaItem(selectedPlayable.second)
+            controller.setMediaItem(selected.second)
             controller.repeatMode =
-                if (_isRepeat.value) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_ALL
+                if (_isRepeat.value) {
+                    Player.REPEAT_MODE_ONE
+                } else {
+                    Player.REPEAT_MODE_ALL
+                }
             controller.shuffleModeEnabled = _isShuffle.value
             controller.prepare()
             controller.playWhenReady = true
             controller.play()
 
-            _currentTrack.value = selectedPlayable.first
+            _currentTrack.value = selected.first
             _isPlaying.value = true
 
-            val remaining = catalogQueue.filter { it.id != track.id }
+            /*
+             * Queue only tracks after the successfully selected item.
+             * buildPlayableQueue already filters any remaining dead entries.
+             */
+            val remaining =
+                if (
+                    selectedCandidateIndex >= 0 &&
+                    selectedCandidateIndex + 1 < candidates.size
+                ) {
+                    candidates.drop(
+                        selectedCandidateIndex + 1
+                    )
+                } else {
+                    emptyList()
+                }
 
             if (remaining.isNotEmpty()) {
                 launch {
-                    val playableRest = buildPlayableQueue(remaining, forceFreshResolve = true)
+                    val playableRest =
+                        buildPlayableQueue(
+                            remaining,
+                            forceFreshResolve = true
+                        )
+
                     if (playableRest.isNotEmpty()) {
-                        controller.addMediaItems(playableRest.map { it.second })
+                        controller.addMediaItems(
+                            playableRest.map {
+                                it.second
+                            }
+                        )
+
                         _queue.value =
-                            listOf(selectedPlayable.first) + playableRest.map { it.first }
+                            listOf(selected.first) +
+                                playableRest.map {
+                                    it.first
+                                }
                     } else {
-                        _queue.value = listOf(selectedPlayable.first)
+                        _queue.value =
+                            listOf(selected.first)
                     }
                 }
             } else {
-                _queue.value = listOf(selectedPlayable.first)
+                _queue.value =
+                    listOf(selected.first)
             }
         }
     }
@@ -1679,6 +2052,7 @@ if (incoming.isEmpty()) {
             if (result.success) {
                 _likedTrackIds.value = result.likedTrackIds
                 _likedTracks.value = result.tracks
+                rerankAllCatalogs()
 
                 android.util.Log.d(
                     "SABDHAM_LIKES",
@@ -1709,6 +2083,7 @@ if (incoming.isEmpty()) {
 
         _likedTrackIds.value = newIds
         _likedTracks.value = newTracks.distinctBy { it.id }
+        rerankAllCatalogs()
 
         viewModelScope.launch {
             val result =
@@ -1734,6 +2109,7 @@ if (incoming.isEmpty()) {
 
                 _likedTrackIds.value = rollbackIds
                 _likedTracks.value = rollbackTracks.distinctBy { it.id }
+                rerankAllCatalogs()
 
                 android.util.Log.w(
                     "SABDHAM_LIKES",
