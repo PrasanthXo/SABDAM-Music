@@ -807,6 +807,7 @@ if (incoming.isEmpty()) {
         sourceResults: List<Track>
     ) {
         searchQueueMode = true
+        playlistPlaybackMode = false
 
         val selectedLanguage =
             track.language.trim()
@@ -1206,7 +1207,7 @@ if (incoming.isEmpty()) {
 
     /**
      * Catalogue-only path.
-     * Search and playlist playback continue using playTrack() unchanged.
+     * Search and playlist playback use their own dedicated paths.
      */
     fun playCatalogTrack(
         track: Track,
