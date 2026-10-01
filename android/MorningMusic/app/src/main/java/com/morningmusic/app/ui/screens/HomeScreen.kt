@@ -964,7 +964,9 @@ fun HomeScreen(viewModel: MusicViewModel) {
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
+                )
                 .padding(bottom = 6.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(Color(0xFA09090B))
@@ -1021,8 +1023,11 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 onPlayerClick = { isFullPlayerVisible = true },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
+                    )
                     .padding(horizontal = 12.dp)
-                    .padding(bottom = 96.dp)
+                    .padding(bottom = 88.dp)
             )
         }
 
@@ -2183,7 +2188,6 @@ fun FullPlayerSheet(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF121212))
-            .navigationBarsPadding()
     ) {
         val compact = maxHeight < 720.dp
         val artworkSize = when {
@@ -2702,7 +2706,9 @@ fun FullPlayerSheet(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
+                )
                 .padding(bottom = 6.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(Color(0xFA09090B))
