@@ -2189,11 +2189,16 @@ fun FullPlayerSheet(
             .background(Color(0xFF121212))
     ) {
         val compact = maxHeight < 720.dp
+
+        // Keep enough vertical room for controls + volume + fixed bottom navigation.
         val artworkSize = when {
-            maxHeight < 650.dp -> 180.dp
-            maxHeight < 760.dp -> 220.dp
-            else -> 270.dp
+            maxHeight < 650.dp -> 150.dp
+            maxHeight < 720.dp -> 180.dp
+            maxHeight < 800.dp -> 220.dp
+            else -> 260.dp
         }.coerceAtMost(maxWidth - 64.dp)
+
+        val fullPlayerBottomReserve = 78.dp
 
         // Ambient SABDHAM green glow
         Box(
@@ -2215,7 +2220,10 @@ fun FullPlayerSheet(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 20.dp)
+                // Reserve fixed space so the bottom navigation never overlaps
+                // the volume/control area on short phones.
+                .padding(bottom = fullPlayerBottomReserve),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Top bar
@@ -2653,6 +2661,7 @@ fun FullPlayerSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(min = 54.dp)
                             .clip(RoundedCornerShape(18.dp))
                             .background(Color(0xE6222222))
                             .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -2701,18 +2710,21 @@ fun FullPlayerSheet(
             }
         }
 
-        // Compact/collapsed navigation inside the full player on phones.
+        // Fixed bottom navigation inside the full player.
+        // It owns its own area instead of floating over the volume controls.
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .fillMaxWidth()
                 .windowInsetsPadding(
                     WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
                 )
-                .padding(bottom = 6.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .heightIn(min = 58.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(Color(0xFA09090B))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             SabdhamBottomNavItem(
