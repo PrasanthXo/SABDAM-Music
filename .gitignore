@@ -3,7 +3,19 @@
 !.env.example
 node_modules/
 dist/
-android/
+
+# Track the SABDHAM native Android project, but not local/generated files.
+android/*
+!android/MorningMusic/
+android/MorningMusic/.gradle/
+android/MorningMusic/.kotlin/
+android/MorningMusic/build/
+android/MorningMusic/app/build/
+android/MorningMusic/local.properties
+android/MorningMusic/.idea/
+*.jks
+*.keystore
+
 *.log
 .idea/
 *.zip
