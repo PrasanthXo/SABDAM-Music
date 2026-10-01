@@ -1131,28 +1131,44 @@ if (incoming.isEmpty()) {
 
         val exactVideoId = searchVideoId(originalTrack)
 
+        val exactStreamUrl =
+            if (exactVideoId.isNotBlank()) {
+                try {
+                    MusicSearchService.getStreamUrl(exactVideoId)
+                } catch (e: Exception) {
+                    android.util.Log.w(
+                        "SABDHAM_SEARCH_PLAY",
+                        "Exact search resolver failed id=$exactVideoId title=${track.title}",
+                        e
+                    )
+                    null
+                }
+            } else {
+                null
+            }
+
         val rawUrl =
-            try {
-                when {
-                    hasDirectAudio ->
-                        audio
+            when {
+                hasDirectAudio ->
+                    audio
 
-                    exactVideoId.isNotBlank() ->
-                        MusicSearchService.getStreamUrl(exactVideoId)
+                !exactStreamUrl.isNullOrBlank() ->
+                    exactStreamUrl
 
-                    else ->
+                else ->
+                    try {
                         MusicSearchService.resolveStream(
                             title = track.title,
                             artist = track.artist
                         )?.url
-                }
-            } catch (e: Exception) {
-                android.util.Log.w(
-                    "SABDHAM_SEARCH_PLAY",
-                    "Exact search resolver failed id=$exactVideoId title=${track.title}",
-                    e
-                )
-                null
+                    } catch (e: Exception) {
+                        android.util.Log.w(
+                            "SABDHAM_SEARCH_PLAY",
+                            "Fallback search resolver failed title=${track.title}",
+                            e
+                        )
+                        null
+                    }
             }
 
         val resolvedUrl =
