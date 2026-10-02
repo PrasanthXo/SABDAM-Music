@@ -5,7 +5,10 @@ import androidx.compose.ui.draw.blur
 import android.content.Context
 import com.morningmusic.app.data.network.CloudPlaylist
 import com.morningmusic.app.data.network.SabdhamLibraryService
+import com.morningmusic.app.data.repository.currentLocalCatalogDay
+import com.morningmusic.app.data.repository.dailyRotatedCatalog
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.RepeatMode
@@ -75,22 +78,83 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val isSearching by viewModel.isSearching.collectAsState()
     val suggestions by viewModel.suggestions.collectAsState()
 
-    val popularTamil by viewModel.popularTamil.collectAsState()
-    val popularSinhala by viewModel.popularSinhalaFlow.collectAsState()
-    val popularEnglish by viewModel.popularEnglishFlow.collectAsState()
-    val acousticMelodies by viewModel.acousticMelodiesFlow.collectAsState()
-    val newReleases by viewModel.newReleasesFlow.collectAsState()
+    val popularTamilSource by viewModel.popularTamil.collectAsState()
+    val popularSinhalaSource by viewModel.popularSinhalaFlow.collectAsState()
+    val popularEnglishSource by viewModel.popularEnglishFlow.collectAsState()
+    val acousticMelodiesSource by viewModel.acousticMelodiesFlow.collectAsState()
+    val newReleasesSource by viewModel.newReleasesFlow.collectAsState()
 
-    val tamilEvergreen by viewModel.tamilEvergreen.collectAsState()
-    val tamilRomantic by viewModel.tamilRomantic.collectAsState()
-    val tamilDance by viewModel.tamilDance.collectAsState()
-    val sinhalaClassics by viewModel.sinhalaClassics.collectAsState()
-    val sinhalaRomantic by viewModel.sinhalaRomantic.collectAsState()
-    val sinhalaTrending by viewModel.sinhalaTrending.collectAsState()
-    val englishPop by viewModel.englishPop.collectAsState()
-    val chillRelax by viewModel.chillRelax.collectAsState()
-    val partyHits by viewModel.partyHits.collectAsState()
-    val throwbacks by viewModel.throwbacks.collectAsState()
+    val tamilEvergreenSource by viewModel.tamilEvergreen.collectAsState()
+    val tamilRomanticSource by viewModel.tamilRomantic.collectAsState()
+    val tamilDanceSource by viewModel.tamilDance.collectAsState()
+    val sinhalaClassicsSource by viewModel.sinhalaClassics.collectAsState()
+    val sinhalaRomanticSource by viewModel.sinhalaRomantic.collectAsState()
+    val sinhalaTrendingSource by viewModel.sinhalaTrending.collectAsState()
+    val englishPopSource by viewModel.englishPop.collectAsState()
+    val chillRelaxSource by viewModel.chillRelax.collectAsState()
+    val partyHitsSource by viewModel.partyHits.collectAsState()
+    val throwbacksSource by viewModel.throwbacks.collectAsState()
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Native catalogue day changes once at the device's local midnight.
+    // The minute check also catches up after the app resumes from background.
+    val catalogDay by produceState(initialValue = currentLocalCatalogDay()) {
+        while (true) {
+            delay(60_000L)
+            val freshDay = currentLocalCatalogDay()
+            if (freshDay != value) value = freshDay
+        }
+    }
+
+    val popularTamil = remember(popularTamilSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, popularTamilSource, "popular_tamil", catalogDay, 20, likedTrackIds)
+    }
+    val popularSinhala = remember(popularSinhalaSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, popularSinhalaSource, "popular_sinhala", catalogDay, 20, likedTrackIds)
+    }
+    val popularEnglish = remember(popularEnglishSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, popularEnglishSource, "popular_english", catalogDay, 20, likedTrackIds)
+    }
+    val acousticMelodies = remember(acousticMelodiesSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, acousticMelodiesSource, "acoustic", catalogDay, 18, likedTrackIds)
+    }
+    val newReleases = remember(newReleasesSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, newReleasesSource, "new_releases", catalogDay, 18, likedTrackIds)
+    }
+    val tamilEvergreen = remember(tamilEvergreenSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, tamilEvergreenSource, "tamil_evergreen", catalogDay, 18, likedTrackIds)
+    }
+    val tamilRomantic = remember(tamilRomanticSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, tamilRomanticSource, "tamil_romantic", catalogDay, 18, likedTrackIds)
+    }
+    val tamilDance = remember(tamilDanceSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, tamilDanceSource, "tamil_dance", catalogDay, 18, likedTrackIds)
+    }
+    val sinhalaClassics = remember(sinhalaClassicsSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, sinhalaClassicsSource, "sinhala_classics", catalogDay, 18, likedTrackIds)
+    }
+    val sinhalaRomantic = remember(sinhalaRomanticSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, sinhalaRomanticSource, "sinhala_romantic", catalogDay, 18, likedTrackIds)
+    }
+    val sinhalaTrending = remember(sinhalaTrendingSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, sinhalaTrendingSource, "sinhala_trending", catalogDay, 18, likedTrackIds)
+    }
+    val englishPop = remember(englishPopSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, englishPopSource, "english_pop", catalogDay, 18, likedTrackIds)
+    }
+    val chillRelax = remember(chillRelaxSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, chillRelaxSource, "chill_relax", catalogDay, 18, likedTrackIds)
+    }
+    val partyHits = remember(partyHitsSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, partyHitsSource, "party_hits", catalogDay, 18, likedTrackIds)
+    }
+    val throwbacks = remember(throwbacksSource, catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, throwbacksSource, "throwbacks", catalogDay, 18, likedTrackIds)
+    }
+    val dailyTrending = remember(catalogDay, likedTrackIds) {
+        dailyRotatedCatalog(context, viewModel.trending, "trending", catalogDay, 20, likedTrackIds)
+    }
 
     val likedSongs = likedTracks
 
@@ -118,8 +182,6 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var playlistSaving by remember { mutableStateOf(false) }
     var playlistMessage by remember { mutableStateOf<String?>(null) }
     val playlistScope = rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
-
     // Search page history only
     var recentSearches by remember { mutableStateOf<List<String>>(emptyList()) }
     var recentPlays by remember { mutableStateOf<List<Track>>(emptyList()) }
@@ -605,13 +667,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
                     }
                     "Trending" -> {
                         item {
-                            SectionHeader("Trending Viral Hits (${viewModel.trending.size})") { viewModel.playCatalog(viewModel.trending) }
+                            SectionHeader("Trending Viral Hits (${dailyTrending.size})") { viewModel.playCatalog(dailyTrending) }
                             VerticalTrackList(
-                                tracks = viewModel.trending,
+                                tracks = dailyTrending,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, viewModel.trending) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, dailyTrending) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
