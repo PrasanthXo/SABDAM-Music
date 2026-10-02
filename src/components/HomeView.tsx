@@ -40,7 +40,7 @@ import { useMusic } from '../context/MusicContext';
 import { CoverArtImage } from './CoverArtImage';
 import { SongCard } from './SongCard';
 import { getRecentHitsTracks, isWithin90Days } from '../utils/recentHits';
-import { getCurrentHourIndex, getHourlyRotatedCatalog } from '../utils/hourlyRotation';
+import { getCurrentDayIndex, getDailyRotatedCatalog } from '../utils/dailyRotation';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -51,31 +51,35 @@ interface HomeViewProps {
 
 export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectArtist }) => {
   const { currentTrack, isPlaying, playTrack, togglePlayPause, likedTrackIds, customSongs } = useMusic();
-  const [currentHour, setCurrentHour] = useState<number>(getCurrentHourIndex);
+  const [currentDay, setCurrentDay] = useState<number>(getCurrentDayIndex);
   const [catalogView, setCatalogView] = useState<{ title: string; subtitle?: string; tracks: Track[] } | null>(null);
   const [trendingHits, setTrendingHits] = useState<Track[]>([]);
 
-  // Automatic hourly rotation boundary checker
+  // Automatic DAILY rotation boundary checker (device-local midnight).
+  // Focus/visibility checks make the catalogue catch up immediately after the app resumes.
   useEffect(() => {
-    const checkHour = () => {
-      const freshHour = getCurrentHourIndex();
-      if (freshHour !== currentHour) {
-        setCurrentHour(freshHour);
+    const checkDay = () => {
+      const freshDay = getCurrentDayIndex();
+      if (freshDay !== currentDay) {
+        setCurrentDay(freshDay);
       }
     };
 
-    const interval = setInterval(checkHour, 30000); // Check every 30 seconds
-    const handleFocus = () => checkHour();
+    const interval = setInterval(checkDay, 60000);
+    const handleFocus = () => checkDay();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') checkDay();
+    };
 
     window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [currentHour]);
+  }, [currentDay]);
 
   // Fetch trending hits from Firestore safely
   useEffect(() => {
@@ -152,27 +156,27 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
     fetchPlaylists();
   }, []);
 
-  // Background auto-updated catalog slices using deterministic Hourly Rotation Engine
+  // Background auto-updated catalog slices using persistent Daily Rotation Engine
   const recentHitsPool = useMemo(() => getRecentHitsTracks(ALL_TRACKS, selectedLanguage), [selectedLanguage]);
   
   const dynamicRecentTracks = useMemo(
-    () => getHourlyRotatedCatalog(recentHitsPool, 'recent_hits', currentHour, 20),
-    [recentHitsPool, currentHour]
+    () => getDailyRotatedCatalog(recentHitsPool, 'recent_hits', currentDay, 20, likedTrackIds),
+    [recentHitsPool, currentDay, likedTrackIds]
   );
 
   const dynamicTamilTracks = useMemo(
-    () => getHourlyRotatedCatalog(ytTamilTracks.length > 0 ? ytTamilTracks : POPULAR_TAMIL_TRACKS, 'popular_tamil', currentHour, 20),
-    [ytTamilTracks, currentHour]
+    () => getDailyRotatedCatalog(ytTamilTracks.length > 0 ? ytTamilTracks : POPULAR_TAMIL_TRACKS, 'popular_tamil', currentDay, 20, likedTrackIds),
+    [ytTamilTracks, currentDay, likedTrackIds]
   );
 
   const dynamicSinhalaTracks = useMemo(
-    () => getHourlyRotatedCatalog(ytSinhalaTracks.length > 0 ? ytSinhalaTracks : POPULAR_SINHALA_TRACKS, 'popular_sinhala', currentHour, 20),
-    [ytSinhalaTracks, currentHour]
+    () => getDailyRotatedCatalog(ytSinhalaTracks.length > 0 ? ytSinhalaTracks : POPULAR_SINHALA_TRACKS, 'popular_sinhala', currentDay, 20, likedTrackIds),
+    [ytSinhalaTracks, currentDay, likedTrackIds]
   );
 
   const dynamicEnglishTracks = useMemo(
-    () => getHourlyRotatedCatalog(ytEnglishTracks.length > 0 ? ytEnglishTracks : POPULAR_ENGLISH_TRACKS, 'popular_english', currentHour, 20),
-    [ytEnglishTracks, currentHour]
+    () => getDailyRotatedCatalog(ytEnglishTracks.length > 0 ? ytEnglishTracks : POPULAR_ENGLISH_TRACKS, 'popular_english', currentDay, 20, likedTrackIds),
+    [ytEnglishTracks, currentDay, likedTrackIds]
   );
 
   const filteredArtists = useMemo(() => {
@@ -183,29 +187,29 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
 
   const dynamicArtists = useMemo(() => {
     if (!filteredArtists.length) return filteredArtists;
-    const offset = currentHour % filteredArtists.length;
+    const offset = currentDay % filteredArtists.length;
     return [...filteredArtists.slice(offset), ...filteredArtists.slice(0, offset)];
-  }, [filteredArtists, currentHour]);
+  }, [filteredArtists, currentDay]);
 
-  const dynamicAcousticTracks = useMemo(() => getHourlyRotatedCatalog(ACOUSTIC_MELODIES_TRACKS, 'acoustic', currentHour, 18), [currentHour]);
-  const dynamicWorkoutTracks = useMemo(() => getHourlyRotatedCatalog(WORKOUT_ENERGY_TRACKS, 'workout', currentHour, 18), [currentHour]);
-  const dynamicChillTracks = useMemo(() => getHourlyRotatedCatalog(CHILL_MIDNIGHT_TRACKS, 'chill', currentHour, 18), [currentHour]);
-  const dynamicRomanticTracks = useMemo(() => getHourlyRotatedCatalog(ROMANTIC_MELODIES_TRACKS, 'romantic', currentHour, 18), [currentHour]);
-  const dynamicRetroTracks = useMemo(() => getHourlyRotatedCatalog(RETRO_CLASSICS_TRACKS, 'retro', currentHour, 18), [currentHour]);
-  const dynamicAnirudhTracks = useMemo(() => getHourlyRotatedCatalog(ANIRUDH_HITS_TRACKS, 'anirudh', currentHour, 18), [currentHour]);
-  const dynamicTaylorTracks = useMemo(() => getHourlyRotatedCatalog(TAYLOR_SWIFT_TRACKS, 'taylor_swift', currentHour, 18), [currentHour]);
-  const dynamicSinhalaLegends = useMemo(() => getHourlyRotatedCatalog(SINHALA_LEGENDS_TRACKS, 'sinhala_legends', currentHour, 18), [currentHour]);
+  const dynamicAcousticTracks = useMemo(() => getDailyRotatedCatalog(ACOUSTIC_MELODIES_TRACKS, 'acoustic', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicWorkoutTracks = useMemo(() => getDailyRotatedCatalog(WORKOUT_ENERGY_TRACKS, 'workout', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicChillTracks = useMemo(() => getDailyRotatedCatalog(CHILL_MIDNIGHT_TRACKS, 'chill', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicRomanticTracks = useMemo(() => getDailyRotatedCatalog(ROMANTIC_MELODIES_TRACKS, 'romantic', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicRetroTracks = useMemo(() => getDailyRotatedCatalog(RETRO_CLASSICS_TRACKS, 'retro', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicAnirudhTracks = useMemo(() => getDailyRotatedCatalog(ANIRUDH_HITS_TRACKS, 'anirudh', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicTaylorTracks = useMemo(() => getDailyRotatedCatalog(TAYLOR_SWIFT_TRACKS, 'taylor_swift', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicSinhalaLegends = useMemo(() => getDailyRotatedCatalog(SINHALA_LEGENDS_TRACKS, 'sinhala_legends', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
 
-  const dynamicTamilKuthu = useMemo(() => getHourlyRotatedCatalog(TAMIL_KUTHU_DANCE_TRACKS, 'tamil_kuthu', currentHour, 18), [currentHour]);
-  const dynamicARRahman = useMemo(() => getHourlyRotatedCatalog(AR_RAHMAN_HITS_TRACKS, 'ar_rahman', currentHour, 18), [currentHour]);
-  const dynamicModernEnglish = useMemo(() => getHourlyRotatedCatalog(MODERN_ENGLISH_POP_TRACKS, 'modern_english', currentHour, 18), [currentHour]);
-  const dynamicModernSinhala = useMemo(() => getHourlyRotatedCatalog(MODERN_SINHALA_POP_TRACKS, 'modern_sinhala', currentHour, 18), [currentHour]);
-  const dynamicSidSriram = useMemo(() => getHourlyRotatedCatalog(SID_SRIRAM_HITS_TRACKS, 'sid_sriram', currentHour, 18), [currentHour]);
-  const dynamicEdSheeran = useMemo(() => getHourlyRotatedCatalog(ED_SHEERAN_HITS_TRACKS, 'ed_sheeran', currentHour, 18), [currentHour]);
-  const dynamicTheWeeknd = useMemo(() => getHourlyRotatedCatalog(THE_WEEKND_HITS_TRACKS, 'the_weeknd', currentHour, 18), [currentHour]);
-  const dynamicTamil90s = useMemo(() => getHourlyRotatedCatalog(TAMIL_80S_90S_TRACKS, 'tamil_80s_90s', currentHour, 18), [currentHour]);
-  const dynamicEnglish90s = useMemo(() => getHourlyRotatedCatalog(ENGLISH_90S_00S_TRACKS, 'english_90s_00s', currentHour, 18), [currentHour]);
-  const dynamicBillboard = useMemo(() => getHourlyRotatedCatalog(BILLBOARD_GLOBAL_HITS_TRACKS, 'billboard', currentHour, 18), [currentHour]);
+  const dynamicTamilKuthu = useMemo(() => getDailyRotatedCatalog(TAMIL_KUTHU_DANCE_TRACKS, 'tamil_kuthu', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicARRahman = useMemo(() => getDailyRotatedCatalog(AR_RAHMAN_HITS_TRACKS, 'ar_rahman', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicModernEnglish = useMemo(() => getDailyRotatedCatalog(MODERN_ENGLISH_POP_TRACKS, 'modern_english', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicModernSinhala = useMemo(() => getDailyRotatedCatalog(MODERN_SINHALA_POP_TRACKS, 'modern_sinhala', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicSidSriram = useMemo(() => getDailyRotatedCatalog(SID_SRIRAM_HITS_TRACKS, 'sid_sriram', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicEdSheeran = useMemo(() => getDailyRotatedCatalog(ED_SHEERAN_HITS_TRACKS, 'ed_sheeran', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicTheWeeknd = useMemo(() => getDailyRotatedCatalog(THE_WEEKND_HITS_TRACKS, 'the_weeknd', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicTamil90s = useMemo(() => getDailyRotatedCatalog(TAMIL_80S_90S_TRACKS, 'tamil_80s_90s', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicEnglish90s = useMemo(() => getDailyRotatedCatalog(ENGLISH_90S_00S_TRACKS, 'english_90s_00s', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
+  const dynamicBillboard = useMemo(() => getDailyRotatedCatalog(BILLBOARD_GLOBAL_HITS_TRACKS, 'billboard', currentDay, 18, likedTrackIds), [currentDay, likedTrackIds]);
 
   // Handle genre click
   const handleSelectGenre = (genre: GenreItem) => {
@@ -293,7 +297,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ selectedLanguage, onSelectAr
             Recent Hits
           </span>
           <span className="text-xs text-neutral-400 font-medium">
-            ðŸ”¥ Hourly Auto-Rotating Catalog â€¢ High Streams & Trends
+            ðŸ”¥ Daily Auto-Rotating Catalog â€¢ High Streams & Trends
           </span>
         </div>
         <SectionRow
