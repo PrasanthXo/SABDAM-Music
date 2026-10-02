@@ -4,6 +4,7 @@ const STORAGE_PREFIX = 'sabdham.catalog.rotation.v2';
 
 type CatalogHistory = {
   seenIds: string[];
+  todayIds: string[];
   lastDayIndex: number;
 };
 
@@ -47,23 +48,26 @@ function shuffleWithSeed<T>(items: T[], seed: number): T[] {
 
 function readHistory(catalogKey: string): CatalogHistory {
   if (typeof window === 'undefined') {
-    return { seenIds: [], lastDayIndex: -1 };
+    return { seenIds: [], todayIds: [], lastDayIndex: -1 };
   }
 
   try {
     const raw = window.localStorage.getItem(`${STORAGE_PREFIX}.${catalogKey}`);
-    if (!raw) return { seenIds: [], lastDayIndex: -1 };
+    if (!raw) return { seenIds: [], todayIds: [], lastDayIndex: -1 };
 
     const parsed = JSON.parse(raw) as Partial<CatalogHistory>;
     return {
       seenIds: Array.isArray(parsed.seenIds)
         ? parsed.seenIds.filter((id): id is string => typeof id === 'string')
         : [],
+      todayIds: Array.isArray(parsed.todayIds)
+        ? parsed.todayIds.filter((id): id is string => typeof id === 'string')
+        : [],
       lastDayIndex:
         typeof parsed.lastDayIndex === 'number' ? parsed.lastDayIndex : -1,
     };
   } catch {
-    return { seenIds: [], lastDayIndex: -1 };
+    return { seenIds: [], todayIds: [], lastDayIndex: -1 };
   }
 }
 
@@ -114,6 +118,20 @@ export function getDailyRotatedCatalog(
   const desiredCount = Math.min(Math.max(targetCount, 1), uniquePool.length);
   const history = readHistory(catalogKey);
   const seen = new Set(history.seenIds);
+  const byId = new Map(uniquePool.map((track) => [track.id, track] as const));
+
+  // Same local day = same catalogue window, even after refresh/re-render.
+  // This prevents React StrictMode, focus changes, or like-state changes from
+  // accidentally consuming another day's worth of unseen songs.
+  if (history.lastDayIndex === dayIndex && history.todayIds.length > 0) {
+    const sameDay = history.todayIds
+      .map((id) => byId.get(id))
+      .filter((track): track is Track => track != null);
+
+    if (sameDay.length > 0) {
+      return sameDay.slice(0, desiredCount);
+    }
+  }
 
   const liked = uniquePool.filter((track) => likedTrackIds.has(track.id));
   const unliked = uniquePool.filter((track) => !likedTrackIds.has(track.id));
@@ -154,6 +172,7 @@ export function getDailyRotatedCatalog(
 
   writeHistory(catalogKey, {
     seenIds: prunedSeen,
+    todayIds: selected.map((track) => track.id),
     lastDayIndex: dayIndex,
   });
 
