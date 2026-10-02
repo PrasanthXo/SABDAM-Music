@@ -38,10 +38,26 @@ fun dailyRotatedCatalog(
     val prefs = context.getSharedPreferences(DAILY_CATALOG_PREFS, Context.MODE_PRIVATE)
     val seenKey = "seen_$catalogKey"
     val dayKey = "day_$catalogKey"
+    val todayKey = "today_$catalogKey"
 
     val validIds = uniquePool.mapTo(mutableSetOf()) { it.id }
     val seenIds = (prefs.getStringSet(seenKey, emptySet()) ?: emptySet())
         .filterTo(mutableSetOf()) { it in validIds }
+
+    // Keep the same selection for the whole local day, even after recomposition,
+    // app resume, or like-state updates.
+    if (prefs.getInt(dayKey, -1) == dayIndex) {
+        val todayIds = prefs.getString(todayKey, "")
+            .orEmpty()
+            .split('\u001F')
+            .filter { it.isNotBlank() }
+
+        if (todayIds.isNotEmpty()) {
+            val byId = uniquePool.associateBy { it.id }
+            val sameDay = todayIds.mapNotNull { byId[it] }.take(desiredCount)
+            if (sameDay.isNotEmpty()) return sameDay
+        }
+    }
 
     val liked = uniquePool.filter { it.id in likedTrackIds }
     val unliked = uniquePool.filterNot { it.id in likedTrackIds }
@@ -75,6 +91,7 @@ fun dailyRotatedCatalog(
 
     prefs.edit()
         .putStringSet(seenKey, nextSeen)
+        .putString(todayKey, selected.joinToString("\u001F") { it.id })
         .putInt(dayKey, dayIndex)
         .apply()
 
