@@ -1949,10 +1949,48 @@ if (incoming.isEmpty()) {
                 !audio.startsWith("yt-", ignoreCase = true) &&
                 !audio.contains("youtube", ignoreCase = true)
 
+        val directAudioUrl =
+            if (hasDirectAudio) {
+                when {
+                    audio.startsWith("http://", ignoreCase = true) ||
+                        audio.startsWith("https://", ignoreCase = true) ->
+                        audio
+
+                    audio.startsWith("/") ->
+                        MusicSearchService.activeBackendUrl.trimEnd('/') + audio
+
+                    else ->
+                        MusicSearchService.activeBackendUrl.trimEnd('/') + "/" + audio
+                }
+            } else {
+                null
+            }
+
+        // A URL-shaped value is not enough: expired CDN links and HTML error
+        // pages used to be sent straight to Media3, preventing every fallback.
+        val verifiedDirectAudioUrl =
+            directAudioUrl
+                ?.takeIf { candidateUrl ->
+                    MusicSearchService.isPlayableMediaUrl(
+                        rawUrl = candidateUrl,
+                        timeoutMs = 2500
+                    )
+                }
+
+        if (hasDirectAudio && verifiedDirectAudioUrl.isNullOrBlank()) {
+            android.util.Log.w(
+                "SABDHAM_SEARCH_PLAY",
+                "Direct audio rejected; continuing fallbacks title=${track.title}"
+            )
+        }
+
         val exactVideoId = searchVideoId(originalTrack)
 
         val exactStreamUrl =
-            if (exactVideoId.isNotBlank()) {
+            if (
+                verifiedDirectAudioUrl.isNullOrBlank() &&
+                exactVideoId.isNotBlank()
+            ) {
                 try {
                     val backendUrl =
                         MusicSearchService.getStreamUrl(
@@ -1993,7 +2031,7 @@ if (incoming.isEmpty()) {
          */
         val normalFallbackUrl =
             if (
-                !hasDirectAudio &&
+                verifiedDirectAudioUrl.isNullOrBlank() &&
                 exactStreamUrl.isNullOrBlank()
             ) {
                 try {
@@ -2024,7 +2062,7 @@ if (incoming.isEmpty()) {
 
         val audiusFallbackUrl =
             if (
-                !hasDirectAudio &&
+                verifiedDirectAudioUrl.isNullOrBlank() &&
                 exactStreamUrl.isNullOrBlank() &&
                 normalFallbackUrl.isNullOrBlank()
             ) {
@@ -2056,8 +2094,8 @@ if (incoming.isEmpty()) {
 
         val rawUrl =
             when {
-                hasDirectAudio ->
-                    audio
+                !verifiedDirectAudioUrl.isNullOrBlank() ->
+                    verifiedDirectAudioUrl
 
                 !exactStreamUrl.isNullOrBlank() ->
                     exactStreamUrl
