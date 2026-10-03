@@ -370,6 +370,193 @@ if (incoming.isEmpty()) {
     fun loadMoreThrowbacks() =
         loadMoreCatalog(_throwbacks, throwbacksPaging, "classic hits", "all")
 
+    private var homeCatalogExpansionJob: Job? = null
+
+    private fun homeCatalogTrackKey(track: Track): String {
+        val title =
+            track.title.trim()
+                .lowercase()
+                .replace(Regex("\\s+"), " ")
+
+        val artist =
+            track.artist.trim()
+                .lowercase()
+                .replace(Regex("\\s+"), " ")
+
+        return "$title|$artist"
+    }
+
+    private suspend fun expandLanguagePool(
+        target: MutableStateFlow<List<Track>>,
+        language: String,
+        queries: List<String>,
+        minimumUnique: Int
+    ) {
+        val exhaustedQueries = mutableSetOf<String>()
+        val queryPages = queries.associateWith { 1 }.toMutableMap()
+        var requestCount = 0
+        var consecutiveNoGrowth = 0
+
+        while (
+            target.value
+                .distinctBy { homeCatalogTrackKey(it) }
+                .size < minimumUnique &&
+            exhaustedQueries.size < queries.size &&
+            requestCount < 48
+        ) {
+            var roundGrowth = 0
+
+            for (query in queries) {
+                if (query in exhaustedQueries) continue
+                if (
+                    target.value
+                        .distinctBy { homeCatalogTrackKey(it) }
+                        .size >= minimumUnique
+                ) {
+                    break
+                }
+
+                val page = queryPages[query] ?: 1
+
+                val incoming =
+                    try {
+                        MusicSearchService.searchSongs(
+                            query = query,
+                            language = language,
+                            page = page,
+                            maxResults = 25
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.w(
+                            "SABDHAM_CATALOG_FILL",
+                            "Failed query=$query page=$page",
+                            e
+                        )
+                        emptyList()
+                    }
+
+                requestCount++
+                queryPages[query] = page + 1
+
+                if (incoming.isEmpty()) {
+                    exhaustedQueries.add(query)
+                    continue
+                }
+
+                val existingKeys =
+                    target.value
+                        .mapTo(mutableSetOf()) {
+                            homeCatalogTrackKey(it)
+                        }
+
+                val accepted =
+                    incoming
+                        .asSequence()
+                        .filter {
+                            it.id.isNotBlank() &&
+                                it.language.trim().equals(
+                                    language,
+                                    ignoreCase = true
+                                )
+                        }
+                        .filter { existingKeys.add(homeCatalogTrackKey(it)) }
+                        .toList()
+
+                if (accepted.isNotEmpty()) {
+                    target.value =
+                        (target.value + accepted)
+                            .distinctBy { homeCatalogTrackKey(it) }
+
+                    roundGrowth += accepted.size
+                }
+
+                // A query that repeatedly returns no new unique tracks has
+                // effectively reached the useful end for this catalogue.
+                if (accepted.isEmpty() && page >= 4) {
+                    exhaustedQueries.add(query)
+                }
+            }
+
+            if (roundGrowth == 0) {
+                consecutiveNoGrowth++
+                if (consecutiveNoGrowth >= 2) break
+            } else {
+                consecutiveNoGrowth = 0
+            }
+        }
+
+        android.util.Log.d(
+            "SABDHAM_CATALOG_FILL",
+            "language=$language unique=" +
+                target.value.distinctBy { homeCatalogTrackKey(it) }.size +
+                " target=$minimumUnique requests=$requestCount"
+        )
+    }
+
+    fun ensureHomeCatalogMinimum(minSongsPerSection: Int = 50) {
+        val safeMinimum = minSongsPerSection.coerceAtLeast(50)
+        val languagePoolTarget =
+            (safeMinimum * 6 + 30).coerceAtMost(360)
+
+        val tamilReady =
+            _popularTamil.value
+                .distinctBy { homeCatalogTrackKey(it) }
+                .size >= languagePoolTarget
+
+        val englishReady =
+            _popularEnglish.value
+                .distinctBy { homeCatalogTrackKey(it) }
+                .size >= languagePoolTarget
+
+        if (tamilReady && englishReady) return
+        if (homeCatalogExpansionJob?.isActive == true) return
+
+        homeCatalogExpansionJob =
+            viewModelScope.launch(Dispatchers.IO) {
+                coroutineScope {
+                    val jobs = mutableListOf<kotlinx.coroutines.Deferred<Unit>>()
+
+                    if (!tamilReady) {
+                        jobs += async {
+                            expandLanguagePool(
+                                target = _popularTamil,
+                                language = "tamil",
+                                queries = listOf(
+                                    "tamil hits",
+                                    "latest tamil songs",
+                                    "tamil melody songs",
+                                    "tamil love songs",
+                                    "tamil dance hits",
+                                    "tamil classic songs"
+                                ),
+                                minimumUnique = languagePoolTarget
+                            )
+                        }
+                    }
+
+                    if (!englishReady) {
+                        jobs += async {
+                            expandLanguagePool(
+                                target = _popularEnglish,
+                                language = "english",
+                                queries = listOf(
+                                    "english hits",
+                                    "latest english songs",
+                                    "international pop hits",
+                                    "english love songs",
+                                    "r&b hits",
+                                    "classic english hits"
+                                ),
+                                minimumUnique = languagePoolTarget
+                            )
+                        }
+                    }
+
+                    jobs.awaitAll()
+                }
+            }
+    }
+
     val workoutEnergy: List<Track> = MusicRepository.workoutEnergy
     val chillMidnight: List<Track> = MusicRepository.chillMidnight
     val allTracks: List<Track> = MusicRepository.allTracks
