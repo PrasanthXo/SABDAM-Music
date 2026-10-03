@@ -3957,7 +3957,7 @@ function cleanMatchingText(str: string): string {
   return (str || '')
     .toLowerCase()
     .replace(/\(from.*?\)|\[.*?\]|\(official.*?\)|official music video|official video|video song|lyrical video|full video song|hd song|full song/gi, '')
-    .replace(/[^\w\s]/gi, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -5644,7 +5644,7 @@ function cleanQueryForSearch(str: string): string {
     .replace(/VEVO\b|- Topic\b|Official Channel\b/gi, '')
     .replace(/\(.*?\)|\[.*?\]/g, '')
     .replace(/\b(official|video|audio|lyric|lyrical|hd|4k|full song|movie|soundtrack|remix|single|feat|ft|music video|visualizer|audio song)\b/gi, '')
-    .replace(/[^\w\s]/gi, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
