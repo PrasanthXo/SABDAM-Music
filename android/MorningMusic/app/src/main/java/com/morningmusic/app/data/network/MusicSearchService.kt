@@ -120,16 +120,32 @@ object MusicSearchService {
                 return@withContext null
             }
 
-            when {
-                rawUrl.startsWith("https://", ignoreCase = true) ||
-                    rawUrl.startsWith("http://", ignoreCase = true) ->
-                    rawUrl
+            val absoluteUrl =
+                when {
+                    rawUrl.startsWith("https://", ignoreCase = true) ||
+                        rawUrl.startsWith("http://", ignoreCase = true) ->
+                        rawUrl
 
-                rawUrl.startsWith("/") ->
-                    activeBackendUrl.trimEnd('/') + rawUrl
+                    rawUrl.startsWith("/") ->
+                        activeBackendUrl.trimEnd('/') + rawUrl
 
-                else ->
-                    activeBackendUrl.trimEnd('/') + "/" + rawUrl
+                    else ->
+                        activeBackendUrl.trimEnd('/') + "/" + rawUrl
+                }
+
+            if (
+                isPlayableMediaUrl(
+                    rawUrl = absoluteUrl,
+                    timeoutMs = 3200
+                )
+            ) {
+                absoluteUrl
+            } else {
+                android.util.Log.w(
+                    "SABDHAM_EXACT_STREAM",
+                    "Exact resolver returned unusable media id=$videoId"
+                )
+                null
             }
         } catch (e: Exception) {
             android.util.Log.w(
@@ -283,6 +299,72 @@ object MusicSearchService {
         }
 
         playableCandidate
+    }
+
+    /**
+     * Resolve a YouTube-backed item only through a stream URL that has been
+     * verified as actual media from the Android device.
+     *
+     * Never return a failed proxy/direct URL merely because it is non-empty:
+     * doing that blocks title/artist and Audius fallbacks and leaves Media3
+     * stuck on an unusable source.
+     */
+    suspend fun resolveVerifiedYouTubeStream(
+        videoIdOrRaw: String
+    ): String? = withContext(Dispatchers.IO) {
+        val videoId =
+            videoIdOrRaw
+                .removePrefix("yt:")
+                .removePrefix("yt-")
+                .trim()
+
+        if (!Regex("^[A-Za-z0-9_-]{11}$").matches(videoId)) {
+            return@withContext null
+        }
+
+        val exactDirect =
+            try {
+                resolveExactStreamUrl(videoId)
+            } catch (_: Exception) {
+                null
+            }
+
+        if (!exactDirect.isNullOrBlank()) {
+            return@withContext exactDirect
+        }
+
+        val backendProxy = getStreamUrl(videoId)
+
+        if (
+            isPlayableMediaUrl(
+                rawUrl = backendProxy,
+                timeoutMs = 4200
+            )
+        ) {
+            android.util.Log.d(
+                "SABDHAM_STREAM_CHECK",
+                "Verified backend proxy id=$videoId"
+            )
+            return@withContext backendProxy
+        }
+
+        val deviceStream =
+            try {
+                resolveYouTubeOnDevice(videoId)
+            } catch (_: Exception) {
+                null
+            }
+
+        if (!deviceStream.isNullOrBlank()) {
+            return@withContext deviceStream
+        }
+
+        android.util.Log.w(
+            "SABDHAM_STREAM_CHECK",
+            "No verified YouTube stream available id=$videoId"
+        )
+
+        null
     }
 
     suspend fun resolveStream(
@@ -480,9 +562,22 @@ object MusicSearchService {
                 json.optLong("duration", 0L)
                     .takeIf { it > 0L }
 
+            if (
+                !isPlayableMediaUrl(
+                    rawUrl = absoluteUrl,
+                    timeoutMs = 4200
+                )
+            ) {
+                android.util.Log.w(
+                    "SABDHAM_CATALOG",
+                    "CATALOG RESOLVE REJECTED title=$title source=$source url=$absoluteUrl"
+                )
+                return@withContext null
+            }
+
             android.util.Log.d(
                 "SABDHAM_CATALOG",
-                "CATALOG RESOLVE SUCCESS title=$title source=$source raw=$rawUrl absolute=$absoluteUrl"
+                "CATALOG RESOLVE VERIFIED title=$title source=$source"
             )
 
             ResolvedStream(
