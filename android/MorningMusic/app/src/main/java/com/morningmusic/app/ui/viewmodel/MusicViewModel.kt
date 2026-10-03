@@ -659,6 +659,32 @@ if (incoming.isEmpty()) {
     private var mediaController: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
 
+    private suspend fun awaitMediaController(): MediaController? {
+        mediaController?.let { return it }
+
+        val future = controllerFuture ?: return null
+
+        return try {
+            kotlinx.coroutines.withContext(
+                kotlinx.coroutines.Dispatchers.IO
+            ) {
+                future.get(
+                    10,
+                    java.util.concurrent.TimeUnit.SECONDS
+                )
+            }.also { controller ->
+                mediaController = controller
+            }
+        } catch (e: Exception) {
+            android.util.Log.w(
+                "SABDHAM_PLAYER",
+                "MediaController was not ready for playback",
+                e
+            )
+            null
+        }
+    }
+
     init {
         MusicSearchService.init(application)
         loadLikedSongsFromCloud()
@@ -1080,10 +1106,12 @@ if (incoming.isEmpty()) {
         searchPlaylistOpenJob =
             viewModelScope.launch {
                 try {
-                    val tracks =
+                    // Show the first page quickly. Do not make the user wait
+                    // for the full 100-song playlist before the detail view works.
+                    val firstTracks =
                         MusicSearchService.fetchPlaylistTracks(
                             playlistId = playlist.id,
-                            maxResults = 100
+                            maxResults = 20
                         )
 
                     if (
@@ -1095,16 +1123,68 @@ if (incoming.isEmpty()) {
                         return@launch
                     }
 
-                    val playlistQueue =
-                        sanitizePlaylistQueue(tracks)
+                    val firstQueue =
+                        sanitizePlaylistQueue(firstTracks)
 
                     _openedSearchPlaylistTracks.value =
-                        playlistQueue
+                        firstQueue
 
-                    if (playlistQueue.isEmpty()) {
+                    if (firstQueue.isEmpty()) {
                         _searchPlaylistMessage.value =
                             "No playable songs found in this playlist"
+                        return@launch
                     }
+
+                    // Expand the visible playlist in the background. This
+                    // changes only the detail list; it never starts playback.
+                    searchPlaylistExpansionJob =
+                        viewModelScope.launch {
+                            try {
+                                val fullTracks =
+                                    MusicSearchService.fetchPlaylistTracks(
+                                        playlistId = playlist.id,
+                                        maxResults = 100
+                                    )
+
+                                if (
+                                    searchPlaylistOpenGeneration.get() !=
+                                        playlistOpenRequestId ||
+                                    normalizeSearchText(_searchQuery.value) !=
+                                        searchQueryAtOpen ||
+                                    _openedSearchPlaylist.value?.id !=
+                                        playlist.id
+                                ) {
+                                    return@launch
+                                }
+
+                                val fullQueue =
+                                    sanitizePlaylistQueue(fullTracks)
+
+                                if (fullQueue.isNotEmpty()) {
+                                    _openedSearchPlaylistTracks.value =
+                                        fullQueue
+                                }
+                            } catch (
+                                e: kotlinx.coroutines.CancellationException
+                            ) {
+                                throw e
+                            } catch (e: Exception) {
+                                // Keep the already loaded first page usable.
+                                android.util.Log.w(
+                                    "SABDHAM_PLAYLIST_SEARCH",
+                                    "Playlist expansion failed " +
+                                        playlist.id,
+                                    e
+                                )
+                            } finally {
+                                if (
+                                    searchPlaylistOpenGeneration.get() ==
+                                        playlistOpenRequestId
+                                ) {
+                                    searchPlaylistExpansionJob = null
+                                }
+                            }
+                        }
                 } catch (
                     e: kotlinx.coroutines.CancellationException
                 ) {
@@ -1679,10 +1759,17 @@ if (incoming.isEmpty()) {
         playbackJob = viewModelScope.launch {
 
             val controller =
-                mediaController ?: run {
+                awaitMediaController() ?: run {
                     _isPlaying.value = false
                     return@launch
                 }
+
+            if (
+                playbackRequestGeneration.get() !=
+                    playbackRequestId
+            ) {
+                return@launch
+            }
 
             /*
              * Resolve only the clicked song first so playback begins quickly.
@@ -2077,7 +2164,15 @@ if (incoming.isEmpty()) {
         val playbackRequestId = playbackRequestGeneration.incrementAndGet()
         playbackJob?.cancel()
         playbackJob = viewModelScope.launch {
-            val controller = mediaController ?: return@launch
+            val controller =
+                awaitMediaController() ?: return@launch
+
+            if (
+                playbackRequestGeneration.get() !=
+                    playbackRequestId
+            ) {
+                return@launch
+            }
 
             var firstPlayable: Pair<Track, MediaItem>? = null
             var firstPlayableIndex = -1
@@ -2233,7 +2328,15 @@ if (incoming.isEmpty()) {
         val playbackRequestId = playbackRequestGeneration.incrementAndGet()
         playbackJob?.cancel()
         playbackJob = viewModelScope.launch {
-            val controller = mediaController ?: return@launch
+            val controller =
+                awaitMediaController() ?: return@launch
+
+            if (
+                playbackRequestGeneration.get() !=
+                    playbackRequestId
+            ) {
+                return@launch
+            }
 
             val selectedPlayable =
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -2673,7 +2776,15 @@ if (incoming.isEmpty()) {
         playbackJob?.cancel()
 
         playbackJob = viewModelScope.launch {
-            val controller = mediaController ?: return@launch
+            val controller =
+                awaitMediaController() ?: return@launch
+
+            if (
+                playbackRequestGeneration.get() !=
+                    playbackRequestId
+            ) {
+                return@launch
+            }
 
             /*
              * INSTANT PLAY:
