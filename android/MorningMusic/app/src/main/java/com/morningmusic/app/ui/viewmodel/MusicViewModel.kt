@@ -774,29 +774,67 @@ if (incoming.isEmpty()) {
     }
 
     private fun cleanSearchVideoTitle(raw: String): String {
-        var title = raw
-            .replace("&amp;", "&")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'")
-            .trim()
+        var title =
+            raw
+                .replace("&amp;", "&")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&apos;", "'")
+                .replace("&#x27;", "'")
+                .replace("\u00A0", " ")
+                .trim()
 
-        val noisePatterns = listOf(
-            Regex("(?i)\\s*[\\(\\[]\\s*(official\\s*(music\\s*)?video|official\\s*audio|lyric(s)?(\\s*video)?|video\\s*song|full\\s*video|music\\s*video|audio)\\s*[\\)\\]]\\s*"),
-            Regex("(?i)\\s*[-|:]\\s*(official\\s*(music\\s*)?video|official\\s*audio|lyric(s)?(\\s*video)?|video\\s*song|full\\s*video|music\\s*video|audio)\\s*$"),
-            Regex("(?i)\\s+official\\s*(music\\s*)?video\\s*$"),
-            Regex("(?i)\\s+official\\s*audio\\s*$"),
-            Regex("(?i)\\s+lyric(s)?\\s*(video)?\\s*$"),
-            Regex("(?i)\\s+video\\s*song\\s*$")
-        )
+        val noisePatterns =
+            listOf(
+                Regex(
+                    "(?i)\\s*[\\(\\[]\\s*(?:official\\s*)?(?:music\\s*)?" +
+                        "(?:video|audio|lyric(?:s)?(?:\\s*video)?|visuali[sz]er|" +
+                        "m\\s*/?\\s*v|mv|hd|4k|full\\s*song|full\\s*video)" +
+                        "\\s*[\\)\\]]\\s*"
+                ),
+                Regex(
+                    "(?i)\\s*[-|:]\\s*(?:official\\s*)?(?:music\\s*)?" +
+                        "(?:video|audio|lyric(?:s)?(?:\\s*video)?|visuali[sz]er|" +
+                        "m\\s*/?\\s*v|mv|hd|4k|full\\s*song|full\\s*video)\\s*$"
+                ),
+                Regex(
+                    "(?i)\\s+official\\s*(music\\s*)?video\\s*$"
+                ),
+                Regex("(?i)\\s+official\\s*audio\\s*$"),
+                Regex("(?i)\\s+lyric(s)?\\s*(video)?\\s*$"),
+                Regex("(?i)\\s+video\\s*song\\s*$"),
+                Regex("(?i)\\s+full\\s+song\\s*$"),
+                Regex("(?i)\\s+m\\s*/?\\s*v\\s*$"),
+                Regex("(?i)\\s+mv\\s*$")
+            )
 
         noisePatterns.forEach { pattern ->
             title = title.replace(pattern, " ").trim()
         }
 
-        return title
+        // Anything after a YouTube metadata pipe is presentation text,
+        // not part of the SABDHAM song title.
+        title =
+            title
+                .replace(Regex("\\s*\\|\\s*.*$"), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim(' ', '-', '|', ':')
+
+        return title.ifBlank { raw.trim() }
+    }
+
+    private fun cleanSearchArtist(raw: String): String {
+        return raw
+            .replace(Regex("(?i)\\s*-\\s*Topic\\s*$"), "")
+            .replace(Regex("(?i)\\s+VEVO\\s*$"), "")
+            .replace(
+                Regex(
+                    "(?i)\\s+(Official\\s+Channel|Official)\\s*$"
+                ),
+                ""
+            )
             .replace(Regex("\\s+"), " ")
-            .trim(' ', '-', '|', ':')
-            .ifBlank { raw.trim() }
+            .trim()
     }
 
     private fun isSearchVideoJunk(track: Track): Boolean {
@@ -845,11 +883,61 @@ if (incoming.isEmpty()) {
                 track.audioUrl.startsWith("yt:", ignoreCase = true) ||
                 track.audioUrl.startsWith("yt-", ignoreCase = true)
 
+        var cleanedTitle =
+            cleanSearchVideoTitle(track.title)
+        var cleanedArtist =
+            cleanSearchArtist(track.artist)
+
+        if (isYouTubeSearchItem) {
+            // Final safety net for raw YouTube titles formatted as
+            // "Artist - Song". If the left side agrees with the channel
+            // artist (including names such as "officialpsy"), use it as
+            // the artist and show only the song on screen.
+            val artistSongMatch =
+                Regex("^(.+?)\\s+[\\-–—]\\s+(.+)$")
+                    .find(cleanedTitle)
+
+            if (artistSongMatch != null) {
+                val titleArtist =
+                    artistSongMatch.groupValues[1].trim()
+                val songTitle =
+                    artistSongMatch.groupValues[2].trim()
+
+                val normalizedTitleArtist =
+                    normalizeSearchText(titleArtist)
+                        .replace(" ", "")
+                val normalizedChannelArtist =
+                    normalizeSearchText(cleanedArtist)
+                        .replace(" ", "")
+
+                val artistAgrees =
+                    normalizedTitleArtist.isNotBlank() &&
+                        (
+                            normalizedChannelArtist.isBlank() ||
+                                normalizedChannelArtist
+                                    .contains(normalizedTitleArtist) ||
+                                normalizedTitleArtist
+                                    .contains(normalizedChannelArtist)
+                            )
+
+                if (artistAgrees && songTitle.isNotBlank()) {
+                    cleanedTitle =
+                        cleanSearchVideoTitle(songTitle)
+
+                    cleanedArtist =
+                        titleArtist.ifBlank {
+                            cleanedArtist
+                        }
+                }
+            }
+        }
+
         return track.copy(
-            title = cleanSearchVideoTitle(track.title),
-            artist = track.artist
-                .replace(Regex("(?i)\\s*-\\s*Topic\\s*$"), "")
-                .trim(),
+            title = cleanedTitle,
+            artist =
+                cleanedArtist.ifBlank {
+                    track.artist.trim()
+                },
             album =
                 if (track.album.equals("YouTube Audio", ignoreCase = true)) {
                     "Single"
