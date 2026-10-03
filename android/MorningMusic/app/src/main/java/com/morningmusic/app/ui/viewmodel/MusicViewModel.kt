@@ -1982,6 +1982,78 @@ if (incoming.isEmpty()) {
                 null
             }
 
+        /*
+         * Existing sources always get first chance.
+         *
+         * Order for a YouTube-backed search result:
+         * 1. SABDHAM YouTube proxy (verified)
+         * 2. Device-side YouTube/Invidious fallback (verified)
+         * 3. Existing title/artist resolver (JioSaavn/direct audio)
+         * 4. Audius — FINAL fallback only
+         */
+        val normalFallbackUrl =
+            if (
+                !hasDirectAudio &&
+                exactStreamUrl.isNullOrBlank()
+            ) {
+                try {
+                    MusicSearchService.resolveStream(
+                        title = track.title,
+                        artist = track.artist
+                    )
+                        ?.url
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                        ?.takeIf { candidateUrl ->
+                            MusicSearchService.isPlayableMediaUrl(
+                                rawUrl = candidateUrl,
+                                timeoutMs = 3500
+                            )
+                        }
+                } catch (e: Exception) {
+                    android.util.Log.w(
+                        "SABDHAM_SEARCH_PLAY",
+                        "Fallback search resolver failed title=${track.title}",
+                        e
+                    )
+                    null
+                }
+            } else {
+                null
+            }
+
+        val audiusFallbackUrl =
+            if (
+                !hasDirectAudio &&
+                exactStreamUrl.isNullOrBlank() &&
+                normalFallbackUrl.isNullOrBlank()
+            ) {
+                try {
+                    MusicSearchService.resolveAudiusStream(
+                        title = track.title,
+                        artist = track.artist
+                    )
+                        ?.url
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                        ?.takeIf { candidateUrl ->
+                            MusicSearchService.isPlayableMediaUrl(
+                                rawUrl = candidateUrl,
+                                timeoutMs = 4500
+                            )
+                        }
+                } catch (e: Exception) {
+                    android.util.Log.w(
+                        "SABDHAM_AUDIUS",
+                        "Final search fallback failed title=${track.title}",
+                        e
+                    )
+                    null
+                }
+            } else {
+                null
+            }
+
         val rawUrl =
             when {
                 hasDirectAudio ->
@@ -1990,20 +2062,11 @@ if (incoming.isEmpty()) {
                 !exactStreamUrl.isNullOrBlank() ->
                     exactStreamUrl
 
+                !normalFallbackUrl.isNullOrBlank() ->
+                    normalFallbackUrl
+
                 else ->
-                    try {
-                        MusicSearchService.resolveStream(
-                            title = track.title,
-                            artist = track.artist
-                        )?.url
-                    } catch (e: Exception) {
-                        android.util.Log.w(
-                            "SABDHAM_SEARCH_PLAY",
-                            "Fallback search resolver failed title=${track.title}",
-                            e
-                        )
-                        null
-                    }
+                    audiusFallbackUrl
             }
 
         val resolvedUrl =
