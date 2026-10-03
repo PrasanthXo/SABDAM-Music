@@ -20,6 +20,13 @@ Release date: 3 October 2026
 - Related queue items are deduplicated by normalized title.
 - Playlist and catalogue playback logic is unchanged.
 
+## Playlist search
+
+- Fixed zero-result playlist searches when YouTube uses its newer playlist result layout.
+- Public YouTube playlist discovery now applies the playlist-only search filter.
+- Playlist search has a second raw-query fallback and longer Android network timeouts for Render wakeups.
+- Spotify and YouTube playlist providers remain merged when available.
+
 ## Version
 
 - Android versionName: 1.2.3
