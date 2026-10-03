@@ -1,14 +1,16 @@
-{
-  "latestVersionCode": 10,
-  "minimumVersionCode": 9,
-  "latestVersionName": "1.2.4",
-  "forceUpdate": false,
-  "downloadUrl": "https://raw.githubusercontent.com/PrasanthXo/SABDAM-Music/main/public/downloads/SABDHAM-signed.apk",
-  "message": "SABDHAM 1.2.4 is available with a richer Home top bar background and a slightly larger logo. This update is optional.",
-  "releaseNotes": [
-    "Richer dark-green Home top bar background with soft depth and glow.",
-    "Slightly larger SABDHAM logo for better visibility.",
-    "Optional updates are surfaced through SABDHAM notifications in supported versions.",
-    "Major required updates continue to use the non-dismissible update screen."
-  ]
+﻿{
+    "latestVersionCode":  11,
+    "minimumVersionCode":  9,
+    "latestVersionName":  "1.2.5",
+    "forceUpdate":  false,
+    "downloadUrl":  "https://raw.githubusercontent.com/PrasanthXo/SABDAM-Music/main/public/downloads/SABDHAM-signed.apk",
+    "message":  "SABDHAM 1.2.5 is available with important playback and player stability fixes.",
+    "releaseNotes":  [
+                         "Fixed search-result song playback.",
+                         "Fixed search-result playlist playback.",
+                         "Search playlists now continue beyond the initial 20 songs.",
+                         "Improved catalogue song playback reliability.",
+                         "Fixed music player overlap and small-screen UI glitches.",
+                         "Improved playlist auto-next playback."
+                     ]
 }
