@@ -72,6 +72,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val isShuffle by viewModel.isShuffle.collectAsState()
     val isRepeat by viewModel.isRepeat.collectAsState()
     val isMuted by viewModel.isMuted.collectAsState()
+    val volume by viewModel.volume.collectAsState()
     val playbackInterestVersion by viewModel.playbackInterestVersion.collectAsState()
 
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -1361,9 +1362,11 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 duration = duration,
                 isLiked = likedTrackIds.contains(currentTrack!!.id),
                 isMuted = isMuted,
+                volume = volume,
                 isShuffle = isShuffle,
                 isRepeat = isRepeat,
                 onMute = { viewModel.toggleMute() },
+                onVolumeChange = { viewModel.setVolume(it) },
                 onDismiss = { isFullPlayerVisible = false },
                 onPlayPause = { viewModel.togglePlayPause() },
                 onNext = { viewModel.playNext() },
@@ -2467,9 +2470,11 @@ fun FullPlayerSheet(
     duration: Long,
     isLiked: Boolean,
     isMuted: Boolean,
+    volume: Float,
     isShuffle: Boolean,
     isRepeat: Boolean,
     onMute: () -> Unit,
+    onVolumeChange: (Float) -> Unit,
     onDismiss: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -3010,20 +3015,24 @@ fun FullPlayerSheet(
 
                         Spacer(Modifier.width(8.dp))
 
-                        Box(
-                            modifier = Modifier
-                                .height(5.dp)
-                                .weight(1f)
-                                .clip(CircleShape)
-                                .background(Color(0xFF333333))
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth(if (isMuted) 0f else 1f)
-                                    .background(Color(0xFF1DB954))
-                            )
-                        }
+                        Slider(
+                            value = if (isMuted) 0f else volume.coerceIn(0f, 1f),
+                            onValueChange = onVolumeChange,
+                            valueRange = 0f..1f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = Color(0xFF1DB954),
+                                inactiveTrackColor = Color(0xFF333333)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Text(
+                            text = "${((if (isMuted) 0f else volume) * 100).toInt()}%",
+                            color = Color(0xFFB3B3B3),
+                            fontSize = 11.sp,
+                            modifier = Modifier.widthIn(min = 34.dp)
+                        )
 
                     }
 
