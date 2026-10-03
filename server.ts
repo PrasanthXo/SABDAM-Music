@@ -127,23 +127,26 @@ async function robustFetchJson(url: string, options: any = {}) {
 // ==========================================
 app.get('/api/app/update', (_req, res) => {
   const latestVersionCode =
-    Number(process.env.ANDROID_LATEST_VERSION_CODE || '9');
+    Number(process.env.ANDROID_LATEST_VERSION_CODE || '10');
 
   const minimumVersionCode =
     Number(process.env.ANDROID_MINIMUM_VERSION_CODE || '9');
 
   const latestVersionName =
-    process.env.ANDROID_LATEST_VERSION_NAME || '1.2.3';
+    process.env.ANDROID_LATEST_VERSION_NAME || '1.2.4';
 
   const downloadUrl =
     process.env.ANDROID_DOWNLOAD_URL || 'https://raw.githubusercontent.com/PrasanthXo/SABDAM-Music/main/public/downloads/SABDHAM-signed.apk';
 
   const forceUpdate =
-    String(process.env.ANDROID_FORCE_UPDATE || 'true')
+    String(process.env.ANDROID_FORCE_UPDATE || 'false')
       .trim()
       .toLowerCase() === 'true';
 
   const releaseNotes = [
+    'Richer dark-green Home top bar background with soft depth and glow.',
+    'Slightly larger SABDHAM logo for better visibility.',
+    'This release is optional and is not a forced update.',
     'Cleaner compact Home top bar with improved spacing and less visual clutter.',
     'Search-result playback now queues related songs by matching language and genre while excluding repeated titles.',
     'Playlist search zero-result cases fixed with stronger public YouTube playlist discovery.',
@@ -179,7 +182,7 @@ app.get('/api/app/update', (_req, res) => {
 
   const message =
     process.env.ANDROID_UPDATE_MESSAGE ||
-    'SABDHAM 1.2.3 is required. Update now for the cleaner Home top bar, smarter search queue, playlist discovery fixes and improved playlist click actions.';
+    'SABDHAM 1.2.4 is available with a richer Home top bar background and a slightly larger logo. This update is optional.';
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
