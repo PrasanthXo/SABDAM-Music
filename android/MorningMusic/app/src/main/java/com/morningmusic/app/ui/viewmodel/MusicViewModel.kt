@@ -1408,6 +1408,12 @@ if (incoming.isEmpty()) {
         track: Track,
         sourceResults: List<Track>
     ) {
+        // A direct song choice wins over any playlist that is still loading.
+        searchPlaylistOpenGeneration.incrementAndGet()
+        searchPlaylistOpenJob?.cancel()
+        searchPlaylistOpenJob = null
+        _loadingSearchPlaylistId.value = null
+
         searchQueueMode = true
         playlistPlaybackMode = false
 
