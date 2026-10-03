@@ -2737,8 +2737,69 @@ if (incoming.isEmpty()) {
     fun addToQueue(track: Track) {
         val currentQueue = _queue.value
 
-        if (currentQueue.none { it.id == track.id }) {
-            _queue.value = currentQueue + track
+        if (currentQueue.any { it.id == track.id }) {
+            return
+        }
+
+        _queue.value = currentQueue + track
+
+        val controller = mediaController ?: return
+
+        // Resolve the newly queued song without interrupting the item that is
+        // already playing. When resolution completes, insert it according to
+        // the latest queue order (which may have changed through dragging).
+        viewModelScope.launch {
+            val playable =
+                kotlinx.coroutines.withContext(
+                    kotlinx.coroutines.Dispatchers.IO
+                ) {
+                    if (searchQueueMode) {
+                        buildSearchPlayableTrack(track)
+                    } else {
+                        buildPlayableTrack(
+                            queueTrack = track,
+                            forceFreshResolve =
+                                !playlistPlaybackMode &&
+                                    (
+                                        track.youtubeVideoId.isNotBlank() ||
+                                            track.audioUrl.startsWith("yt:") ||
+                                            track.audioUrl.startsWith("yt-") ||
+                                            track.audioUrl.contains(
+                                                "youtube",
+                                                ignoreCase = true
+                                            )
+                                        )
+                        )
+                    }
+                }
+
+            if (playable == null) {
+                // Do not leave a dead item visible in the queue.
+                _queue.value =
+                    _queue.value.filterNot { it.id == track.id }
+                return@launch
+            }
+
+            // The user may have removed/changed the active queue while the
+            // resolver was working.
+            if (_queue.value.none { it.id == track.id }) {
+                return@launch
+            }
+
+            addMediaItemFollowingCurrentQueue(
+                controller = controller,
+                trackId = playable.first.id,
+                mediaItem = playable.second
+            )
+
+            _queue.value =
+                _queue.value.map { queuedTrack ->
+                    if (queuedTrack.id == playable.first.id) {
+                        playable.first
+                    } else {
+                        queuedTrack
+                    }
+                }
         }
     }
 
