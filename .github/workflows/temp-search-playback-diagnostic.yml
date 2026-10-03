@@ -11,129 +11,14 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Check Gangnam search and stream
+      - name: Probe Gangnam direct catalog
         shell: bash
         run: |
-          set -x
-          echo "=== HEALTH ==="
-          curl -fsS -m 30 -D - https://sabdham-backend.onrender.com/health -o /tmp/health.txt || true
-          cat /tmp/health.txt || true
-
-          echo "=== SEARCH TYPO ==="
-          curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/youtube/search?q=gangam%20style&language=all&maxResults=10" -o /tmp/search-typo.json || true
-          cat /tmp/search-typo.json || true
-
-          echo "=== SEARCH CORRECT ==="
-          curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/youtube/search?q=gangnam%20style&language=all&maxResults=10" -o /tmp/search.json || true
-          cat /tmp/search.json || true
-
-          echo "=== KNOWN GANGNAM VIDEO STREAM HEAD/RANGE ==="
-          curl -sS -m 45 -L -D /tmp/stream.headers -H "Range: bytes=0-1023" "https://sabdham-backend.onrender.com/api/youtube/stream?id=9bZkp7q19f0" -o /tmp/stream.bin || true
-          cat /tmp/stream.headers || true
-          wc -c /tmp/stream.bin || true
-
-          echo "=== RESOLVE TITLE ARTIST DIRECT ==="
-          curl -fsS -m 45 "https://sabdham-backend.onrender.com/api/stream/resolve?title=Gangnam%20Style&artist=PSY&direct=1" -o /tmp/resolve.json || true
-          cat /tmp/resolve.json || true
-
-          echo "=== JIOSAAVN QUERY VARIANTS ==="
-          for q in \
-            "PSY Gangnam Style" \
-            "PSY 6 Gangnam Style" \
-            "PSY 6 Six Rules Part 1" \
-            "싸이 강남스타일" \
-            "Gangnam Style Korean PSY" \
-            "강남스타일 PSY"
+          set -e
+          for q in "PSY Gangnam Style" "PSY 6 Gangnam Style" "PSY 6 Six Rules Part 1" "Gangnam Style Korean PSY"
           do
-            echo "--- $q ---"
-            curl -fsS -m 20 "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=25&p=1&q=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$q")&_marker=0" -o /tmp/jsq.json || true
-            python3 - <<'PY'
-import json
-try:
-    d=json.load(open('/tmp/jsq.json'))
-    for x in (d.get('results') or [])[:15]:
-        print(x.get('song'), '|', x.get('primary_artists') or x.get('singers'), '|', x.get('album'), '|', x.get('language'), '|', x.get('id'))
-except Exception as e:
-    print('ERR', e)
-PY
-          done
-
-          echo "=== SABDHAM MUSIC SEARCH WITH PSY ==="
-          curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/music/search?q=Gangnam%20Style%20PSY&language=all&maxResults=25" -o /tmp/music-psy.json || true
-          cat /tmp/music-psy.json || true
-
-          echo "=== SABDHAM YOUTUBE SEARCH WITH PSY ==="
-          curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/youtube/search?q=Gangnam%20Style%20PSY&language=all&maxResults=25" -o /tmp/search-psy.json || true
-          cat /tmp/search-psy.json || true
-
-          echo "=== YOUTUBEI.JS DIRECT RESOLVER ==="
-          mkdir -p /tmp/ytjs-test
-          cd /tmp/ytjs-test
-          npm init -y >/dev/null 2>&1
-          npm install youtubei.js@18.1.0 --silent
-          node --input-type=module <<'NODE' || true
-          import { Innertube } from 'youtubei.js';
-          const clients = [undefined, 'ANDROID', 'TV_EMBEDDED', 'YTMUSIC_ANDROID', 'YTMUSIC'];
-          const yt = await Innertube.create();
-          for (const client of clients) {
-            try {
-              const options = { type: 'audio', quality: 'best' };
-              if (client) options.client = client;
-              const info = await yt.getBasicInfo('9bZkp7q19f0', client ? { client } : undefined);
-              console.log('CLIENT_INFO', client || 'DEFAULT', JSON.stringify({
-                playability: info?.playability_status?.status,
-                reason: info?.playability_status?.reason,
-                adaptive: info?.streaming_data?.adaptive_formats?.length || 0,
-                formats: info?.streaming_data?.formats?.length || 0
-              }));
-              const format = info.chooseFormat(options);
-              const url = await format.decipher(yt.session.player);
-              console.log('FORMAT', client || 'DEFAULT', JSON.stringify({
-                itag: format?.itag,
-                mime_type: format?.mime_type,
-                bitrate: format?.bitrate,
-                urlPrefix: String(url || '').slice(0, 120)
-              }));
-              if (!url) continue;
-              const response = await fetch(url, { headers: { Range: 'bytes=0-1023' } });
-              console.log('AUDIO_FETCH', client || 'DEFAULT', response.status, response.headers.get('content-type'), response.headers.get('content-length'));
-              const bytes = new Uint8Array(await response.arrayBuffer());
-              console.log('AUDIO_BYTES', client || 'DEFAULT', bytes.length);
-            } catch (error) {
-              console.error('YTJS_CLIENT_ERROR', client || 'DEFAULT', error?.message || error);
-            }
-          }
-          NODE
-          cd "$GITHUB_WORKSPACE"
-
-          echo "=== PIPED STREAM API PROBES ==="
-          for base in \
-            https://pipedapi.kavin.rocks \
-            https://pipedapi.leptons.xyz \
-            https://pipedapi.nosebs.ru \
-            https://piped-api.garudalinux.org \
-            https://api-piped.mha.fi
-          do
-            echo "--- $base ---"
-            curl -sS -m 15 -D /tmp/ph "$base/streams/9bZkp7q19f0" -o /tmp/pb || true
-            grep -iE 'HTTP/|content-type:|content-length:' /tmp/ph | tail -5 || true
-            head -c 1200 /tmp/pb || true
-            echo
-          done
-
-          echo "=== INVIDIOUS INSTANCE PROBES ==="
-          for base in \
-            https://inv.nadeko.net \
-            https://invidious.nerdvpn.de \
-            https://invidious.privacyredirect.com \
-            https://invidious.tiekoetter.com \
-            https://invidious.no-logs.com \
-            https://invidious.projectsegfau.lt \
-            https://invidious.f5.si \
-            https://yewtu.be
-          do
-            echo "--- $base ---"
-            curl -sS -m 12 -L -D /tmp/h -H "Range: bytes=0-1023" "$base/latest_version?id=9bZkp7q19f0&itag=140&local=true" -o /tmp/b || true
-            grep -iE 'HTTP/|content-type:|content-length:|location:' /tmp/h | tail -8 || true
-            wc -c /tmp/b || true
+            echo "=== $q ==="
+            encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$q")
+            curl -fsS -m 20 "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=25&p=1&q=$encoded&_marker=0" -o /tmp/jsq.json || true
+            python3 -c "import json; d=json.load(open('/tmp/jsq.json')); [print((x.get('song') or ''),'|',(x.get('primary_artists') or x.get('singers') or ''),'|',(x.get('album') or ''),'|',(x.get('language') or ''),'|',(x.get('id') or '')) for x in (d.get('results') or [])[:15]]" || true
           done
