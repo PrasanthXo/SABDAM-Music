@@ -1,0 +1,37 @@
+name: TEMP Search Playback Diagnostic
+
+on:
+  push:
+    branches:
+      - fix/search-playlist-detail-2026-10-03
+    paths:
+      - ".github/workflows/temp-search-playback-diagnostic.yml"
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Gangnam search and stream
+        shell: bash
+        run: |
+          set -x
+          echo "=== HEALTH ==="
+          curl -fsS -m 30 -D - https://sabdham-backend.onrender.com/health -o /tmp/health.txt || true
+          cat /tmp/health.txt || true
+
+          echo "=== SEARCH TYPO ==="
+          curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/youtube/search?q=gangam%20style&language=all&maxResults=10" -o /tmp/search-typo.json || true
+          cat /tmp/search-typo.json || true
+
+          echo "=== SEARCH CORRECT ==="
+          curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/youtube/search?q=gangnam%20style&language=all&maxResults=10" -o /tmp/search.json || true
+          cat /tmp/search.json || true
+
+          echo "=== KNOWN GANGNAM VIDEO STREAM HEAD/RANGE ==="
+          curl -sS -m 45 -L -D /tmp/stream.headers -H "Range: bytes=0-1023" "https://sabdham-backend.onrender.com/api/youtube/stream?id=9bZkp7q19f0" -o /tmp/stream.bin || true
+          cat /tmp/stream.headers || true
+          wc -c /tmp/stream.bin || true
+
+          echo "=== RESOLVE TITLE ARTIST DIRECT ==="
+          curl -fsS -m 45 "https://sabdham-backend.onrender.com/api/stream/resolve?title=Gangnam%20Style&artist=PSY&direct=1" -o /tmp/resolve.json || true
+          cat /tmp/resolve.json || true
