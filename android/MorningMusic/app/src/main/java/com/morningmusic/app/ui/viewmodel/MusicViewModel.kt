@@ -1451,8 +1451,10 @@ if (incoming.isEmpty()) {
                     break
                 }
 
-                controller.addMediaItem(
-                    playable.second
+                addMediaItemFollowingCurrentQueue(
+                    controller = controller,
+                    trackId = playable.first.id,
+                    mediaItem = playable.second
                 )
 
                 playableTracks.add(
@@ -1474,10 +1476,28 @@ if (incoming.isEmpty()) {
              * Remove any tracks that failed stream resolution.
              */
             if (playbackRequestGeneration.get() == playbackRequestId) {
+                val attemptedIds =
+                    orderedQueue.mapTo(mutableSetOf()) { it.id }
+
+                val playableById =
+                    playableTracks
+                        .distinctBy { it.id }
+                        .associateBy { it.id }
+
                 _queue.value =
-                    playableTracks.distinctBy {
-                        it.id
-                    }
+                    _queue.value
+                        .mapNotNull { queuedTrack ->
+                            when {
+                                queuedTrack.id !in attemptedIds ->
+                                    queuedTrack
+
+                                playableById.containsKey(queuedTrack.id) ->
+                                    playableById[queuedTrack.id]
+
+                                else -> null
+                            }
+                        }
+                        .distinctBy { it.id }
             }
         }
     }
@@ -1729,7 +1749,11 @@ if (incoming.isEmpty()) {
                     continue
                 }
 
-                controller.addMediaItem(playable.second)
+                addMediaItemFollowingCurrentQueue(
+                    controller = controller,
+                    trackId = playable.first.id,
+                    mediaItem = playable.second
+                )
 
                 android.util.Log.d(
                     "SABDHAM_PLAYLIST",
@@ -1840,13 +1864,66 @@ if (incoming.isEmpty()) {
                     kotlinx.coroutines.delay(1500)
                     if (playbackRequestGeneration.get() != playbackRequestId) return@launch
 
-                    val playableRest = buildPlayableQueue(remaining, forceFreshResolve = true)
+                    val playableRest =
+                        buildPlayableQueue(
+                            remaining,
+                            forceFreshResolve = true
+                        )
+
                     if (playableRest.isNotEmpty()) {
-                        controller.addMediaItems(playableRest.map { it.second })
+                        val playableById =
+                            playableRest.associateBy { it.first.id }
+
+                        val latestQueue =
+                            _queue.value.distinctBy { it.id }
+
+                        val orderedPlayableRest =
+                            latestQueue
+                                .mapNotNull { queuedTrack ->
+                                    playableById[queuedTrack.id]
+                                }
+                                .filter {
+                                    it.first.id !=
+                                        selectedPlayable.first.id
+                                }
+
+                        orderedPlayableRest.forEach { playable ->
+                            addMediaItemFollowingCurrentQueue(
+                                controller = controller,
+                                trackId = playable.first.id,
+                                mediaItem = playable.second
+                            )
+                        }
+
+                        val playableIds =
+                            orderedPlayableRest
+                                .mapTo(mutableSetOf()) {
+                                    it.first.id
+                                }
+                                .also {
+                                    it.add(selectedPlayable.first.id)
+                                }
+
                         _queue.value =
-                            listOf(selectedPlayable.first) + playableRest.map { it.first }
+                            latestQueue
+                                .filter { it.id in playableIds }
+                                .map { queuedTrack ->
+                                    if (
+                                        queuedTrack.id ==
+                                        selectedPlayable.first.id
+                                    ) {
+                                        selectedPlayable.first
+                                    } else {
+                                        playableById[queuedTrack.id]
+                                            ?.first
+                                            ?: queuedTrack
+                                    }
+                                }
                     } else {
-                        _queue.value = listOf(selectedPlayable.first)
+                        _queue.value =
+                            _queue.value.filter {
+                                it.id == selectedPlayable.first.id
+                            }
                     }
                 }
             } else {
@@ -2295,7 +2372,13 @@ if (incoming.isEmpty()) {
                 }
 
                 if (afterItems.isNotEmpty()) {
-                    controller.addMediaItems(afterItems)
+                    afterItems.forEach { mediaItem ->
+                        addMediaItemFollowingCurrentQueue(
+                            controller = controller,
+                            trackId = mediaItem.mediaId,
+                            mediaItem = mediaItem
+                        )
+                    }
                 }
 
                 controller.repeatMode =
@@ -2307,9 +2390,17 @@ if (incoming.isEmpty()) {
 
                 controller.shuffleModeEnabled = _isShuffle.value
 
-                // Preserve the complete active playlist for Next/Previous navigation.
-
-                _queue.value = requestedQueue
+                // Keep any drag-and-drop order applied while background
+                // resolution was running. Only refresh the selected track's
+                // metadata instead of restoring the old requestedQueue snapshot.
+                _queue.value =
+                    _queue.value.map { queuedTrack ->
+                        if (queuedTrack.id == selectedTrack.id) {
+                            selectedTrack
+                        } else {
+                            queuedTrack
+                        }
+                    }
                 _currentTrack.value = selectedTrack
             }
         }
@@ -2388,6 +2479,60 @@ if (incoming.isEmpty()) {
     fun seekTo(positionMs: Long) {
         _currentPosition.value = positionMs
         mediaController?.seekTo(positionMs)
+    }
+
+    private fun mediaIndexForTrack(
+        controller: MediaController,
+        trackId: String
+    ): Int {
+        for (index in 0 until controller.mediaItemCount) {
+            if (controller.getMediaItemAt(index).mediaId == trackId) {
+                return index
+            }
+        }
+        return -1
+    }
+
+    private fun addMediaItemFollowingCurrentQueue(
+        controller: MediaController,
+        trackId: String,
+        mediaItem: MediaItem
+    ) {
+        if (mediaIndexForTrack(controller, trackId) >= 0) {
+            return
+        }
+
+        val orderedIds =
+            _queue.value
+                .distinctBy { it.id }
+                .map { it.id }
+
+        val queueIndex = orderedIds.indexOf(trackId)
+
+        if (queueIndex < 0) {
+            controller.addMediaItem(mediaItem)
+            return
+        }
+
+        var insertionIndex = controller.mediaItemCount
+
+        for (index in queueIndex + 1 until orderedIds.size) {
+            val nextMediaIndex =
+                mediaIndexForTrack(
+                    controller,
+                    orderedIds[index]
+                )
+
+            if (nextMediaIndex >= 0) {
+                insertionIndex = nextMediaIndex
+                break
+            }
+        }
+
+        controller.addMediaItem(
+            insertionIndex,
+            mediaItem
+        )
     }
 
     fun playNext() {
@@ -2550,19 +2695,10 @@ if (incoming.isEmpty()) {
         // them for playback.
         mediaController?.let { controller ->
             try {
-                fun mediaIndexFor(id: String): Int {
-                    for (index in 0 until controller.mediaItemCount) {
-                        if (
-                            controller.getMediaItemAt(index).mediaId == id
-                        ) {
-                            return index
-                        }
-                    }
-                    return -1
-                }
-
-                val fromMediaIndex = mediaIndexFor(trackId)
-                val targetMediaIndex = mediaIndexFor(targetTrackId)
+                val fromMediaIndex =
+                    mediaIndexForTrack(controller, trackId)
+                val targetMediaIndex =
+                    mediaIndexForTrack(controller, targetTrackId)
 
                 if (
                     fromMediaIndex >= 0 &&
