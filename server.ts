@@ -2197,6 +2197,190 @@ async function fetchPublicSpotifyPlaylistEmbed(playlistId: string) {
   return entity;
 }
 
+let spotifyAppAccessToken = '';
+let spotifyAppAccessTokenExpiresAt = 0;
+
+async function getSpotifyAppAccessToken(): Promise<string | null> {
+  const now = Date.now();
+
+  if (
+    spotifyAppAccessToken &&
+    spotifyAppAccessTokenExpiresAt > now + 60_000
+  ) {
+    return spotifyAppAccessToken;
+  }
+
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    return null;
+  }
+
+  try {
+    const tokenResponse = await fetch(
+      'https://accounts.spotify.com/api/token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization':
+            'Basic ' +
+            Buffer.from(clientId + ':' + clientSecret).toString('base64')
+        },
+        body: 'grant_type=client_credentials',
+        signal: AbortSignal.timeout(5000)
+      }
+    );
+
+    if (!tokenResponse.ok) {
+      console.warn(
+        '[Spotify Playlist Search] Token request returned',
+        tokenResponse.status
+      );
+      return null;
+    }
+
+    const tokenData = (await tokenResponse.json()) as any;
+    const token = String(tokenData?.access_token || '').trim();
+
+    if (!token) {
+      return null;
+    }
+
+    spotifyAppAccessToken = token;
+    spotifyAppAccessTokenExpiresAt =
+      now +
+      Math.max(Number(tokenData?.expires_in || 3600) - 60, 60) * 1000;
+
+    return token;
+  } catch (err) {
+    console.warn(
+      '[Spotify Playlist Search] Token request failed:',
+      err
+    );
+    return null;
+  }
+}
+
+async function searchPublicSpotifyPlaylists(
+  query: string,
+  limit: number = 12
+): Promise<any[]> {
+  const cleanQuery = String(query || '').trim();
+
+  if (!cleanQuery) {
+    return [];
+  }
+
+  const token = await getSpotifyAppAccessToken();
+
+  if (!token) {
+    return [];
+  }
+
+  try {
+    const boundedLimit = Math.min(Math.max(limit, 1), 20);
+    const searchUrl =
+      'https://api.spotify.com/v1/search' +
+      '?q=' + encodeURIComponent(cleanQuery) +
+      '&type=playlist' +
+      '&limit=' + boundedLimit;
+
+    const response = await fetch(searchUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!response.ok) {
+      console.warn(
+        '[Spotify Playlist Search] Spotify returned',
+        response.status
+      );
+      return [];
+    }
+
+    const data = (await response.json()) as any;
+    const items = Array.isArray(data?.playlists?.items)
+      ? data.playlists.items
+      : [];
+
+    return items
+      .filter(
+        (item: any) =>
+          item &&
+          item.id &&
+          item.name &&
+          item.public !== false
+      )
+      .map((item: any) => ({
+        id: String(item.id).trim(),
+        title: String(item.name).trim(),
+        owner:
+          String(
+            item.owner?.display_name ||
+              item.owner?.id ||
+              'Spotify'
+          ).trim(),
+        itemCount:
+          Number(
+            item.tracks?.total ||
+              item.items?.total ||
+              0
+          ) || 0,
+        source: 'spotify'
+      }))
+      .filter(
+        (item: any) =>
+          item.id &&
+          item.title
+      )
+      .slice(0, boundedLimit);
+  } catch (err) {
+    console.warn(
+      '[Spotify Playlist Search] Failed:',
+      err
+    );
+    return [];
+  }
+}
+
+app.get('/api/spotify/search-playlists', async (req, res) => {
+  try {
+    const query = String(req.query.q || '').trim();
+    const maxResults =
+      Math.min(
+        Math.max(
+          parseInt(String(req.query.maxResults || '12'), 10) || 12,
+          1
+        ),
+        20
+      );
+
+    if (!query) {
+      return res.json({ playlists: [] });
+    }
+
+    const playlists =
+      await searchPublicSpotifyPlaylists(
+        query,
+        maxResults
+      );
+
+    return res.json({ playlists });
+  } catch (err) {
+    console.warn(
+      '[Spotify Playlist Search] Endpoint failed:',
+      err
+    );
+    return res.json({ playlists: [] });
+  }
+});
+
+
 // 14. API: Fetch Spotify Playlists
 app.get('/api/spotify/playlists', async (req, res) => {
   let spotifyToken = req.headers.authorization; // Expecting "Bearer ACCESS_TOKEN"
