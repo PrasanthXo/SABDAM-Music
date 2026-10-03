@@ -35,3 +35,20 @@ jobs:
           echo "=== RESOLVE TITLE ARTIST DIRECT ==="
           curl -fsS -m 45 "https://sabdham-backend.onrender.com/api/stream/resolve?title=Gangnam%20Style&artist=PSY&direct=1" -o /tmp/resolve.json || true
           cat /tmp/resolve.json || true
+
+          echo "=== INVIDIOUS INSTANCE PROBES ==="
+          for base in \
+            https://inv.nadeko.net \
+            https://invidious.nerdvpn.de \
+            https://invidious.privacyredirect.com \
+            https://invidious.tiekoetter.com \
+            https://invidious.no-logs.com \
+            https://invidious.projectsegfau.lt \
+            https://invidious.f5.si \
+            https://yewtu.be
+          do
+            echo "--- $base ---"
+            curl -sS -m 12 -L -D /tmp/h -H "Range: bytes=0-1023" "$base/latest_version?id=9bZkp7q19f0&itag=140&local=true" -o /tmp/b || true
+            grep -iE 'HTTP/|content-type:|content-length:|location:' /tmp/h | tail -8 || true
+            wc -c /tmp/b || true
+          done
