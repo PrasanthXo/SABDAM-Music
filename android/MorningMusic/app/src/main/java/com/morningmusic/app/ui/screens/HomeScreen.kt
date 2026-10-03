@@ -50,6 +50,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -869,6 +872,26 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var selectedCategory by remember { mutableStateOf("All") }
     var activeNavTab by remember { mutableStateOf("home") }
     var isFullPlayerVisible by remember { mutableStateOf(false) }
+    val playerFocusManager = LocalFocusManager.current
+    val playerRootView = LocalView.current
+
+    fun dismissKeyboardForPlayer() {
+        playerFocusManager.clearFocus(force = true)
+        val inputMethodManager =
+            context.getSystemService(Context.INPUT_METHOD_SERVICE)
+                as? InputMethodManager
+        inputMethodManager?.hideSoftInputFromWindow(
+            playerRootView.windowToken,
+            0
+        )
+        playerRootView.clearFocus()
+    }
+
+    LaunchedEffect(isFullPlayerVisible) {
+        if (isFullPlayerVisible) {
+            dismissKeyboardForPlayer()
+        }
+    }
     var isAudioRouteDialogVisible by remember { mutableStateOf(false) }
     var isEqDialogVisible by remember { mutableStateOf(false) }
     var isSettingsPageVisible by remember { mutableStateOf(false) }
@@ -2618,7 +2641,10 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 onPreviousClick = { viewModel.playPrevious() },
                 onNextClick = { viewModel.playNext() },
                 onLikeClick = { viewModel.toggleLike(track) },
-                onPlayerClick = { isFullPlayerVisible = true },
+                onPlayerClick = {
+                    dismissKeyboardForPlayer()
+                    isFullPlayerVisible = true
+                },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .windowInsetsPadding(
