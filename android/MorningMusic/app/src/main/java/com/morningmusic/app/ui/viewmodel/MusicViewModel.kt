@@ -633,6 +633,7 @@ if (incoming.isEmpty()) {
     val allTracks: List<Track> = MusicRepository.allTracks
 
     private var lastSearchJob: Job? = null
+    private var searchPlaylistOpenJob: Job? = null
     private var playbackJob: Job? = null
     private val playbackRequestGeneration = java.util.concurrent.atomic.AtomicLong(0L)
     private var searchQueueMode = false
@@ -915,6 +916,12 @@ if (incoming.isEmpty()) {
 
         lastSearchJob?.cancel()
 
+        // A playlist selected from an older query must not keep the new
+        // playlist results disabled or start playback later.
+        searchPlaylistOpenJob?.cancel()
+        searchPlaylistOpenJob = null
+        _loadingSearchPlaylistId.value = null
+
         if (trimmed.isEmpty()) {
             _searchResults.value = emptyList()
             _searchPlaylistResults.value = emptyList()
@@ -1039,7 +1046,8 @@ if (incoming.isEmpty()) {
         val searchQueryAtOpen =
             normalizeSearchText(_searchQuery.value)
 
-        viewModelScope.launch {
+        searchPlaylistOpenJob =
+            viewModelScope.launch {
             try {
                 val tracks =
                     MusicSearchService.fetchPlaylistTracks(
@@ -1080,6 +1088,13 @@ if (incoming.isEmpty()) {
                         playlist.id
                 ) {
                     _loadingSearchPlaylistId.value = null
+                }
+
+                if (
+                    searchPlaylistOpenJob ===
+                        kotlinx.coroutines.currentCoroutineContext()[Job]
+                ) {
+                    searchPlaylistOpenJob = null
                 }
             }
         }
