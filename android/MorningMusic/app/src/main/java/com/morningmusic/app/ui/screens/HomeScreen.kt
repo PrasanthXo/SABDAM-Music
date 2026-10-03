@@ -82,7 +82,7 @@ private fun isMeaningfulArtworkLabel(value: String): Boolean {
     )
 }
 
-private fun buildGoogleArtworkFallbackUrl(track: Track): String? {
+private fun buildVerifiedArtworkFallbackUrl(track: Track): String? {
     if (
         !isMeaningfulArtworkLabel(track.movie) &&
         !isMeaningfulArtworkLabel(track.album)
@@ -93,7 +93,7 @@ private fun buildGoogleArtworkFallbackUrl(track: Track): String? {
     return android.net.Uri
         .parse(
             MusicSearchService.activeBackendUrl.trimEnd('/') +
-                "/api/artwork/google-verified"
+                "/api/artwork/verified"
         )
         .buildUpon()
         .appendQueryParameter("title", track.title)
@@ -128,7 +128,7 @@ private fun rememberSabdhamArtworkModel(track: Track): Any? {
             usableExistingArtwork(track)
         }
 
-    val googleFallback =
+    val verifiedFallback =
         remember(
             track.id,
             track.title,
@@ -136,20 +136,20 @@ private fun rememberSabdhamArtworkModel(track: Track): Any? {
             track.album,
             track.movie
         ) {
-            buildGoogleArtworkFallbackUrl(track)
+            buildVerifiedArtworkFallbackUrl(track)
         }
 
-    var useGoogleFallback by remember(
+    var useVerifiedFallback by remember(
         track.id,
         primary,
-        googleFallback
+        verifiedFallback
     ) {
-        mutableStateOf(primary == null && googleFallback != null)
+        mutableStateOf(primary == null && verifiedFallback != null)
     }
 
     val selectedUrl =
-        if (useGoogleFallback) {
-            googleFallback
+        if (useVerifiedFallback) {
+            verifiedFallback
         } else {
             primary
         }
@@ -160,18 +160,18 @@ private fun rememberSabdhamArtworkModel(track: Track): Any? {
 
     return remember(
         selectedUrl,
-        googleFallback,
-        useGoogleFallback
+        verifiedFallback,
+        useVerifiedFallback
     ) {
         coil.request.ImageRequest.Builder(context)
             .data(selectedUrl)
             .listener(
                 onError = { _, _ ->
                     if (
-                        !useGoogleFallback &&
-                        googleFallback != null
+                        !useVerifiedFallback &&
+                        verifiedFallback != null
                     ) {
-                        useGoogleFallback = true
+                        useVerifiedFallback = true
                     }
                 }
             )
