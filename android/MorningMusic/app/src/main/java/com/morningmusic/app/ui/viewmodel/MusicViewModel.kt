@@ -872,7 +872,26 @@ if (incoming.isEmpty()) {
             "phonk",
             "sped up",
             "cover song",
-            "originally performed"
+            "originally performed",
+            "live news",
+            "breaking news",
+            "news today",
+            " news ",
+            "review",
+            "movie explanation",
+            "movie explained",
+            "explanation",
+            "explained",
+            "recap",
+            "podcast",
+            "speech",
+            "debate",
+            "tutorial",
+            "press meet",
+            "press conference",
+            "movie scene",
+            "comedy scene",
+            "vlog"
         ).any { value.contains(it) }
     }
 
@@ -990,7 +1009,9 @@ if (incoming.isEmpty()) {
         val album = normalizeSearchText(track.album)
         val movie = normalizeSearchText(track.movie)
         val genre = normalizeSearchText(track.genre)
-        val searchable = "$title $artist $album $movie $genre"
+        val language = normalizeSearchText(track.language)
+        val searchable =
+            "$title $artist $album $movie $genre $language"
 
         var score = 0
 
@@ -1017,6 +1038,29 @@ if (incoming.isEmpty()) {
 
         if (movie.contains(query)) score += 350
         if (genre.contains(query)) score += 200
+
+        // Broad language searches such as "tamil" must rank actual Tamil
+        // songs even when the word Tamil is not in the song title/artist.
+        score += when {
+            language == query -> 850
+            language.startsWith(query) -> 700
+            language.contains(query) -> 550
+            else -> 0
+        }
+
+        // Prefer direct music-provider audio over YouTube discovery items.
+        // YouTube remains a fallback for songs missing from the catalog.
+        val videoId = searchVideoId(track)
+        val directAudio =
+            track.audioUrl.isNotBlank() &&
+                videoId.isBlank() &&
+                !track.audioUrl.contains(
+                    "youtube",
+                    ignoreCase = true
+                )
+        if (directAudio) {
+            score += 250
+        }
 
         val tokens = query.split(" ").filter { it.isNotBlank() }
         val matchedTokens = tokens.count { searchable.contains(it) }
