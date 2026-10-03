@@ -4061,7 +4061,7 @@ fun FullPlayerSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(82.dp)
+                    .height(58.dp)
             ) {
                 IconButton(
                     onClick = onDismiss,
@@ -4095,44 +4095,7 @@ fun FullPlayerSheet(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.widthIn(max = 180.dp)
                     )
-                    Spacer(Modifier.height(4.dp))
 
-                    Row(
-                        modifier = Modifier
-                            .heightIn(min = 38.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF173D2C))
-                            .clickable { onAudioRouteClick() }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector =
-                                if (multiAudioActive) {
-                                    Icons.Default.SpeakerGroup
-                                } else {
-                                    Icons.Default.Speaker
-                                },
-                            contentDescription = "Audio output",
-                            tint = Color(0xFF1ED760),
-                            modifier = Modifier.size(19.dp)
-                        )
-                        Spacer(Modifier.width(7.dp))
-                        Text(
-                            text =
-                                if (audioRouteName.isBlank()) {
-                                    "Audio output"
-                                } else {
-                                    audioRouteName
-                                },
-                            color = Color(0xFF1ED760),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 190.dp)
-                        )
-                    }
                 }
             }
 
@@ -4779,59 +4742,101 @@ fun FullPlayerSheet(
 
                     Spacer(Modifier.height(if (compact) 8.dp else 14.dp))
 
-                    // Native volume panel
-                    Row(
+                    // Native volume + audio output panel
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 54.dp)
                             .clip(RoundedCornerShape(18.dp))
                             .background(Color(0xE6222222))
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        IconButton(
-                            onClick = onMute,
-                            modifier = Modifier.size(38.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector =
-                                    if (isMuted) Icons.Default.VolumeOff
-                                    else Icons.Default.VolumeUp,
-                                contentDescription =
-                                    if (isMuted) "Unmute" else "Mute",
-                                tint = if (isMuted) {
-                                    Color(0xFF888888)
-                                } else {
-                                    Color(0xFF1DB954)
-                                },
-                                modifier = Modifier.size(22.dp)
+                            IconButton(
+                                onClick = onMute,
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Icon(
+                                    imageVector =
+                                        if (isMuted) Icons.Default.VolumeOff
+                                        else Icons.Default.VolumeUp,
+                                    contentDescription =
+                                        if (isMuted) "Unmute" else "Mute",
+                                    tint = if (isMuted) {
+                                        Color(0xFF888888)
+                                    } else {
+                                        Color(0xFF1DB954)
+                                    },
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+
+                            Spacer(Modifier.width(8.dp))
+
+                            Slider(
+                                value = if (isMuted) 0f else volume.coerceIn(0f, 1f),
+                                onValueChange = onVolumeChange,
+                                valueRange = 0f..1f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color.White,
+                                    activeTrackColor = Color(0xFF1DB954),
+                                    inactiveTrackColor = Color(0xFF333333)
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            Text(
+                                text = "${((if (isMuted) 0f else volume) * 100).toInt()}%",
+                                color = Color(0xFFB3B3B3),
+                                fontSize = 11.sp,
+                                modifier = Modifier.widthIn(min = 34.dp)
                             )
                         }
 
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.height(4.dp))
 
-                        Slider(
-                            value = if (isMuted) 0f else volume.coerceIn(0f, 1f),
-                            onValueChange = onVolumeChange,
-                            valueRange = 0f..1f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color(0xFF1DB954),
-                                inactiveTrackColor = Color(0xFF333333)
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        Text(
-                            text = "${((if (isMuted) 0f else volume) * 100).toInt()}%",
-                            color = Color(0xFFB3B3B3),
-                            fontSize = 11.sp,
-                            modifier = Modifier.widthIn(min = 34.dp)
-                        )
-
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .heightIn(min = 38.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF173D2C))
+                                .clickable { onAudioRouteClick() }
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector =
+                                    if (multiAudioActive) {
+                                        Icons.Default.SpeakerGroup
+                                    } else {
+                                        Icons.Default.Speaker
+                                    },
+                                contentDescription = "Audio output",
+                                tint = Color(0xFF1ED760),
+                                modifier = Modifier.size(19.dp)
+                            )
+                            Spacer(Modifier.width(7.dp))
+                            Text(
+                                text =
+                                    if (audioRouteName.isBlank()) {
+                                        "Audio output"
+                                    } else {
+                                        audioRouteName
+                                    },
+                                color = Color(0xFF1ED760),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 210.dp)
+                            )
+                        }
                     }
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(8.dp))
                 }
             }
         }
