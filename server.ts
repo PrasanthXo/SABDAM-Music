@@ -3975,17 +3975,44 @@ function isValidSaavnMatch(targetTitle: string, targetArtist: string, match: any
 
   if (!songName || !tTitle) return false;
 
-  // Discard unwanted versions (karaoke, tribute, covers, nightcore, etc.) unless explicitly in target
-  const forbiddenTerms = ['karaoke', 'tribute', 'originally performed', 'ringtone', 'instrumental'];
-  if (!tTitle.includes('remix')) forbiddenTerms.push('remix');
+  // Discard unwanted versions (karaoke, tribute, covers, remixes, etc.)
+  // unless the user explicitly requested that version. Inspect all metadata,
+  // not only the song title: many bad matches hide "Instrumental" in the
+  // album/language or "Remixed" in the artist while keeping an exact title.
+  const candidateVersionText = cleanMatchingText(
+    [
+      match.song || match.title || '',
+      match.primary_artists || '',
+      match.singers || '',
+      match.album || '',
+      match.language || '',
+      match.more_info?.album || '',
+      match.more_info?.music || ''
+    ].join(' ')
+  );
+
+  const forbiddenTerms = [
+    'karaoke',
+    'tribute',
+    'originally performed',
+    'ringtone',
+    'instrumental',
+    'phonk',
+    'sped up'
+  ];
+  if (!tTitle.includes('remix')) {
+    forbiddenTerms.push('remix', 'remixed');
+  }
   if (!tTitle.includes('nightcore')) forbiddenTerms.push('nightcore');
   if (!tTitle.includes('cover')) forbiddenTerms.push('cover');
   if (!tTitle.includes('ambient')) forbiddenTerms.push('ambient');
-  if (!tTitle.includes('slowed')) forbiddenTerms.push('slowed');
+  if (!tTitle.includes('slowed')) forbiddenTerms.push('slowed', 'reverb');
   if (!tTitle.includes('techno')) forbiddenTerms.push('techno');
 
   for (const term of forbiddenTerms) {
-    if (songName.includes(term)) return false;
+    if (candidateVersionText.includes(term) && !tTitle.includes(term)) {
+      return false;
+    }
   }
 
   // Check title similarity: compare significant words
@@ -4114,8 +4141,8 @@ async function scrapeYouTubeVideos(query: string, limit: number = 15): Promise<a
               let title = vr.title?.runs?.map((r: any) => r.text).join('') || vr.title?.simpleText || 'Unknown Title';
               let artist = vr.ownerText?.runs?.map((r: any) => r.text).join('') || vr.ownerText?.simpleText || 'Unknown Artist';
               const durText = vr.lengthText?.simpleText || '3:30';
-              const thumbs = vr.thumbnail?.thumbnails || [];
-              const coverUrl = thumbs[thumbs.length - 1]?.url || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600';
+              // SABDHAM artwork policy: never use YouTube thumbnails.
+              const coverUrl = '';
 
               // Parse duration
               const parts = durText.split(':').map((p: string) => parseInt(p, 10));
@@ -4407,25 +4434,9 @@ async function resolveAudioStreamInfo(
       return saavnStream;
     }
   }
-  // If title + artist failed on Saavn, retry title-only before YouTube.
-  if (saavnTitle && activeArtist) {
-    const titleOnlySaavnStream = await resolveFromJioSaavn(
-      saavnTitle,
-      saavnTitle
-    );
-
-    if (titleOnlySaavnStream && titleOnlySaavnStream.url) {
-      streamCache.set(cacheKey, {
-        url: titleOnlySaavnStream.url,
-        coverUrl: titleOnlySaavnStream.coverUrl,
-        duration: titleOnlySaavnStream.duration,
-        videoId: activeVideoId,
-        expiresAt: Date.now() + 6 * 3600 * 1000
-      });
-
-      return titleOnlySaavnStream;
-    }
-  }
+  // Do not retry title-only when a real artist is known.
+  // Same-title covers/remixes are common and can otherwise replace the
+  // requested recording (for example, "Gangnam Style" by another artist).
   // Tier 2: Dynamically resolve to YouTube video ID
   if ((!activeVideoId || excludeVideoIds.includes(activeVideoId)) && activeTitle) {
     const resolvedYt = await resolveYouTubeVideoBySong(activeTitle, activeArtist, excludeVideoIds);
@@ -4600,21 +4611,67 @@ app.get('/api/youtube/search', async (req, res) => {
           .filter((item: any) => {
             if (!item || !item.id || !item.song) return false;
 
-            const name = String(item.song || '').toLowerCase();
+            const requested = String(query || '').toLowerCase();
+            const candidateText = [
+              item.song,
+              item.primary_artists,
+              item.singers,
+              item.album,
+              item.language,
+              item.more_info?.album
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase();
+
             const badTerms = [
               'karaoke',
               'instrumental',
               'ringtone',
               'tribute',
+              'originally performed',
               'nightcore',
               'slowed',
               'reverb',
               '8d audio',
               'status',
-              'remix'
+              'remix',
+              'remixed',
+              'phonk',
+              'sped up',
+              'cover song'
             ];
 
-            return !badTerms.some((term) => name.includes(term));
+            if (
+              badTerms.some(
+                (term) =>
+                  candidateText.includes(term) &&
+                  !requested.includes(term)
+              )
+            ) {
+              return false;
+            }
+
+            // Require the meaningful query words to actually be represented.
+            // This blocks near-spelling/unrelated results such as
+            // "Ganganam Style" for a "Gangnam Style" search.
+            const queryTokens = requested
+              .replace(
+                /\b(songs?|music|mp3|video|audio|track|lyrics?|official|hd|4k)\b/g,
+                ' '
+              )
+              .split(/\s+/)
+              .map((token) => token.trim())
+              .filter((token) => token.length >= 3);
+
+            const songArtistText =
+              `${item.song || ''} ${item.primary_artists || ''} ${item.singers || ''}`
+                .toLowerCase();
+
+            return (
+              queryTokens.length === 0 ||
+              queryTokens.every((token) => songArtistText.includes(token))
+            );
           })
           .map((item: any) => {
             const encrypted =
@@ -4741,11 +4798,8 @@ app.get('/api/youtube/search', async (req, res) => {
                 const secs = durationSec % 60;
                 const durationFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 
-                const coverUrl =
-                  item.snippet?.thumbnails?.high?.url ||
-                  item.snippet?.thumbnails?.medium?.url ||
-                  item.snippet?.thumbnails?.default?.url ||
-                  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600';
+                // SABDHAM artwork policy: never return YouTube thumbnails.
+                const coverUrl = '';
 
                 let trackLang = 'english';
                 const textToScan = `${trackName} ${channelTitle} ${query}`.toLowerCase();
@@ -5652,7 +5706,29 @@ app.get(['/api/youtube/stream', '/api/youtube/mp3'], async (req, res) => {
           }
 
           const contentType =
-            upstreamRes.headers['content-type'] || 'audio/mp4';
+            String(upstreamRes.headers['content-type'] || '')
+              .toLowerCase();
+
+          const isPlayableMedia =
+            contentType.startsWith('audio/') ||
+            contentType.startsWith('video/') ||
+            contentType.startsWith('application/octet-stream');
+
+          if (!isPlayableMedia) {
+            console.error(
+              '[YouTube Stream Proxy] Rejected non-media upstream response',
+              { statusCode, videoId, contentType, targetUrl }
+            );
+            upstreamRes.resume();
+            if (!res.headersSent) {
+              res.status(502).json({
+                error: 'Upstream did not return playable audio',
+                contentType,
+                retryable: true,
+              });
+            }
+            return;
+          }
 
           res.setHeader('Content-Type', contentType);
           res.setHeader('Accept-Ranges', 'bytes');
