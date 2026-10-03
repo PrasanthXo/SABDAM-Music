@@ -4222,9 +4222,6 @@ fun FullPlayerSheet(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
-                )
                 .padding(horizontal = 20.dp)
                 // Reserve fixed space so the bottom navigation never overlaps
                 // the volume/control area on short phones.
