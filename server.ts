@@ -2906,6 +2906,308 @@ async function findVerifiedAppleArtwork(params: {
   return null;
 }
 
+
+async function findVerifiedTmdbArtwork(params: {
+  title: string;
+  artist: string;
+  album: string;
+  movie: string;
+}): Promise<string | null> {
+  const movie = params.movie.trim();
+
+  if (!isMeaningfulArtworkLabel(movie)) {
+    return null;
+  }
+
+  const bearerToken =
+    process.env.TMDB_READ_ACCESS_TOKEN ||
+    process.env.TMDB_API_READ_ACCESS_TOKEN ||
+    '';
+
+  const apiKey =
+    process.env.TMDB_API_KEY ||
+    '';
+
+  if (!bearerToken && !apiKey) {
+    return null;
+  }
+
+  try {
+    const url = new URL(
+      'https://api.themoviedb.org/3/search/movie'
+    );
+    url.searchParams.set('query', movie);
+    url.searchParams.set('include_adult', 'false');
+    url.searchParams.set('page', '1');
+
+    if (!bearerToken && apiKey) {
+      url.searchParams.set('api_key', apiKey);
+    }
+
+    const headers: Record<string, string> = {
+      'User-Agent': 'SABDHAM-Music/1.0',
+      'Accept': 'application/json'
+    };
+
+    if (bearerToken) {
+      headers.Authorization = `Bearer ${bearerToken}`;
+    }
+
+    const response = await fetch(url.toString(), {
+      headers,
+      signal: AbortSignal.timeout(4500)
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `TMDB returned ${response.status}`
+      );
+    }
+
+    const data = (await response.json()) as any;
+    const wantedMovie = normalizeArtworkMatchText(movie);
+
+    const candidates =
+      (data.results || [])
+        .filter((item: any) => {
+          const title =
+            normalizeArtworkMatchText(item?.title || '');
+          const originalTitle =
+            normalizeArtworkMatchText(
+              item?.original_title || ''
+            );
+
+          return (
+            title === wantedMovie ||
+            originalTitle === wantedMovie
+          );
+        })
+        .filter((item: any) =>
+          String(item?.poster_path || '').startsWith('/')
+        )
+        .sort(
+          (a: any, b: any) =>
+            Number(b?.vote_count || 0) -
+              Number(a?.vote_count || 0) ||
+            Number(b?.popularity || 0) -
+              Number(a?.popularity || 0)
+        );
+
+    for (const item of candidates) {
+      const posterPath =
+        String(item.poster_path || '').trim();
+
+      if (!posterPath) continue;
+
+      const imageUrl =
+        `https://image.tmdb.org/t/p/w500${posterPath}`;
+
+      if (await isReachableImageUrl(imageUrl)) {
+        return imageUrl;
+      }
+    }
+  } catch (err) {
+    console.warn('[Artwork] TMDB lookup failed:', err);
+  }
+
+  return null;
+}
+
+function largestLastFmImage(images: any): string {
+  if (!Array.isArray(images)) return '';
+
+  const preferredSizes = [
+    'mega',
+    'extralarge',
+    'large',
+    'medium',
+    'small'
+  ];
+
+  for (const size of preferredSizes) {
+    const hit = images.find(
+      (entry: any) =>
+        String(entry?.size || '').toLowerCase() === size &&
+        String(entry?.['#text'] || '').trim()
+    );
+
+    if (hit) {
+      return String(hit['#text']).trim();
+    }
+  }
+
+  for (let i = images.length - 1; i >= 0; i--) {
+    const url = String(images[i]?.['#text'] || '').trim();
+    if (url) return url;
+  }
+
+  return '';
+}
+
+async function findVerifiedLastFmArtwork(params: {
+  title: string;
+  artist: string;
+  album: string;
+  movie: string;
+}): Promise<string | null> {
+  const apiKey =
+    process.env.LASTFM_API_KEY ||
+    process.env.LAST_FM_API_KEY ||
+    '';
+
+  if (!apiKey) {
+    return null;
+  }
+
+  const title = params.title.trim();
+  const artist = params.artist.split(',')[0].trim();
+  const target =
+    isMeaningfulArtworkLabel(params.album)
+      ? params.album.trim()
+      : isMeaningfulArtworkLabel(params.movie)
+        ? params.movie.trim()
+        : '';
+
+  if (title && artist) {
+    try {
+      const url = new URL('https://ws.audioscrobbler.com/2.0/');
+      url.searchParams.set('method', 'track.getInfo');
+      url.searchParams.set('api_key', apiKey);
+      url.searchParams.set('artist', artist);
+      url.searchParams.set('track', title);
+      url.searchParams.set('autocorrect', '1');
+      url.searchParams.set('format', 'json');
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          'User-Agent': 'SABDHAM-Music/1.0',
+          'Accept': 'application/json'
+        },
+        signal: AbortSignal.timeout(4500)
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const track = data?.track;
+
+        if (track) {
+          const returnedTitle =
+            String(track?.name || '').trim();
+
+          const returnedArtist =
+            String(
+              track?.artist?.name ||
+              track?.artist ||
+              ''
+            ).trim();
+
+          const returnedAlbum =
+            String(track?.album?.title || '').trim();
+
+          const exactTitle =
+            normalizeArtworkMatchText(returnedTitle) ===
+            normalizeArtworkMatchText(title);
+
+          const artistMatch =
+            artworkArtistMatches(
+              returnedArtist,
+              artist
+            );
+
+          const targetMatch =
+            !target ||
+            artworkTextMatches(
+              returnedAlbum,
+              target
+            );
+
+          if (exactTitle && artistMatch && targetMatch) {
+            const imageUrl =
+              largestLastFmImage(
+                track?.album?.image
+              );
+
+            if (
+              imageUrl &&
+              await isReachableImageUrl(imageUrl)
+            ) {
+              return imageUrl;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(
+        '[Artwork] Last.fm track lookup failed:',
+        err
+      );
+    }
+  }
+
+  if (!target || !artist) {
+    return null;
+  }
+
+  try {
+    const url = new URL('https://ws.audioscrobbler.com/2.0/');
+    url.searchParams.set('method', 'album.getInfo');
+    url.searchParams.set('api_key', apiKey);
+    url.searchParams.set('artist', artist);
+    url.searchParams.set('album', target);
+    url.searchParams.set('autocorrect', '1');
+    url.searchParams.set('format', 'json');
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'User-Agent': 'SABDHAM-Music/1.0',
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(4500)
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as any;
+    const album = data?.album;
+
+    if (!album) {
+      return null;
+    }
+
+    const returnedAlbum =
+      String(album?.name || '').trim();
+
+    const returnedArtist =
+      String(album?.artist || '').trim();
+
+    if (
+      !artworkTextMatches(returnedAlbum, target) ||
+      !artworkArtistMatches(returnedArtist, artist)
+    ) {
+      return null;
+    }
+
+    const imageUrl =
+      largestLastFmImage(album?.image);
+
+    if (
+      imageUrl &&
+      await isReachableImageUrl(imageUrl)
+    ) {
+      return imageUrl;
+    }
+  } catch (err) {
+    console.warn(
+      '[Artwork] Last.fm album lookup failed:',
+      err
+    );
+  }
+
+  return null;
+}
+
 let musicBrainzArtworkQueue: Promise<void> = Promise.resolve();
 let lastMusicBrainzArtworkRequestAt = 0;
 
@@ -3102,33 +3404,65 @@ async function findStrictExternalArtwork(params: {
     }
   }
 
-  const appleArtwork =
-    await findVerifiedAppleArtwork(params);
+  const providers: Array<{
+    name: string;
+    lookup: () => Promise<string | null>;
+  }> = [
+    {
+      name: 'apple',
+      lookup: () => findVerifiedAppleArtwork(params)
+    },
+    {
+      name: 'tmdb',
+      lookup: () => findVerifiedTmdbArtwork(params)
+    },
+    {
+      name: 'lastfm',
+      lookup: () => findVerifiedLastFmArtwork(params)
+    },
+    {
+      name: 'musicbrainz',
+      lookup: () => findVerifiedMusicBrainzArtwork(params)
+    }
+  ];
 
-  if (appleArtwork) {
-    externalArtworkCache.set(cacheKey, {
-      imageUrl: appleArtwork,
-      timestamp: Date.now()
-    });
-    return appleArtwork;
+  for (const provider of providers) {
+    try {
+      const imageUrl = await provider.lookup();
+
+      if (!imageUrl) continue;
+
+      externalArtworkCache.set(cacheKey, {
+        imageUrl,
+        timestamp: Date.now()
+      });
+
+      console.log(
+        `[Artwork] provider=${provider.name} hit`
+      );
+
+      return imageUrl;
+    } catch (err) {
+      console.warn(
+        `[Artwork] provider=${provider.name} failed`,
+        err
+      );
+    }
   }
 
-  const musicBrainzArtwork =
-    await findVerifiedMusicBrainzArtwork(params);
-
   externalArtworkCache.set(cacheKey, {
-    imageUrl: musicBrainzArtwork,
+    imageUrl: null,
     timestamp: Date.now()
   });
 
-  return musicBrainzArtwork;
+  return null;
 }
 
 app.get(
   [
     '/api/artwork/verified',
     // Compatibility alias for APKs built before the Google fallback was
-    // replaced. It now uses the same Apple/MusicBrainz implementation.
+    // replaced. It now uses the same multi-provider artwork implementation.
     '/api/artwork/google-verified'
   ],
   async (req, res) => {
