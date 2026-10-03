@@ -18,6 +18,7 @@ import { initializeApp as initializeClientApp } from 'firebase/app';
 import { getFirestore as getClientFirestore, collection, writeBatch, doc, getDocs } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
 import { SABDHAM_DEFAULT_ARTWORK } from './src/utils/imageUtils';
+import { createPool } from './src/db/index.ts';
 import {
   getOrCreateUser,
   getUserByEmail,
@@ -159,6 +160,252 @@ app.get('/api/app/update', (_req, res) => {
     releaseNotes
   });
 });
+// ==========================================
+// SABDHAM TOOLBAR NOTIFICATION MESSAGES
+// ==========================================
+// Public Android clients read active messages from this route.
+// Sending/deactivating messages requires the server-side
+// SABDHAM_NOTIFICATION_ADMIN_KEY and never exposes that key to the app.
+let toolbarNotificationsTableReady: Promise<void> | null = null;
+
+function ensureToolbarNotificationsTable(): Promise<void> {
+  if (!toolbarNotificationsTableReady) {
+    const pool = createPool();
+    toolbarNotificationsTableReady = pool
+      .query(`
+        CREATE TABLE IF NOT EXISTS sabdham_toolbar_notifications (
+          id BIGSERIAL PRIMARY KEY,
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'info',
+          active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          expires_at TIMESTAMPTZ NULL
+        )
+      `)
+      .then(() => undefined)
+      .catch((error) => {
+        toolbarNotificationsTableReady = null;
+        throw error;
+      });
+  }
+
+  return toolbarNotificationsTableReady;
+}
+
+function hasToolbarNotificationAdminKey(req: express.Request): boolean {
+  const expected =
+    String(process.env.SABDHAM_NOTIFICATION_ADMIN_KEY || '').trim();
+  const supplied =
+    String(req.header('x-sabdham-admin-key') || '').trim();
+
+  if (!expected || !supplied) return false;
+
+  const expectedBuffer = Buffer.from(expected);
+  const suppliedBuffer = Buffer.from(supplied);
+
+  return (
+    expectedBuffer.length === suppliedBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)
+  );
+}
+
+app.get('/api/toolbar-notifications', async (_req, res) => {
+  try {
+    await ensureToolbarNotificationsTable();
+
+    const pool = createPool();
+    const result = await pool.query(
+      `
+        SELECT
+          id,
+          title,
+          message,
+          type,
+          created_at,
+          expires_at
+        FROM sabdham_toolbar_notifications
+        WHERE active = TRUE
+          AND (expires_at IS NULL OR expires_at > NOW())
+        ORDER BY created_at DESC
+        LIMIT 20
+      `
+    );
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+
+    return res.json({
+      notifications: result.rows.map((row) => ({
+        id: String(row.id),
+        title: String(row.title || ''),
+        message: String(row.message || ''),
+        type: String(row.type || 'info'),
+        createdAt:
+          row.created_at instanceof Date
+            ? row.created_at.toISOString()
+            : String(row.created_at || ''),
+        expiresAt:
+          row.expires_at instanceof Date
+            ? row.expires_at.toISOString()
+            : row.expires_at
+              ? String(row.expires_at)
+              : null,
+      })),
+    });
+  } catch (error: any) {
+    console.error('[Toolbar Notifications] fetch failed:', error);
+    return res.status(500).json({
+      error: 'Failed to load toolbar notifications',
+    });
+  }
+});
+
+app.post('/api/admin/toolbar-notifications', async (req, res) => {
+  if (!process.env.SABDHAM_NOTIFICATION_ADMIN_KEY?.trim()) {
+    return res.status(503).json({
+      error: 'Toolbar notification admin key is not configured',
+    });
+  }
+
+  if (!hasToolbarNotificationAdminKey(req)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const title = String(req.body?.title || '').trim();
+  const message = String(req.body?.message || '').trim();
+  const requestedType = String(req.body?.type || 'info')
+    .trim()
+    .toLowerCase();
+
+  const allowedTypes = new Set(['info', 'update', 'warning', 'success']);
+  const type = allowedTypes.has(requestedType)
+    ? requestedType
+    : 'info';
+
+  if (!title || title.length > 80) {
+    return res.status(400).json({
+      error: 'title is required and must be 80 characters or fewer',
+    });
+  }
+
+  if (!message || message.length > 500) {
+    return res.status(400).json({
+      error: 'message is required and must be 500 characters or fewer',
+    });
+  }
+
+  const ttlHoursValue =
+    req.body?.ttlHours === undefined || req.body?.ttlHours === null
+      ? 168
+      : Number(req.body.ttlHours);
+
+  if (
+    !Number.isFinite(ttlHoursValue) ||
+    ttlHoursValue < 0 ||
+    ttlHoursValue > 24 * 90
+  ) {
+    return res.status(400).json({
+      error: 'ttlHours must be between 0 and 2160',
+    });
+  }
+
+  const expiresAt =
+    ttlHoursValue === 0
+      ? null
+      : new Date(Date.now() + ttlHoursValue * 60 * 60 * 1000);
+
+  try {
+    await ensureToolbarNotificationsTable();
+
+    const pool = createPool();
+    const result = await pool.query(
+      `
+        INSERT INTO sabdham_toolbar_notifications
+          (title, message, type, expires_at)
+        VALUES ($1, $2, $3, $4)
+        RETURNING
+          id,
+          title,
+          message,
+          type,
+          created_at,
+          expires_at
+      `,
+      [title, message, type, expiresAt]
+    );
+
+    const row = result.rows[0];
+
+    return res.status(201).json({
+      ok: true,
+      notification: {
+        id: String(row.id),
+        title: String(row.title || ''),
+        message: String(row.message || ''),
+        type: String(row.type || 'info'),
+        createdAt:
+          row.created_at instanceof Date
+            ? row.created_at.toISOString()
+            : String(row.created_at || ''),
+        expiresAt:
+          row.expires_at instanceof Date
+            ? row.expires_at.toISOString()
+            : row.expires_at
+              ? String(row.expires_at)
+              : null,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Toolbar Notifications] send failed:', error);
+    return res.status(500).json({
+      error: 'Failed to send toolbar notification',
+    });
+  }
+});
+
+app.delete('/api/admin/toolbar-notifications/:id', async (req, res) => {
+  if (!process.env.SABDHAM_NOTIFICATION_ADMIN_KEY?.trim()) {
+    return res.status(503).json({
+      error: 'Toolbar notification admin key is not configured',
+    });
+  }
+
+  if (!hasToolbarNotificationAdminKey(req)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid notification id' });
+  }
+
+  try {
+    await ensureToolbarNotificationsTable();
+
+    const pool = createPool();
+    const result = await pool.query(
+      `
+        UPDATE sabdham_toolbar_notifications
+        SET active = FALSE
+        WHERE id = $1
+        RETURNING id
+      `,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    return res.json({ ok: true, id: String(id) });
+  } catch (error: any) {
+    console.error('[Toolbar Notifications] deactivate failed:', error);
+    return res.status(500).json({
+      error: 'Failed to deactivate toolbar notification',
+    });
+  }
+});
+
 // Health check endpoints for Cloud Run deployment, kubernetes probes, and load balancers
 app.get(['/api/health', '/health', '/healthz'], (_req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
