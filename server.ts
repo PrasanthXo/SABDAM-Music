@@ -127,13 +127,13 @@ async function robustFetchJson(url: string, options: any = {}) {
 // ==========================================
 app.get('/api/app/update', (_req, res) => {
   const latestVersionCode =
-    Number(process.env.ANDROID_LATEST_VERSION_CODE || '2');
+    Number(process.env.ANDROID_LATEST_VERSION_CODE || '6');
 
   const minimumVersionCode =
     Number(process.env.ANDROID_MINIMUM_VERSION_CODE || '2');
 
   const latestVersionName =
-    process.env.ANDROID_LATEST_VERSION_NAME || '1.0.1';
+    process.env.ANDROID_LATEST_VERSION_NAME || '1.2.0';
 
   const downloadUrl =
     process.env.ANDROID_DOWNLOAD_URL || 'https://raw.githubusercontent.com/PrasanthXo/SABDAM-Music/main/public/downloads/SABDHAM-signed.apk';
@@ -145,7 +145,7 @@ app.get('/api/app/update', (_req, res) => {
 
   const message =
     process.env.ANDROID_UPDATE_MESSAGE ||
-    'A new version of SABDHAM is available. Please update to version 1.0.1 or later to continue getting the latest fixes, improvements, and features.';
+    'SABDHAM 1.2.0 is available. Update now for improved search, playlist discovery, audio output controls, and the latest fixes.';
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
