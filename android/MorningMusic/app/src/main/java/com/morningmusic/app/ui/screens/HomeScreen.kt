@@ -66,6 +66,9 @@ import com.morningmusic.app.ui.viewmodel.MusicViewModel
 import com.morningmusic.app.auth.AuthViewModel
 import com.morningmusic.app.auth.SabdhamAuthDialog
 import com.morningmusic.app.auth.SabdhamUser
+import com.morningmusic.app.update.SabdhamUpdateCenter
+import com.morningmusic.app.update.SabdhamUpdateInfo
+import com.morningmusic.app.update.openSabdhamHiddenDownloadLink
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.Locale
 import com.sabdham.music.R
@@ -873,6 +876,30 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var isAuthDialogVisible by remember { mutableStateOf(false) }
     var isTopBarNotificationCenterVisible by remember { mutableStateOf(false) }
     var unreadTopBarNotifications by remember { mutableStateOf(3) }
+
+    val optionalUpdate = SabdhamUpdateCenter.optionalUpdate
+    val updateNotificationPreferences =
+        remember(context) {
+            context.getSharedPreferences(
+                "sabdham_update_notifications",
+                Context.MODE_PRIVATE
+            )
+        }
+    var readOptionalUpdateVersionCode by remember {
+        mutableIntStateOf(
+            updateNotificationPreferences.getInt(
+                "read_optional_update_version_code",
+                -1
+            )
+        )
+    }
+    val optionalUpdateIsUnread =
+        optionalUpdate?.latestVersionCode?.let {
+            it > readOptionalUpdateVersionCode
+        } == true
+    val displayedUnreadTopBarNotifications =
+        unreadTopBarNotifications + if (optionalUpdateIsUnread) 1 else 0
+
     var playlistTargetTrack by remember { mutableStateOf<Track?>(null) }
     var cloudPlaylists by remember { mutableStateOf<List<CloudPlaylist>>(emptyList()) }
     var playlistLoading by remember { mutableStateOf(false) }
@@ -977,7 +1004,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 ?.trim()
                                 ?.takeIf { it.isNotBlank() }
                                 ?: "SABDHAM Listener",
-                        unreadCount = unreadTopBarNotifications,
+                        unreadCount = displayedUnreadTopBarNotifications,
                         onNotificationsClick = {
                             isTopBarNotificationCenterVisible = true
                         }
@@ -2647,9 +2674,36 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
         if (isTopBarNotificationCenterVisible) {
             SabdhamTopBarNotificationCenter(
-                unreadCount = unreadTopBarNotifications,
+                unreadCount = displayedUnreadTopBarNotifications,
+                optionalUpdate = optionalUpdate,
+                onOptionalUpdateClick = {
+                    optionalUpdate?.let { update ->
+                        readOptionalUpdateVersionCode = update.latestVersionCode
+                        updateNotificationPreferences
+                            .edit()
+                            .putInt(
+                                "read_optional_update_version_code",
+                                update.latestVersionCode
+                            )
+                            .apply()
+                        openSabdhamHiddenDownloadLink(
+                            context = context,
+                            downloadUrl = update.downloadUrl
+                        )
+                    }
+                },
                 onMarkAllRead = {
                     unreadTopBarNotifications = 0
+                    optionalUpdate?.let { update ->
+                        readOptionalUpdateVersionCode = update.latestVersionCode
+                        updateNotificationPreferences
+                            .edit()
+                            .putInt(
+                                "read_optional_update_version_code",
+                                update.latestVersionCode
+                            )
+                            .apply()
+                    }
                 },
                 onDismiss = {
                     isTopBarNotificationCenterVisible = false
@@ -7390,17 +7444,14 @@ private fun SabdhamHomeTopBar(
 @Composable
 private fun SabdhamTopBarNotificationCenter(
     unreadCount: Int,
+    optionalUpdate: SabdhamUpdateInfo?,
+    onOptionalUpdateClick: () -> Unit,
     onMarkAllRead: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val green = Color(0xFF00E676)
     val notifications =
         listOf(
-            Triple(
-                Icons.Default.NewReleases,
-                "SABDHAM 1.2.4",
-                "Optional visual update: richer Home top bar background and a slightly larger SABDHAM logo. No forced update."
-            ),
             Triple(
                 Icons.Default.LibraryMusic,
                 "Music-only search",
@@ -7454,6 +7505,96 @@ private fun SabdhamTopBarNotificationCenter(
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                optionalUpdate?.let { update ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF0B2015))
+                            .border(
+                                1.dp,
+                                green.copy(alpha = 0.55f),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF0B2A1B)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NewReleases,
+                                    contentDescription = null,
+                                    tint = green,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+
+                            Spacer(Modifier.width(10.dp))
+
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "SABDHAM ${update.latestVersionName} available",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Optional update",
+                                    color = green,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        if (update.message.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = update.message,
+                                color = Color(0xFFB7C1BB),
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+
+                        update.releaseNotes
+                            .take(3)
+                            .forEach { note ->
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "• $note",
+                                    color = Color(0xFF9EAAA3),
+                                    fontSize = 10.5.sp,
+                                    lineHeight = 15.sp
+                                )
+                            }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Button(
+                            onClick = onOptionalUpdateClick,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = green,
+                                contentColor = Color(0xFF04110A)
+                            )
+                        ) {
+                            Text(
+                                text = "Update",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
                 notifications.forEach { item ->
                     Row(
                         modifier = Modifier
