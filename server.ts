@@ -2661,13 +2661,13 @@ const DARK_VINYL_PLACEHOLDER =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><rect width="300" height="300" fill="%23181818"/><circle cx="150" cy="150" r="105" fill="%23262626" stroke="%23383838" stroke-width="4"/><circle cx="150" cy="150" r="85" fill="none" stroke="%23303030" stroke-width="2"/><circle cx="150" cy="150" r="65" fill="none" stroke="%23303030" stroke-width="2"/><circle cx="150" cy="150" r="45" fill="%231db954"/><circle cx="150" cy="150" r="14" fill="%23141414"/><path d="M145 138 L162 150 L145 162 Z" fill="%23ffffff"/></svg>';
 
 // Final external artwork fallback before SABDHAM's local/default cover.
-// Existing cover providers remain untouched. Google is queried only when
-// the client has no usable cover or an earlier cover fails to load.
-const googleArtworkCache = new Map<
+// Existing cover providers remain untouched. This fallback uses music-specific
+// metadata only: Apple/iTunes first, then MusicBrainz + Cover Art Archive.
+const externalArtworkCache = new Map<
   string,
   { imageUrl: string | null; timestamp: number }
 >();
-const GOOGLE_ARTWORK_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const EXTERNAL_ARTWORK_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function normalizeArtworkMatchText(value: string): string {
   return String(value || '')
@@ -2731,184 +2731,422 @@ async function isReachableImageUrl(rawUrl: string): Promise<boolean> {
   }
 }
 
-async function findStrictGoogleArtwork(params: {
+function artworkTextMatches(candidate: string, expected: string): boolean {
+  const a = normalizeArtworkMatchText(candidate);
+  const b = normalizeArtworkMatchText(expected);
+
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  // Only allow containment for meaningful multi-word labels. This handles
+  // soundtrack suffixes without accepting generic one-word false positives.
+  if (b.length >= 8 && b.includes(' ')) {
+    return a.includes(b) || b.includes(a);
+  }
+
+  return false;
+}
+
+function artworkArtistMatches(candidate: string, expected: string): boolean {
+  const a = normalizeArtworkMatchText(candidate);
+  const firstExpectedArtist = normalizeArtworkMatchText(
+    String(expected || '').split(',')[0]
+  );
+
+  if (!a || !firstExpectedArtist) return false;
+
+  return (
+    a === firstExpectedArtist ||
+    a.includes(firstExpectedArtist) ||
+    firstExpectedArtist.includes(a)
+  );
+}
+
+function highResolutionAppleArtwork(rawUrl: string): string {
+  return String(rawUrl || '')
+    .replace(/\/100x100bb\.(jpg|png)$/i, '/600x600bb.$1')
+    .replace(/100x100bb/gi, '600x600bb');
+}
+
+async function findVerifiedAppleArtwork(params: {
   title: string;
   artist: string;
   album: string;
   movie: string;
 }): Promise<string | null> {
-  const movie = params.movie.trim();
-  const album = params.album.trim();
-
-  const targetKind =
-    isMeaningfulArtworkLabel(movie)
-      ? 'movie'
-      : isMeaningfulArtworkLabel(album)
-        ? 'album'
-        : null;
-
   const target =
-    targetKind === 'movie'
-      ? movie
-      : targetKind === 'album'
-        ? album
+    isMeaningfulArtworkLabel(params.movie)
+      ? params.movie.trim()
+      : isMeaningfulArtworkLabel(params.album)
+        ? params.album.trim()
         : '';
 
-  if (!targetKind || !target) {
-    return null;
-  }
+  const titleNormalized = normalizeArtworkMatchText(params.title);
 
-  const cacheKey =
-    normalizeArtworkMatchText(
-      [targetKind, target, params.artist, params.title].join('|')
-    );
-
-  const cached = googleArtworkCache.get(cacheKey);
-  if (
-    cached &&
-    Date.now() - cached.timestamp < GOOGLE_ARTWORK_CACHE_TTL_MS
-  ) {
-    return cached.imageUrl;
-  }
-
-  const apiKey =
-    process.env.GOOGLE_CUSTOM_SEARCH_API_KEY ||
-    process.env.GOOGLE_CSE_API_KEY ||
-    '';
-
-  const cx =
-    process.env.GOOGLE_CUSTOM_SEARCH_CX ||
-    process.env.GOOGLE_CSE_CX ||
-    '';
-
-  if (!apiKey || !cx) {
-    googleArtworkCache.set(cacheKey, {
-      imageUrl: null,
-      timestamp: Date.now()
-    });
-    return null;
-  }
-
-  const query =
-    targetKind === 'movie'
-      ? `"${target}" official movie poster soundtrack`
-      : `"${target}" official album cover ${params.artist}`;
-
-  const googleUrl = new URL(
-    'https://www.googleapis.com/customsearch/v1'
-  );
-  googleUrl.searchParams.set('key', apiKey);
-  googleUrl.searchParams.set('cx', cx);
-  googleUrl.searchParams.set('q', query);
-  googleUrl.searchParams.set('searchType', 'image');
-  googleUrl.searchParams.set('num', '6');
-  googleUrl.searchParams.set('safe', 'active');
-  googleUrl.searchParams.set('imgSize', 'large');
-  googleUrl.searchParams.set('exactTerms', target);
+  const songQuery =
+    [params.title, params.artist, target]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
 
   try {
-    const response = await fetch(googleUrl.toString(), {
+    const url = new URL('https://itunes.apple.com/search');
+    url.searchParams.set('term', songQuery);
+    url.searchParams.set('entity', 'song');
+    url.searchParams.set('limit', '12');
+
+    const response = await fetch(url.toString(), {
       headers: {
         'User-Agent': 'SABDHAM-Music/1.0',
         'Accept': 'application/json'
       },
-      signal: AbortSignal.timeout(6500)
+      signal: AbortSignal.timeout(4500)
     });
 
-    if (!response.ok) {
-      throw new Error(
-        `Google Custom Search returned ${response.status}`
-      );
-    }
+    if (response.ok) {
+      const data = (await response.json()) as any;
 
-    const data = (await response.json()) as any;
-    const targetNormalized = normalizeArtworkMatchText(target);
+      for (const item of data.results || []) {
+        const trackName = String(item?.trackName || '');
+        const artistName = String(item?.artistName || '');
+        const collectionName = String(item?.collectionName || '');
+        const rawArtwork = String(item?.artworkUrl100 || '').trim();
 
-    for (const item of data.items || []) {
-      const imageUrl = String(item?.link || '').trim();
-      if (!imageUrl || isBlockedArtworkHost(imageUrl)) continue;
+        if (!rawArtwork) continue;
 
-      const width = Number(item?.image?.width || 0);
-      const height = Number(item?.image?.height || 0);
+        const exactTitle =
+          normalizeArtworkMatchText(trackName) === titleNormalized;
 
-      if (
-        (width > 0 && width < 300) ||
-        (height > 0 && height < 300)
-      ) {
-        continue;
+        const artistMatch =
+          artworkArtistMatches(artistName, params.artist);
+
+        const targetMatch =
+          target
+            ? artworkTextMatches(collectionName, target)
+            : false;
+
+        // Strong acceptance gate:
+        // 1) matching album/movie plus title or artist evidence, OR
+        // 2) exact song title + matching artist.
+        if (
+          !(
+            (targetMatch && (exactTitle || artistMatch)) ||
+            (exactTitle && artistMatch)
+          )
+        ) {
+          continue;
+        }
+
+        const imageUrl = highResolutionAppleArtwork(rawArtwork);
+
+        if (await isReachableImageUrl(imageUrl)) {
+          return imageUrl;
+        }
       }
-
-      const evidence = normalizeArtworkMatchText(
-        [
-          item?.title,
-          item?.snippet,
-          item?.displayLink,
-          item?.image?.contextLink
-        ].filter(Boolean).join(' ')
-      );
-
-      // Strict semantic gate: the exact normalized movie/album phrase must
-      // appear in Google's result metadata. If there is any doubt, reject it.
-      if (
-        !targetNormalized ||
-        !evidence.includes(targetNormalized)
-      ) {
-        continue;
-      }
-
-      const reachable = await isReachableImageUrl(imageUrl);
-      if (!reachable) continue;
-
-      googleArtworkCache.set(cacheKey, {
-        imageUrl,
-        timestamp: Date.now()
-      });
-
-      return imageUrl;
     }
   } catch (err) {
-    console.warn('[Google Artwork] Strict fallback failed:', err);
+    console.warn('[Artwork] Apple song lookup failed:', err);
   }
 
-  googleArtworkCache.set(cacheKey, {
-    imageUrl: null,
-    timestamp: Date.now()
-  });
+  if (!target) return null;
+
+  // Album lookup is intentionally stricter than song lookup because there is
+  // no track title to help disambiguate a similarly named release.
+  try {
+    const albumQuery =
+      [target, params.artist]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+    const url = new URL('https://itunes.apple.com/search');
+    url.searchParams.set('term', albumQuery);
+    url.searchParams.set('entity', 'album');
+    url.searchParams.set('limit', '8');
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'User-Agent': 'SABDHAM-Music/1.0',
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(4500)
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as any;
+
+      for (const item of data.results || []) {
+        const collectionName = String(item?.collectionName || '');
+        const artistName = String(item?.artistName || '');
+        const rawArtwork = String(item?.artworkUrl100 || '').trim();
+
+        if (!rawArtwork) continue;
+        if (!artworkTextMatches(collectionName, target)) continue;
+
+        // If we know the artist, require artist evidence too.
+        if (
+          params.artist.trim() &&
+          !artworkArtistMatches(artistName, params.artist)
+        ) {
+          continue;
+        }
+
+        const imageUrl = highResolutionAppleArtwork(rawArtwork);
+
+        if (await isReachableImageUrl(imageUrl)) {
+          return imageUrl;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Artwork] Apple album lookup failed:', err);
+  }
+
   return null;
 }
 
-app.get('/api/artwork/google-verified', async (req, res) => {
-  const title = String(req.query.title || '').trim();
-  const artist = String(req.query.artist || '').trim();
-  const album = String(req.query.album || '').trim();
-  const movie = String(req.query.movie || '').trim();
+let musicBrainzArtworkQueue: Promise<void> = Promise.resolve();
+let lastMusicBrainzArtworkRequestAt = 0;
 
-  if (
-    !isMeaningfulArtworkLabel(movie) &&
-    !isMeaningfulArtworkLabel(album)
-  ) {
-    return res.status(404).end();
-  }
+function enqueueMusicBrainzArtworkRequest<T>(
+  task: () => Promise<T>
+): Promise<T> {
+  const run = musicBrainzArtworkQueue.then(async () => {
+    const waitMs = Math.max(
+      0,
+      1100 - (Date.now() - lastMusicBrainzArtworkRequestAt)
+    );
 
-  const imageUrl = await findStrictGoogleArtwork({
-    title,
-    artist,
-    album,
-    movie
+    if (waitMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    lastMusicBrainzArtworkRequestAt = Date.now();
+    return task();
   });
 
-  if (!imageUrl) {
-    // Client will use the unchanged SABDHAM default cover as final fallback.
-    return res.status(404).end();
-  }
-
-  res.setHeader(
-    'Cache-Control',
-    'public, max-age=86400, stale-while-revalidate=604800'
+  musicBrainzArtworkQueue = run.then(
+    () => undefined,
+    () => undefined
   );
 
-  return res.redirect(302, imageUrl);
-});
+  return run;
+}
+
+async function findVerifiedMusicBrainzArtwork(params: {
+  title: string;
+  artist: string;
+  album: string;
+  movie: string;
+}): Promise<string | null> {
+  const title = params.title.trim();
+  const artist = params.artist.split(',')[0].trim();
+  const target =
+    isMeaningfulArtworkLabel(params.movie)
+      ? params.movie.trim()
+      : isMeaningfulArtworkLabel(params.album)
+        ? params.album.trim()
+        : '';
+
+  if (!title) return null;
+
+  const query =
+    artist
+      ? `recording:"${title}" AND artist:"${artist}"`
+      : `recording:"${title}"`;
+
+  try {
+    const data = await enqueueMusicBrainzArtworkRequest(async () => {
+      const url = new URL(
+        'https://musicbrainz.org/ws/2/recording/'
+      );
+      url.searchParams.set('query', query);
+      url.searchParams.set('fmt', 'json');
+      url.searchParams.set('limit', '5');
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          'User-Agent':
+            'SABDHAM-Music/1.0 (https://sabdham.cyou)',
+          'Accept': 'application/json'
+        },
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `MusicBrainz returned ${response.status}`
+        );
+      }
+
+      return (await response.json()) as any;
+    });
+
+    const wantedTitle = normalizeArtworkMatchText(title);
+
+    for (const recording of data.recordings || []) {
+      const recordingTitle =
+        normalizeArtworkMatchText(recording?.title || '');
+
+      if (recordingTitle !== wantedTitle) continue;
+
+      const artistCredit =
+        (recording?.['artist-credit'] || [])
+          .map((credit: any) =>
+            typeof credit === 'string'
+              ? credit
+              : credit?.name || credit?.artist?.name || ''
+          )
+          .join(' ');
+
+      if (
+        artist &&
+        !artworkArtistMatches(artistCredit, artist)
+      ) {
+        continue;
+      }
+
+      const releases = Array.isArray(recording?.releases)
+        ? recording.releases
+        : [];
+
+      const orderedReleases =
+        target
+          ? [
+              ...releases.filter((release: any) =>
+                artworkTextMatches(
+                  String(release?.title || ''),
+                  target
+                )
+              ),
+              ...releases.filter((release: any) =>
+                !artworkTextMatches(
+                  String(release?.title || ''),
+                  target
+                )
+              )
+            ]
+          : releases;
+
+      for (const release of orderedReleases) {
+        const releaseId = String(release?.id || '').trim();
+        const releaseTitle = String(release?.title || '');
+
+        if (!releaseId) continue;
+
+        // When movie/album metadata exists, do not accept an unrelated release.
+        if (
+          target &&
+          !artworkTextMatches(releaseTitle, target)
+        ) {
+          continue;
+        }
+
+        const imageUrl =
+          `https://coverartarchive.org/release/${releaseId}/front-500`;
+
+        if (await isReachableImageUrl(imageUrl)) {
+          return imageUrl;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Artwork] MusicBrainz fallback failed:', err);
+  }
+
+  return null;
+}
+
+async function findStrictExternalArtwork(params: {
+  title: string;
+  artist: string;
+  album: string;
+  movie: string;
+}): Promise<string | null> {
+  const target =
+    isMeaningfulArtworkLabel(params.movie)
+      ? params.movie.trim()
+      : isMeaningfulArtworkLabel(params.album)
+        ? params.album.trim()
+        : '';
+
+  const cacheKey =
+    normalizeArtworkMatchText(
+      [
+        params.title,
+        params.artist,
+        target
+      ].join('|')
+    );
+
+  const cached = externalArtworkCache.get(cacheKey);
+  if (
+    cached &&
+    Date.now() - cached.timestamp <
+      EXTERNAL_ARTWORK_CACHE_TTL_MS
+  ) {
+    return cached.imageUrl;
+  }
+
+  const appleArtwork =
+    await findVerifiedAppleArtwork(params);
+
+  if (appleArtwork) {
+    externalArtworkCache.set(cacheKey, {
+      imageUrl: appleArtwork,
+      timestamp: Date.now()
+    });
+    return appleArtwork;
+  }
+
+  const musicBrainzArtwork =
+    await findVerifiedMusicBrainzArtwork(params);
+
+  externalArtworkCache.set(cacheKey, {
+    imageUrl: musicBrainzArtwork,
+    timestamp: Date.now()
+  });
+
+  return musicBrainzArtwork;
+}
+
+app.get(
+  [
+    '/api/artwork/verified',
+    // Compatibility alias for APKs built before the Google fallback was
+    // replaced. It now uses the same Apple/MusicBrainz implementation.
+    '/api/artwork/google-verified'
+  ],
+  async (req, res) => {
+    const title = String(req.query.title || '').trim();
+    const artist = String(req.query.artist || '').trim();
+    const album = String(req.query.album || '').trim();
+    const movie = String(req.query.movie || '').trim();
+
+    if (!title) {
+      return res.status(404).end();
+    }
+
+    const imageUrl = await findStrictExternalArtwork({
+      title,
+      artist,
+      album,
+      movie
+    });
+
+    if (!imageUrl) {
+      // Client keeps SABDHAM's unchanged local default as the final fallback.
+      return res.status(404).end();
+    }
+
+    res.setHeader(
+      'Cache-Control',
+      'public, max-age=86400, stale-while-revalidate=604800'
+    );
+
+    return res.redirect(302, imageUrl);
+  }
+);
 
 async function fetchExternalMetadata(title: string, artist: string): Promise<{ coverUrl: string; album: string; year?: number }> {
   try {
