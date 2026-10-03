@@ -45,7 +45,9 @@ fun dailyRotatedCatalog(
         .filterTo(mutableSetOf()) { it in validIds }
 
     // Keep the same selection for the whole local day, even after recomposition,
-    // app resume, or like-state updates.
+    // app resume, or like-state updates. If the source pool grows during the
+    // same day (for example background catalogue expansion), preserve today's
+    // existing songs and only append new eligible songs until targetCount.
     if (prefs.getInt(dayKey, -1) == dayIndex) {
         val todayIds = prefs.getString(todayKey, "")
             .orEmpty()
@@ -54,8 +56,65 @@ fun dailyRotatedCatalog(
 
         if (todayIds.isNotEmpty()) {
             val byId = uniquePool.associateBy { it.id }
-            val sameDay = todayIds.mapNotNull { byId[it] }.take(desiredCount)
-            if (sameDay.isNotEmpty()) return sameDay
+            val sameDay = todayIds
+                .mapNotNull { byId[it] }
+                .distinctBy { it.id }
+                .take(desiredCount)
+
+            if (sameDay.size >= desiredCount) {
+                return sameDay
+            }
+
+            val sameDayIds = sameDay.mapTo(mutableSetOf()) { it.id }
+            val liked = uniquePool.filter {
+                it.id in likedTrackIds && it.id !in sameDayIds
+            }
+            val unliked = uniquePool.filterNot {
+                it.id in likedTrackIds || it.id in sameDayIds
+            }
+            val unseenUnliked = unliked.filterNot { it.id in seenIds }
+
+            fun shuffled(items: List<Track>, salt: Int): List<Track> {
+                val seed =
+                    (dayIndex.toLong() * 1_000_003L +
+                        catalogKey.hashCode() +
+                        salt).toInt()
+                return items.shuffled(Random(seed))
+            }
+
+            val expanded = buildList {
+                addAll(sameDay)
+
+                for (track in shuffled(liked, 31)) {
+                    if (size >= desiredCount) break
+                    add(track)
+                }
+
+                for (track in shuffled(unseenUnliked, 47)) {
+                    if (size >= desiredCount) break
+                    add(track)
+                }
+            }.distinctBy { it.id }.take(desiredCount)
+
+            val nextSeen = seenIds.toMutableSet()
+            expanded.forEach { track ->
+                if (track.id !in likedTrackIds) {
+                    nextSeen.add(track.id)
+                }
+            }
+
+            prefs.edit()
+                .putStringSet(seenKey, nextSeen)
+                .putString(
+                    todayKey,
+                    expanded.joinToString("\u001F") { it.id }
+                )
+                .putInt(dayKey, dayIndex)
+                .apply()
+
+            if (expanded.isNotEmpty()) {
+                return expanded
+            }
         }
     }
 
