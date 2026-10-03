@@ -1124,6 +1124,7 @@ if (incoming.isEmpty()) {
                     val firstTracks =
                         MusicSearchService.fetchPlaylistTracks(
                             playlistId = playlist.id,
+                            source = playlist.source,
                             maxResults = 20
                         )
 
@@ -1156,6 +1157,7 @@ if (incoming.isEmpty()) {
                                 val fullTracks =
                                     MusicSearchService.fetchPlaylistTracks(
                                         playlistId = playlist.id,
+                                        source = playlist.source,
                                         maxResults = 100
                                     )
 
@@ -1267,6 +1269,7 @@ if (incoming.isEmpty()) {
                 val tracks =
                     MusicSearchService.fetchPlaylistTracks(
                         playlistId = playlist.id,
+                        source = playlist.source,
                         maxResults = 100
                     )
 
