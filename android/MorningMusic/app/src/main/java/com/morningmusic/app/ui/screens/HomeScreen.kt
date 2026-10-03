@@ -7315,48 +7315,73 @@ private fun SabdhamHomeTopBar(
                     )
                 }
 
+                // Keep the unread badge OUTSIDE the clipped bell surface so its
+                // number is never cut off on compact phones.
                 Box(
-                    modifier = Modifier
-                        .size(bellSize)
-                        .clip(RoundedCornerShape(if (compact) 16.dp else 18.dp))
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFF083524),
-                                    Color(0xFF03110B)
-                                )
-                            )
-                        )
-                        .border(
-                            1.dp,
-                            green.copy(alpha = 0.85f),
-                            RoundedCornerShape(if (compact) 16.dp else 18.dp)
-                        )
-                        .clickable(onClick = onNotificationsClick),
+                    modifier = Modifier.size(bellSize),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.NotificationsNone,
-                        contentDescription = "Notifications",
-                        tint = Color(0xFFEFFFF6),
-                        modifier = Modifier.size(if (compact) 24.dp else 28.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clip(RoundedCornerShape(if (compact) 16.dp else 18.dp))
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        Color(0xFF083524),
+                                        Color(0xFF03110B)
+                                    )
+                                )
+                            )
+                            .border(
+                                1.dp,
+                                green.copy(alpha = 0.85f),
+                                RoundedCornerShape(if (compact) 16.dp else 18.dp)
+                            )
+                            .clickable(onClick = onNotificationsClick),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.NotificationsNone,
+                            contentDescription = "Notifications",
+                            tint = Color(0xFFEFFFF6),
+                            modifier = Modifier.size(if (compact) 24.dp else 28.dp)
+                        )
+                    }
 
                     if (unreadCount > 0) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .offset(x = 2.dp, y = (-2).dp)
-                                .size(if (compact) 19.dp else 21.dp)
+                                .offset(
+                                    x = if (compact) 5.dp else 6.dp,
+                                    y = if (compact) (-5).dp else (-6).dp
+                                )
+                                .defaultMinSize(
+                                    minWidth = if (compact) 22.dp else 24.dp,
+                                    minHeight = if (compact) 22.dp else 24.dp
+                                )
                                 .clip(CircleShape)
-                                .background(Color(0xFFFF3B3B)),
+                                .background(Color(0xFFFF3B3B))
+                                .border(
+                                    1.dp,
+                                    Color.White.copy(alpha = 0.35f),
+                                    CircleShape
+                                )
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = unreadCount.coerceAtMost(9).toString(),
+                                text =
+                                    if (unreadCount > 99) {
+                                        "99+"
+                                    } else {
+                                        unreadCount.toString()
+                                    },
                                 color = Color.White,
-                                fontSize = if (compact) 10.sp else 11.sp,
-                                fontWeight = FontWeight.ExtraBold
+                                fontSize = if (compact) 11.sp else 12.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1
                             )
                         }
                     }
@@ -7377,8 +7402,8 @@ private fun SabdhamTopBarNotificationCenter(
         listOf(
             Triple(
                 Icons.Default.NewReleases,
-                "SABDHAM 1.2.0",
-                "New search, playlists, audio output, artwork and player improvements are ready."
+                "SABDHAM 1.2.2",
+                "Notification badge numbers are now fully visible, with the latest search, playlists, audio output and player improvements."
             ),
             Triple(
                 Icons.Default.LibraryMusic,
