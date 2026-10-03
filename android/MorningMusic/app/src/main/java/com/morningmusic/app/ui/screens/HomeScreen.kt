@@ -5,6 +5,7 @@ import androidx.compose.ui.draw.blur
 import android.content.Context
 import com.morningmusic.app.data.network.CloudPlaylist
 import com.morningmusic.app.data.network.SabdhamLibraryService
+import com.morningmusic.app.data.network.MusicSearchService
 import com.morningmusic.app.data.repository.currentLocalCatalogDay
 import com.morningmusic.app.data.repository.dailyRotatedCatalog
 import kotlinx.coroutines.launch
@@ -59,6 +60,123 @@ import java.util.Locale
 import com.sabdham.music.R
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
+
+private fun isMeaningfulArtworkLabel(value: String): Boolean {
+    val normalized =
+        value.trim()
+            .lowercase()
+            .replace(Regex("[^a-z0-9\\u0B80-\\u0BFF\\u0D80-\\u0DFF]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    if (normalized.length < 3) return false
+
+    return normalized !in setOf(
+        "single",
+        "youtube audio",
+        "unknown",
+        "unknown album",
+        "featured hits",
+        "music"
+    )
+}
+
+private fun buildGoogleArtworkFallbackUrl(track: Track): String? {
+    if (
+        !isMeaningfulArtworkLabel(track.movie) &&
+        !isMeaningfulArtworkLabel(track.album)
+    ) {
+        return null
+    }
+
+    return android.net.Uri
+        .parse(
+            MusicSearchService.activeBackendUrl.trimEnd('/') +
+                "/api/artwork/google-verified"
+        )
+        .buildUpon()
+        .appendQueryParameter("title", track.title)
+        .appendQueryParameter("artist", track.artist)
+        .appendQueryParameter("album", track.album)
+        .appendQueryParameter("movie", track.movie)
+        .build()
+        .toString()
+}
+
+private fun usableExistingArtwork(track: Track): String? {
+    val cover = track.coverUrl.trim()
+
+    if (cover.isBlank()) return null
+    if (cover.startsWith("data:image/", ignoreCase = true)) return null
+    if (cover.contains("ytimg.com", ignoreCase = true)) return null
+    if (cover.contains("youtube.com", ignoreCase = true)) return null
+
+    return cover
+        .takeIf {
+            it.startsWith("http://", ignoreCase = true) ||
+                it.startsWith("https://", ignoreCase = true)
+        }
+}
+
+@Composable
+private fun rememberSabdhamArtworkModel(track: Track): Any? {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val primary =
+        remember(track.id, track.coverUrl) {
+            usableExistingArtwork(track)
+        }
+
+    val googleFallback =
+        remember(
+            track.id,
+            track.title,
+            track.artist,
+            track.album,
+            track.movie
+        ) {
+            buildGoogleArtworkFallbackUrl(track)
+        }
+
+    var useGoogleFallback by remember(
+        track.id,
+        primary,
+        googleFallback
+    ) {
+        mutableStateOf(primary == null && googleFallback != null)
+    }
+
+    val selectedUrl =
+        if (useGoogleFallback) {
+            googleFallback
+        } else {
+            primary
+        }
+
+    if (selectedUrl == null) {
+        return null
+    }
+
+    return remember(
+        selectedUrl,
+        googleFallback,
+        useGoogleFallback
+    ) {
+        coil.request.ImageRequest.Builder(context)
+            .data(selectedUrl)
+            .listener(
+                onError = { _, _ ->
+                    if (
+                        !useGoogleFallback &&
+                        googleFallback != null
+                    ) {
+                        useGoogleFallback = true
+                    }
+                }
+            )
+            .build()
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -806,7 +924,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 AsyncImage(
-                                    model = track.coverUrl.takeIf { it.isNotBlank() },
+                                    model = rememberSabdhamArtworkModel(track),
                                     placeholder = painterResource(R.drawable.sabdham_default_song),
                                     error = painterResource(R.drawable.sabdham_default_song),
                                     fallback = painterResource(R.drawable.sabdham_default_song),
@@ -1822,7 +1940,7 @@ fun HorizontalTrackGrid(
                 ) {
 
                     AsyncImage(
-                        model = track.coverUrl.takeIf { it.isNotBlank() },
+                        model = rememberSabdhamArtworkModel(track),
                         contentDescription = track.title,
                         contentScale = ContentScale.FillBounds,
                         placeholder = androidx.compose.ui.res.painterResource(
@@ -1912,7 +2030,7 @@ fun HorizontalTrackGrid(
                                     .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 AsyncImage(
-                                    model = track.coverUrl.takeIf { it.isNotBlank() },
+                                    model = rememberSabdhamArtworkModel(track),
                                     contentDescription = null,
                                     contentScale = ContentScale.FillBounds,
                                     placeholder = androidx.compose.ui.res.painterResource(R.drawable.sabdham_logo),
@@ -2249,7 +2367,7 @@ fun TrackListItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = track.coverUrl.takeIf { it.isNotBlank() },
+            model = rememberSabdhamArtworkModel(track),
                     error = painterResource(R.drawable.sabdham_default_song),
                     fallback = painterResource(R.drawable.sabdham_default_song),
             contentDescription = track.title,
@@ -2379,7 +2497,7 @@ fun NativeMiniPlayer(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AsyncImage(
-                    model = track.coverUrl.takeIf { it.isNotBlank() },
+                    model = rememberSabdhamArtworkModel(track),
                     error = painterResource(R.drawable.sabdham_default_song),
                     fallback = painterResource(R.drawable.sabdham_default_song),
                     contentDescription = track.title,
@@ -2698,7 +2816,7 @@ fun FullPlayerSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             AsyncImage(
-                                model = track.coverUrl.takeIf { it.isNotBlank() },
+                                model = rememberSabdhamArtworkModel(track),
                     error = painterResource(R.drawable.sabdham_default_song),
                     fallback = painterResource(R.drawable.sabdham_default_song),
                                 contentDescription = track.title,
@@ -2770,7 +2888,7 @@ fun FullPlayerSheet(
                             .background(Color(0xFF242424))
                     ) {
                         AsyncImage(
-                            model = track.coverUrl.takeIf { it.isNotBlank() },
+                            model = rememberSabdhamArtworkModel(track),
                     error = painterResource(R.drawable.sabdham_default_song),
                     fallback = painterResource(R.drawable.sabdham_default_song),
                             contentDescription = track.title,
