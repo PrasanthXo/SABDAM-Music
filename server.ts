@@ -4572,6 +4572,71 @@ async function resolveFromAudius(
 }
 
 // Search and extract live YouTube videos using structured ytInitialData parser
+function extractYouTubeInitialData(html: string): any | null {
+  const markers = [
+    'var ytInitialData =',
+    'ytInitialData =',
+    'window["ytInitialData"] =',
+    "window['ytInitialData'] =",
+    '"ytInitialData":'
+  ];
+
+  const extractBalancedObject = (start: number): string | null => {
+    const open = html.indexOf('{', start);
+    if (open < 0) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = open; i < html.length; i++) {
+      const ch = html[i];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === '\\') {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === '{') depth++;
+      if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          return html.slice(open, i + 1);
+        }
+      }
+    }
+
+    return null;
+  };
+
+  for (const marker of markers) {
+    const markerIndex = html.indexOf(marker);
+    if (markerIndex < 0) continue;
+
+    const raw = extractBalancedObject(markerIndex + marker.length);
+    if (!raw) continue;
+
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // Try the next known YouTube bootstrap shape.
+    }
+  }
+
+  return null;
+}
+
 async function scrapeYouTubeVideos(query: string, limit: number = 15): Promise<any[]> {
   try {
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
@@ -4586,10 +4651,8 @@ async function scrapeYouTubeVideos(query: string, limit: number = 15): Promise<a
 
     if (!res.ok) return [];
     const html = await res.text();
-    const jsonMatch = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
-    if (!jsonMatch) return [];
-
-    const data = JSON.parse(jsonMatch[1]);
+    const data = extractYouTubeInitialData(html);
+    if (!data) return [];
     const contents = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents;
     const tracks: any[] = [];
 
@@ -4674,8 +4737,10 @@ async function scrapeYouTubePlaylists(
   limit: number = 12
 ): Promise<any[]> {
   try {
+    // Force YouTube's PLAYLIST result filter. Searching only for the word
+    // "playlist" can still return mostly videos and caused zero playlist cards.
     const searchUrl =
-      `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+      `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAw%3D%3D`;
 
     const res = await fetch(searchUrl, {
       headers: {
@@ -4749,6 +4814,69 @@ async function scrapeYouTubePlaylists(
             id,
             title: decodeHtmlEntities(title),
             owner: decodeHtmlEntities(owner),
+            itemCount,
+            source: 'youtube'
+          });
+        }
+      }
+
+      // Newer YouTube search pages increasingly render playlists as
+      // lockupViewModel instead of playlistRenderer.
+      const lockup = node.lockupViewModel;
+      if (lockup) {
+        const contentType =
+          String(lockup.contentType || '').toUpperCase();
+        const id =
+          String(
+            lockup.contentId ||
+            lockup.playlistId ||
+            ''
+          ).trim();
+
+        const metadata =
+          lockup.metadata?.lockupMetadataViewModel || {};
+
+        const title =
+          String(
+            metadata.title?.content ||
+            lockup.title?.content ||
+            ''
+          ).trim();
+
+        const metadataText =
+          JSON.stringify(metadata);
+
+        const countMatch =
+          metadataText
+            .replace(/\\u0026/g, '&')
+            .match(/(\\d[\\d,]*)\\s+(?:videos?|songs?)/i);
+
+        const itemCount =
+          countMatch
+            ? Math.max(
+                parseInt(
+                  countMatch[1].replace(/,/g, ''),
+                  10
+                ) || 0,
+                0
+              )
+            : 0;
+
+        const looksLikePlaylist =
+          contentType.includes('PLAYLIST') ||
+          /^(PL|OLAK5uy_|RD|UU|FL)[A-Za-z0-9_-]+$/.test(id);
+
+        if (
+          looksLikePlaylist &&
+          id &&
+          title &&
+          !seen.has(id)
+        ) {
+          seen.add(id);
+          results.push({
+            id,
+            title: decodeHtmlEntities(title),
+            owner: 'YouTube',
             itemCount,
             source: 'youtube'
           });
@@ -5967,7 +6095,14 @@ app.get('/api/youtube/search-playlists', async (req, res) => {
     // even when YouTube Data API search is unavailable.
     if (playlists.length === 0) {
       playlists = await scrapeYouTubePlaylists(
-        `${query} music playlist`,
+        `${query} music`,
+        maxResults
+      );
+    }
+
+    if (playlists.length === 0) {
+      playlists = await scrapeYouTubePlaylists(
+        query,
         maxResults
       );
     }
@@ -6015,13 +6150,21 @@ app.get('/api/youtube/search-playlists', async (req, res) => {
           20
         );
 
-      const playlists =
+      let playlists =
         query
           ? await scrapeYouTubePlaylists(
-        `${query} music playlist`,
-        maxResults
-      )
+              `${query} music`,
+              maxResults
+            )
           : [];
+
+      if (query && playlists.length === 0) {
+        playlists =
+          await scrapeYouTubePlaylists(
+            query,
+            maxResults
+          );
+      }
 
       return res.json({ playlists });
     } catch {
