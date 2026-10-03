@@ -1904,9 +1904,16 @@ if (incoming.isEmpty()) {
                                     it.add(selectedPlayable.first.id)
                                 }
 
+                        val attemptedIds =
+                            catalogQueue
+                                .mapTo(mutableSetOf()) { it.id }
+
                         _queue.value =
                             latestQueue
-                                .filter { it.id in playableIds }
+                                .filter { queuedTrack ->
+                                    queuedTrack.id !in attemptedIds ||
+                                        queuedTrack.id in playableIds
+                                }
                                 .map { queuedTrack ->
                                     if (
                                         queuedTrack.id ==
@@ -1920,9 +1927,15 @@ if (incoming.isEmpty()) {
                                     }
                                 }
                     } else {
+                        val attemptedIds =
+                            catalogQueue
+                                .mapTo(mutableSetOf()) { it.id }
+
                         _queue.value =
-                            _queue.value.filter {
-                                it.id == selectedPlayable.first.id
+                            _queue.value.filter { queuedTrack ->
+                                queuedTrack.id !in attemptedIds ||
+                                    queuedTrack.id ==
+                                        selectedPlayable.first.id
                             }
                     }
                 }
