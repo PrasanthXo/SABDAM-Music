@@ -633,8 +633,13 @@ export const SettingsView: React.FC<{
           </span>
         </div>
 
-        <div className="text-xs text-zinc-500 pt-1">
-          SABDHAM is an independent music discovery, playback, playlist and library app. Third-party music, artwork, metadata and trademarks remain with their respective rights holders.
+        <div className="text-xs text-zinc-400 pt-1 space-y-2">
+          <p>
+            SABDHAM is an independent music discovery, playback, playlist and library app. Version 1.2.0 adds personalized and larger catalogues, Songs/Playlists search, public playlist discovery, queue reordering, stronger playback fallbacks, native volume/audio-output routing, verified artwork matching and improved small-screen layouts.
+          </p>
+          <p className="text-zinc-500">
+            Metadata and artwork may use Apple/iTunes, MusicBrainz, Cover Art Archive, Last.fm and TMDB. Public playlist and playback features may use Spotify, YouTube and Audius depending on availability. Third-party rights remain with their respective owners.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/5">
