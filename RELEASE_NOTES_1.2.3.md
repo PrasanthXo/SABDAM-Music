@@ -27,6 +27,13 @@ Release date: 3 October 2026
 - Playlist search has a second raw-query fallback and longer Android network timeouts for Render wakeups.
 - Spotify and YouTube playlist providers remain merged when available.
 
+## Playlist click fixes
+
+- Playlist card click targets are separated from the three-dot menu so opening the menu cannot accidentally open the playlist.
+- YouTube and Spotify playlist actions now use provider+ID keys to avoid click-state collisions.
+- Spotify Add to Library now uses the Spotify importer instead of the YouTube importer.
+- Playlist Add to Queue remains available from the three-dot menu.
+
 ## Version
 
 - Android versionName: 1.2.3
