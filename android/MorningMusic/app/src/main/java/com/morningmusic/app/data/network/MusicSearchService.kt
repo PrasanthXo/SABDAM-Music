@@ -1130,13 +1130,26 @@ object MusicSearchService {
                         continue
                     }
 
-                    val youtubeVideoId =
+                    val rawYoutubeVideoId =
                         item.optString(
                             "youtubeVideoId",
                             item.optString(
                                 "audio_source_id"
                             )
                         ).trim()
+
+                    val youtubeVideoId =
+                        when {
+                            rawYoutubeVideoId.isNotBlank() ->
+                                rawYoutubeVideoId
+
+                            Regex("^[A-Za-z0-9_-]{11}$")
+                                .matches(id) ->
+                                id
+
+                            else ->
+                                ""
+                        }
 
                     tracks +=
                         Track(
