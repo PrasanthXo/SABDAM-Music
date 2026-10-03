@@ -634,6 +634,8 @@ if (incoming.isEmpty()) {
 
     private var lastSearchJob: Job? = null
     private var searchPlaylistOpenJob: Job? = null
+    private val searchPlaylistOpenGeneration =
+        java.util.concurrent.atomic.AtomicLong(0L)
     private var playbackJob: Job? = null
     private val playbackRequestGeneration = java.util.concurrent.atomic.AtomicLong(0L)
     private var searchQueueMode = false
@@ -918,6 +920,7 @@ if (incoming.isEmpty()) {
 
         // A playlist selected from an older query must not keep the new
         // playlist results disabled or start playback later.
+        searchPlaylistOpenGeneration.incrementAndGet()
         searchPlaylistOpenJob?.cancel()
         searchPlaylistOpenJob = null
         _loadingSearchPlaylistId.value = null
@@ -1045,6 +1048,8 @@ if (incoming.isEmpty()) {
             playbackRequestGeneration.get()
         val searchQueryAtOpen =
             normalizeSearchText(_searchQuery.value)
+        val playlistOpenRequestId =
+            searchPlaylistOpenGeneration.incrementAndGet()
 
         searchPlaylistOpenJob =
             viewModelScope.launch {
@@ -1064,6 +1069,8 @@ if (incoming.isEmpty()) {
                 // Do not let a slow playlist request interrupt a newer song,
                 // playlist, or search action.
                 if (
+                    searchPlaylistOpenGeneration.get() !=
+                        playlistOpenRequestId ||
                     playbackRequestGeneration.get() !=
                         playbackGenerationAtOpen ||
                     normalizeSearchText(_searchQuery.value) !=
@@ -1073,6 +1080,8 @@ if (incoming.isEmpty()) {
                 }
 
                 playPlaylist(tracks)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.w(
                     "SABDHAM_PLAYLIST_SEARCH",
@@ -1084,16 +1093,16 @@ if (incoming.isEmpty()) {
                     "Unable to load this playlist"
             } finally {
                 if (
-                    _loadingSearchPlaylistId.value ==
-                        playlist.id
+                    searchPlaylistOpenGeneration.get() ==
+                        playlistOpenRequestId
                 ) {
-                    _loadingSearchPlaylistId.value = null
-                }
+                    if (
+                        _loadingSearchPlaylistId.value ==
+                            playlist.id
+                    ) {
+                        _loadingSearchPlaylistId.value = null
+                    }
 
-                if (
-                    searchPlaylistOpenJob ===
-                        kotlinx.coroutines.currentCoroutineContext()[Job]
-                ) {
                     searchPlaylistOpenJob = null
                 }
             }
