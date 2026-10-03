@@ -2907,11 +2907,32 @@ async function findVerifiedAppleArtwork(params: {
 }
 
 
+function artworkLanguageToIso6391(language: string): string {
+  const normalized = normalizeArtworkMatchText(language);
+
+  const map: Record<string, string> = {
+    tamil: 'ta',
+    english: 'en',
+    sinhala: 'si',
+    sinhalese: 'si',
+    hindi: 'hi',
+    telugu: 'te',
+    malayalam: 'ml',
+    kannada: 'kn',
+    bengali: 'bn',
+    punjabi: 'pa'
+  };
+
+  return map[normalized] || '';
+}
+
 async function findVerifiedTmdbArtwork(params: {
   title: string;
   artist: string;
   album: string;
   movie: string;
+  language?: string;
+  year?: number;
 }): Promise<string | null> {
   const movie = params.movie.trim();
 
@@ -2966,8 +2987,14 @@ async function findVerifiedTmdbArtwork(params: {
 
     const data = (await response.json()) as any;
     const wantedMovie = normalizeArtworkMatchText(movie);
+    const wantedLanguage =
+      artworkLanguageToIso6391(params.language || '');
+    const wantedYear =
+      Number.isFinite(Number(params.year))
+        ? Number(params.year)
+        : 0;
 
-    const candidates =
+    const exactTitleCandidates =
       (data.results || [])
         .filter((item: any) => {
           const title =
@@ -2984,14 +3011,50 @@ async function findVerifiedTmdbArtwork(params: {
         })
         .filter((item: any) =>
           String(item?.poster_path || '').startsWith('/')
-        )
-        .sort(
-          (a: any, b: any) =>
-            Number(b?.vote_count || 0) -
-              Number(a?.vote_count || 0) ||
-            Number(b?.popularity || 0) -
-              Number(a?.popularity || 0)
         );
+
+    // Same-title films are common. If TMDB has an exact-title candidate in
+    // the requested song language, restrict to that language. This prevents
+    // Tamil "Beast" from selecting the unrelated English "Beast".
+    const languageMatched =
+      wantedLanguage
+        ? exactTitleCandidates.filter(
+            (item: any) =>
+              String(item?.original_language || '')
+                .toLowerCase() === wantedLanguage
+          )
+        : [];
+
+    const candidatePool =
+      languageMatched.length > 0
+        ? languageMatched
+        : exactTitleCandidates;
+
+    const candidates =
+      candidatePool.sort((a: any, b: any) => {
+        const yearScore = (item: any) => {
+          if (!wantedYear) return 0;
+
+          const releaseYear =
+            parseInt(
+              String(item?.release_date || '').slice(0, 4),
+              10
+            );
+
+          if (!Number.isFinite(releaseYear)) return 0;
+          if (releaseYear === wantedYear) return 3;
+          if (Math.abs(releaseYear - wantedYear) === 1) return 1;
+          return 0;
+        };
+
+        return (
+          yearScore(b) - yearScore(a) ||
+          Number(b?.vote_count || 0) -
+            Number(a?.vote_count || 0) ||
+          Number(b?.popularity || 0) -
+            Number(a?.popularity || 0)
+        );
+      });
 
     for (const item of candidates) {
       const posterPath =
@@ -3375,6 +3438,8 @@ async function findStrictExternalArtwork(params: {
   artist: string;
   album: string;
   movie: string;
+  language?: string;
+  year?: number;
 }): Promise<string | null> {
   const target =
     isMeaningfulArtworkLabel(params.movie)
@@ -3388,7 +3453,9 @@ async function findStrictExternalArtwork(params: {
       [
         params.title,
         params.artist,
-        target
+        target,
+        params.language || '',
+        String(params.year || '')
       ].join('|')
     );
 
@@ -3470,6 +3537,9 @@ app.get(
     const artist = String(req.query.artist || '').trim();
     const album = String(req.query.album || '').trim();
     const movie = String(req.query.movie || '').trim();
+    const language = String(req.query.language || '').trim();
+    const year =
+      parseInt(String(req.query.year || '0'), 10) || 0;
 
     if (!title) {
       return res.status(404).end();
@@ -3479,7 +3549,9 @@ app.get(
       title,
       artist,
       album,
-      movie
+      movie,
+      language,
+      year
     });
 
     if (!imageUrl) {
