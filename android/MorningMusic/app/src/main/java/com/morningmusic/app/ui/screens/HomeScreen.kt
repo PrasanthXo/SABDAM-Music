@@ -7398,8 +7398,8 @@ private fun SabdhamTopBarNotificationCenter(
         listOf(
             Triple(
                 Icons.Default.NewReleases,
-                "SABDHAM 1.2.3",
-                "A cleaner, more compact Home top bar is now available with improved spacing and notification visibility."
+                "SABDHAM 1.2.4",
+                "Optional visual update: richer Home top bar background and a slightly larger SABDHAM logo. No forced update."
             ),
             Triple(
                 Icons.Default.LibraryMusic,

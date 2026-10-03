@@ -75,6 +75,10 @@ fun SabdhamUpdateGate() {
     val isRequired =
         info.forceUpdate || currentVersionCode < info.minimumVersionCode
 
+    // Optional updates are announced inside the SABDHAM notification bell.
+    // Keep this dialog only for genuinely required updates.
+    if (!isRequired) return
+
     BackHandler(enabled = isRequired) {
         // Required updates cannot be dismissed with the Android back button.
     }
@@ -87,11 +91,7 @@ fun SabdhamUpdateGate() {
         },
         title = {
             Text(
-                text = if (isRequired) {
-                    "Update required"
-                } else {
-                    "Update available"
-                },
+                text = "Update required",
                 fontWeight = FontWeight.Bold
             )
         },
@@ -141,17 +141,7 @@ fun SabdhamUpdateGate() {
                 Text("Download update")
             }
         },
-        dismissButton = {
-            if (!isRequired) {
-                TextButton(
-                    onClick = {
-                        dismissedOptionalUpdate = true
-                    }
-                ) {
-                    Text("Later")
-                }
-            }
-        }
+        dismissButton = {}
     )
 }
 
