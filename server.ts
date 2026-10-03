@@ -1,3 +1,4 @@
+import appUpdateRelease from './app-update-release.json';
 import { createHash, randomBytes } from 'crypto';
 import express from 'express';
 import https from 'https';
@@ -125,64 +126,25 @@ async function robustFetchJson(url: string, options: any = {}) {
 // ==========================================
 // SABDHAM ANDROID APP UPDATE CONTROL
 // ==========================================
+// Production release state is committed in app-update-release.json.
+// Render auto-deploys main, so publishing a release only requires updating
+// that manifest together with the signed APK. Stale Render version env vars
+// no longer override the release version/minimum/force-update state.
 app.get('/api/app/update', (_req, res) => {
-  const latestVersionCode =
-    Number(process.env.ANDROID_LATEST_VERSION_CODE || '10');
-
-  const minimumVersionCode =
-    Number(process.env.ANDROID_MINIMUM_VERSION_CODE || '9');
-
-  const latestVersionName =
-    process.env.ANDROID_LATEST_VERSION_NAME || '1.2.4';
+  const latestVersionCode = Number(appUpdateRelease.latestVersionCode);
+  const minimumVersionCode = Number(appUpdateRelease.minimumVersionCode);
+  const latestVersionName = String(appUpdateRelease.latestVersionName || '');
+  const forceUpdate = appUpdateRelease.forceUpdate === true;
 
   const downloadUrl =
-    process.env.ANDROID_DOWNLOAD_URL || 'https://raw.githubusercontent.com/PrasanthXo/SABDAM-Music/main/public/downloads/SABDHAM-signed.apk';
+    process.env.ANDROID_DOWNLOAD_URL ||
+    String(appUpdateRelease.downloadUrl || '');
 
-  const forceUpdate =
-    String(process.env.ANDROID_FORCE_UPDATE || 'false')
-      .trim()
-      .toLowerCase() === 'true';
+  const releaseNotes = Array.isArray(appUpdateRelease.releaseNotes)
+    ? appUpdateRelease.releaseNotes.map((note) => String(note))
+    : [];
 
-  const releaseNotes = [
-    'Richer dark-green Home top bar background with soft depth and glow.',
-    'Slightly larger SABDHAM logo for better visibility.',
-    'This release is optional and is not a forced update.',
-    'Cleaner compact Home top bar with improved spacing and less visual clutter.',
-    'Search-result playback now queues related songs by matching language and genre while excluding repeated titles.',
-    'Playlist search zero-result cases fixed with stronger public YouTube playlist discovery.',
-    'Playlist card tap, three-dot menu, Add to Queue and provider-specific actions are now separated and more reliable.',
-    'Notification unread-count badge now stays fully visible on the Home toolbar, including compact phones.',
-    'Notification badge number is larger, higher-contrast and supports multi-digit unread counts.',
-    'Required update system added so future outdated SABDHAM versions can be blocked until updated.',
-    'New modern SABDHAM Home top bar with greeting, profile name, notifications and MUSIC FOR EVERY MOOD branding.',
-    'Smarter personalized Home catalogues based on listening interests.',
-    'Larger Home catalogues with up to 50 unique songs and stronger empty-section backfill.',
-    'Daily catalogue rotation improvements with better duplicate protection.',
-    'Persistent full-player volume control wired to native Media3 playback.',
-    'Native Audio Output routing for phone, Bluetooth and supported multi-device routes.',
-    'Audio Output control moved beside the volume panel with mobile safe-area protection.',
-    'Queue drag-and-drop reordering with native playback queue synchronization.',
-    'Add to Queue now preserves manually added songs during background prefetch.',
-    'Search now separates Songs and Playlists and opens playlist details before playback.',
-    'Playlist Play All, fast first-page loading and background expansion up to full playlists.',
-    'Playlist three-dot actions for Add to Library and Add to Queue.',
-    'Public YouTube playlist discovery with caching, stale-search cancellation and fallback handling.',
-    'Public Spotify playlist search merged into Android search with provider labels.',
-    'Spotify and YouTube playlist loading now respects each provider source.',
-    'Cleaner song search titles with video-style labels removed.',
-    'Music-only search relevance filters news, reviews, explanations, trailers, podcasts and other non-music videos.',
-    'Improved Tamil and Sinhala search matching with Unicode preserved.',
-    'Faster and more reliable search playback with dead-audio validation and fallback checks.',
-    'YouTube playback fallback improved, with Audius available only as a final playback fallback.',
-    'Verified artwork matching improved using Apple/MusicBrainz plus TMDB and Last.fm fallbacks.',
-    'Movie artwork matching now uses language/year disambiguation and ignores generic labels.',
-    'Artwork provider credits added to About SABDHAM.',
-    'Bottom navigation and full-player controls protected from overlap on smaller and gesture-navigation phones.'
-  ];
-
-  const message =
-    process.env.ANDROID_UPDATE_MESSAGE ||
-    'SABDHAM 1.2.4 is available with a richer Home top bar background and a slightly larger logo. This update is optional.';
+  const message = String(appUpdateRelease.message || '');
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
