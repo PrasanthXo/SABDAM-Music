@@ -79,6 +79,12 @@ private fun isMeaningfulArtworkLabel(value: String): Boolean {
     return normalized !in setOf(
         "single",
         "youtube audio",
+        "youtube singles",
+        "youtube playlist",
+        "playlist",
+        "trending release",
+        "popular hits",
+        "imported",
         "unknown",
         "unknown album",
         "featured hits",
