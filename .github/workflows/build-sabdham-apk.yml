@@ -31,6 +31,16 @@ jobs:
         with:
           gradle-version: "8.14.3"
 
+      - name: Restore Firebase config
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "Missing GitHub Actions secret: GOOGLE_SERVICES_JSON_B64"
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
