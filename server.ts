@@ -2280,11 +2280,24 @@ async function searchPublicSpotifyPlaylists(
   }
 
   try {
-    const boundedLimit = Math.min(Math.max(limit, 1), 20);
+    // Spotify's current Search API allows at most 10 items per type.
+    // A client-credentials token has no user country, so provide a market
+    // explicitly; otherwise catalog availability can be empty.
+    const boundedLimit = Math.min(Math.max(limit, 1), 10);
+    const configuredMarket =
+      String(process.env.SPOTIFY_MARKET || 'LK')
+        .trim()
+        .toUpperCase();
+    const market =
+      /^[A-Z]{2}$/.test(configuredMarket)
+        ? configuredMarket
+        : 'LK';
+
     const searchUrl =
       'https://api.spotify.com/v1/search' +
       '?q=' + encodeURIComponent(cleanQuery) +
       '&type=playlist' +
+      '&market=' + encodeURIComponent(market) +
       '&limit=' + boundedLimit;
 
     const response = await fetch(searchUrl, {
@@ -5197,13 +5210,13 @@ app.get('/api/youtube/search', async (req, res) => {
               .map((token) => token.trim())
               .filter((token) => token.length >= 3);
 
-            const songArtistText =
-              `${item.song || ''} ${item.primary_artists || ''} ${item.singers || ''}`
-                .toLowerCase();
-
+            // Match against real music metadata, including the provider's
+            // language field. This is important for broad searches such as
+            // "tamil" or "sinhala", where the language normally is not part
+            // of the song title or artist name.
             return (
               queryTokens.length === 0 ||
-              queryTokens.every((token) => songArtistText.includes(token))
+              queryTokens.every((token) => candidateText.includes(token))
             );
           })
           .map((item: any) => {
@@ -5276,8 +5289,28 @@ app.get('/api/youtube/search', async (req, res) => {
       );
     }
 
-    // Use clean search terms without arbitrary replacements
+    // Use clean search terms without arbitrary replacements. For a broad
+    // language-only query, explicitly ask the fallback provider for music so
+    // generic news/review/documentary videos do not dominate the results.
     let searchTerms = query;
+    const broadLanguageQuery =
+      query.toLowerCase().replace(/\s+/g, ' ').trim();
+
+    if (
+      [
+        'tamil',
+        'sinhala',
+        'sinhalese',
+        'english',
+        'hindi',
+        'telugu',
+        'malayalam',
+        'kannada'
+      ].includes(broadLanguageQuery)
+    ) {
+      searchTerms = `${query} hit songs music`;
+    }
+
     if (language === 'tamil' && !query.toLowerCase().includes('tamil')) {
       searchTerms += ' tamil song';
     } else if (language === 'sinhala' && !query.toLowerCase().includes('sinhala')) {
@@ -5290,6 +5323,8 @@ app.get('/api/youtube/search', async (req, res) => {
         const searchUrl = youtubeConfig.buildApiUrl('search', {
           part: 'snippet',
           type: 'video',
+          videoCategoryId: '10',
+          safeSearch: 'moderate',
           q: searchTerms,
           maxResults: maxResults,
         });
@@ -5387,9 +5422,31 @@ app.get('/api/youtube/search', async (req, res) => {
                   'full video',
                   '4k',
                   'remix',
-                  'cover song'
+                  'cover song',
+                  'live news',
+                  'breaking news',
+                  'news today',
+                  'review',
+                  'movie explanation',
+                  'movie explained',
+                  'explanation',
+                  'explained',
+                  'recap',
+                  'podcast',
+                  'speech',
+                  'debate',
+                  'tutorial',
+                  'episode',
+                  'press meet',
+                  'press conference',
+                  'movie scene',
+                  'comedy scene',
+                  'vlog'
                 ];
-                return !badTerms.some((term) => text.includes(term));
+                return (
+                  isSingleSong(String(track?.title || ''), Number(track?.duration || 0)) &&
+                  !badTerms.some((term) => text.includes(term))
+                );
               });
 
             return res.json({ tracks });
@@ -5424,10 +5481,32 @@ app.get('/api/youtube/search', async (req, res) => {
           'full video',
           '4k',
           'remix',
-          'cover song'
+          'cover song',
+          'live news',
+          'breaking news',
+          'news today',
+          'review',
+          'movie explanation',
+          'movie explained',
+          'explanation',
+          'explained',
+          'recap',
+          'podcast',
+          'speech',
+          'debate',
+          'tutorial',
+          'episode',
+          'press meet',
+          'press conference',
+          'movie scene',
+          'comedy scene',
+          'vlog'
         ];
 
-        return !badTerms.some((term) => text.includes(term));
+        return (
+          isSingleSong(String(track?.title || ''), Number(track?.duration || 0)) &&
+          !badTerms.some((term) => text.includes(term))
+        );
       });
 
       if (cleanScrapedTracks.length > 0) {
@@ -5857,7 +5936,7 @@ app.get('/api/youtube/search-playlists', async (req, res) => {
     // even when YouTube Data API search is unavailable.
     if (playlists.length === 0) {
       playlists = await scrapeYouTubePlaylists(
-        query,
+        `${query} music playlist`,
         maxResults
       );
     }
@@ -5907,7 +5986,10 @@ app.get('/api/youtube/search-playlists', async (req, res) => {
 
       const playlists =
         query
-          ? await scrapeYouTubePlaylists(query, maxResults)
+          ? await scrapeYouTubePlaylists(
+        `${query} music playlist`,
+        maxResults
+      )
           : [];
 
       return res.json({ playlists });
