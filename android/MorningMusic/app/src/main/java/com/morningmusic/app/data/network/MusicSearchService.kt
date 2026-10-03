@@ -659,8 +659,9 @@ object MusicSearchService {
                     URL(urlString).openConnection() as HttpURLConnection
 
                 connection.requestMethod = "GET"
-                connection.connectTimeout = 8000
-                connection.readTimeout = 12000
+                connection.connectTimeout = 10000
+                connection.readTimeout =
+                    if (maxResults > 20) 30000 else 15000
                 connection.setRequestProperty(
                     "Accept",
                     "application/json"
