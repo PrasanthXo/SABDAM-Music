@@ -634,6 +634,7 @@ if (incoming.isEmpty()) {
 
     private var lastSearchJob: Job? = null
     private var searchPlaylistOpenJob: Job? = null
+    private var searchPlaylistExpansionJob: Job? = null
     private val searchPlaylistOpenGeneration =
         java.util.concurrent.atomic.AtomicLong(0L)
     private var playbackJob: Job? = null
@@ -923,6 +924,8 @@ if (incoming.isEmpty()) {
         searchPlaylistOpenGeneration.incrementAndGet()
         searchPlaylistOpenJob?.cancel()
         searchPlaylistOpenJob = null
+        searchPlaylistExpansionJob?.cancel()
+        searchPlaylistExpansionJob = null
         _loadingSearchPlaylistId.value = null
 
         if (trimmed.isEmpty()) {
@@ -1044,6 +1047,9 @@ if (incoming.isEmpty()) {
         _loadingSearchPlaylistId.value = playlist.id
         _searchPlaylistMessage.value = null
 
+        searchPlaylistExpansionJob?.cancel()
+        searchPlaylistExpansionJob = null
+
         val playbackGenerationAtOpen =
             playbackRequestGeneration.get()
         val searchQueryAtOpen =
@@ -1053,60 +1059,100 @@ if (incoming.isEmpty()) {
 
         searchPlaylistOpenJob =
             viewModelScope.launch {
-            try {
-                val tracks =
-                    MusicSearchService.fetchPlaylistTracks(
-                        playlistId = playlist.id,
-                        maxResults = 100
-                    )
+                try {
+                    // Start playback from the first page instead of waiting
+                    // for all 100 playlist items to download.
+                    val firstTracks =
+                        MusicSearchService.fetchPlaylistTracks(
+                            playlistId = playlist.id,
+                            maxResults = 20
+                        )
 
-                if (tracks.isEmpty()) {
-                    _searchPlaylistMessage.value =
-                        "No playable songs found in this playlist"
-                    return@launch
-                }
-
-                // Do not let a slow playlist request interrupt a newer song,
-                // playlist, or search action.
-                if (
-                    searchPlaylistOpenGeneration.get() !=
-                        playlistOpenRequestId ||
-                    playbackRequestGeneration.get() !=
-                        playbackGenerationAtOpen ||
-                    normalizeSearchText(_searchQuery.value) !=
-                        searchQueryAtOpen
-                ) {
-                    return@launch
-                }
-
-                playPlaylist(tracks)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                android.util.Log.w(
-                    "SABDHAM_PLAYLIST_SEARCH",
-                    "Unable to open playlist " + playlist.id,
-                    e
-                )
-
-                _searchPlaylistMessage.value =
-                    "Unable to load this playlist"
-            } finally {
-                if (
-                    searchPlaylistOpenGeneration.get() ==
-                        playlistOpenRequestId
-                ) {
-                    if (
-                        _loadingSearchPlaylistId.value ==
-                            playlist.id
-                    ) {
-                        _loadingSearchPlaylistId.value = null
+                    if (firstTracks.isEmpty()) {
+                        _searchPlaylistMessage.value =
+                            "No playable songs found in this playlist"
+                        return@launch
                     }
 
-                    searchPlaylistOpenJob = null
+                    if (
+                        searchPlaylistOpenGeneration.get() !=
+                            playlistOpenRequestId ||
+                        playbackRequestGeneration.get() !=
+                            playbackGenerationAtOpen ||
+                        normalizeSearchText(_searchQuery.value) !=
+                            searchQueryAtOpen
+                    ) {
+                        return@launch
+                    }
+
+                    playPlaylist(firstTracks)
+
+                    val activePlaybackGeneration =
+                        playbackRequestGeneration.get()
+
+                    // Load the rest after playback has already started.
+                    searchPlaylistExpansionJob =
+                        viewModelScope.launch {
+                            try {
+                                val fullTracks =
+                                    MusicSearchService.fetchPlaylistTracks(
+                                        playlistId = playlist.id,
+                                        maxResults = 100
+                                    )
+
+                                if (
+                                    playbackRequestGeneration.get() ==
+                                        activePlaybackGeneration &&
+                                    playlistPlaybackMode
+                                ) {
+                                    extendActivePlaylistQueue(
+                                        tracks = fullTracks,
+                                        playbackGeneration =
+                                            activePlaybackGeneration
+                                    )
+                                }
+                            } catch (
+                                e: kotlinx.coroutines.CancellationException
+                            ) {
+                                throw e
+                            } catch (e: Exception) {
+                                android.util.Log.w(
+                                    "SABDHAM_PLAYLIST_SEARCH",
+                                    "Playlist expansion failed " +
+                                        playlist.id,
+                                    e
+                                )
+                            }
+                        }
+                } catch (
+                    e: kotlinx.coroutines.CancellationException
+                ) {
+                    throw e
+                } catch (e: Exception) {
+                    android.util.Log.w(
+                        "SABDHAM_PLAYLIST_SEARCH",
+                        "Unable to open playlist " + playlist.id,
+                        e
+                    )
+
+                    _searchPlaylistMessage.value =
+                        "Unable to load this playlist"
+                } finally {
+                    if (
+                        searchPlaylistOpenGeneration.get() ==
+                            playlistOpenRequestId
+                    ) {
+                        if (
+                            _loadingSearchPlaylistId.value ==
+                                playlist.id
+                        ) {
+                            _loadingSearchPlaylistId.value = null
+                        }
+
+                        searchPlaylistOpenJob = null
+                    }
                 }
             }
-        }
     }
     private fun generateSuggestions(query: String): List<String> {
         val qLower = query.lowercase().trim()
@@ -1412,6 +1458,8 @@ if (incoming.isEmpty()) {
         searchPlaylistOpenGeneration.incrementAndGet()
         searchPlaylistOpenJob?.cancel()
         searchPlaylistOpenJob = null
+        searchPlaylistExpansionJob?.cancel()
+        searchPlaylistExpansionJob = null
         _loadingSearchPlaylistId.value = null
 
         searchQueueMode = true
@@ -1766,6 +1814,88 @@ if (incoming.isEmpty()) {
             .build()
     }
 
+    private suspend fun buildPlaylistPlayableTrack(
+        track: Track
+    ): Pair<Track, MediaItem>? {
+        val hasYouTubeReference =
+            searchVideoId(track).isNotBlank()
+
+        return if (hasYouTubeReference) {
+            // Public search playlists are YouTube-ID based. Use the same
+            // exact-ID resolver that already powers playable search songs.
+            buildSearchPlayableTrack(track)
+        } else {
+            buildPlayableTrack(track)
+        }
+    }
+
+    private suspend fun extendActivePlaylistQueue(
+        tracks: List<Track>,
+        playbackGeneration: Long
+    ) {
+        if (
+            playbackRequestGeneration.get() != playbackGeneration ||
+            !playlistPlaybackMode
+        ) {
+            return
+        }
+
+        val fullQueue = sanitizePlaylistQueue(tracks)
+        if (fullQueue.isEmpty()) return
+
+        val existingQueue = _queue.value.distinctBy { it.id }
+        val existingIds =
+            existingQueue.mapTo(mutableSetOf()) { it.id }
+
+        val missingTracks =
+            fullQueue.filter { existingIds.add(it.id) }
+
+        if (missingTracks.isEmpty()) return
+
+        _queue.value =
+            (existingQueue + missingTracks).distinctBy { it.id }
+
+        val controller = mediaController ?: return
+
+        for (candidate in missingTracks) {
+            if (
+                playbackRequestGeneration.get() !=
+                    playbackGeneration ||
+                !playlistPlaybackMode
+            ) {
+                return
+            }
+
+            val playable =
+                kotlinx.coroutines.withContext(
+                    kotlinx.coroutines.Dispatchers.IO
+                ) {
+                    buildPlaylistPlayableTrack(candidate)
+                } ?: continue
+
+            if (
+                playbackRequestGeneration.get() !=
+                    playbackGeneration
+            ) {
+                return
+            }
+
+            addMediaItemFollowingCurrentQueue(
+                controller = controller,
+                trackId = playable.first.id,
+                mediaItem = playable.second
+            )
+
+            _queue.value =
+                _queue.value.map { queuedTrack ->
+                    if (queuedTrack.id == playable.first.id) {
+                        playable.first
+                    } else {
+                        queuedTrack
+                    }
+                }
+        }
+    }
     fun playTrack(track: Track, sourceQueue: List<Track>? = null) {
         searchQueueMode = false
         playlistPlaybackMode = false
@@ -1837,7 +1967,7 @@ if (incoming.isEmpty()) {
 
                 val playable =
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        buildPlayableTrack(candidate)
+                        buildPlaylistPlayableTrack(candidate)
                     }
 
                 if (playbackRequestGeneration.get() != playbackRequestId) return@launch
@@ -1896,7 +2026,7 @@ if (incoming.isEmpty()) {
 
                 val playable =
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        buildPlayableTrack(candidate)
+                        buildPlaylistPlayableTrack(candidate)
                     } ?: continue
 
                 if (playbackRequestGeneration.get() != playbackRequestId) break
