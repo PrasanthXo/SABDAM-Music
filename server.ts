@@ -2660,6 +2660,256 @@ app.get('/api/artist/image', async (req, res) => {
 const DARK_VINYL_PLACEHOLDER =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><rect width="300" height="300" fill="%23181818"/><circle cx="150" cy="150" r="105" fill="%23262626" stroke="%23383838" stroke-width="4"/><circle cx="150" cy="150" r="85" fill="none" stroke="%23303030" stroke-width="2"/><circle cx="150" cy="150" r="65" fill="none" stroke="%23303030" stroke-width="2"/><circle cx="150" cy="150" r="45" fill="%231db954"/><circle cx="150" cy="150" r="14" fill="%23141414"/><path d="M145 138 L162 150 L145 162 Z" fill="%23ffffff"/></svg>';
 
+// Final external artwork fallback before SABDHAM's local/default cover.
+// Existing cover providers remain untouched. Google is queried only when
+// the client has no usable cover or an earlier cover fails to load.
+const googleArtworkCache = new Map<
+  string,
+  { imageUrl: string | null; timestamp: number }
+>();
+const GOOGLE_ARTWORK_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function normalizeArtworkMatchText(value: string): string {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0B80-\u0BFF\u0D80-\u0DFF]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isMeaningfulArtworkLabel(value: string): boolean {
+  const normalized = normalizeArtworkMatchText(value);
+  if (!normalized || normalized.length < 3) return false;
+
+  return !new Set([
+    'single',
+    'youtube audio',
+    'unknown',
+    'unknown album',
+    'featured hits',
+    'music'
+  ]).has(normalized);
+}
+
+function isBlockedArtworkHost(rawUrl: string): boolean {
+  try {
+    const host = new URL(rawUrl).hostname.toLowerCase();
+    return (
+      host.includes('youtube.com') ||
+      host.includes('youtu.be') ||
+      host.includes('ytimg.com') ||
+      host.includes('googleusercontent.com/youtube')
+    );
+  } catch {
+    return true;
+  }
+}
+
+async function isReachableImageUrl(rawUrl: string): Promise<boolean> {
+  if (!/^https?:\/\//i.test(rawUrl) || isBlockedArtworkHost(rawUrl)) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(rawUrl, {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'SABDHAM-Artwork-Validator/1.0',
+        'Accept': 'image/*'
+      },
+      signal: AbortSignal.timeout(4500)
+    });
+
+    const contentType = String(response.headers.get('content-type') || '')
+      .toLowerCase();
+
+    return response.ok && contentType.startsWith('image/');
+  } catch {
+    return false;
+  }
+}
+
+async function findStrictGoogleArtwork(params: {
+  title: string;
+  artist: string;
+  album: string;
+  movie: string;
+}): Promise<string | null> {
+  const movie = params.movie.trim();
+  const album = params.album.trim();
+
+  const targetKind =
+    isMeaningfulArtworkLabel(movie)
+      ? 'movie'
+      : isMeaningfulArtworkLabel(album)
+        ? 'album'
+        : null;
+
+  const target =
+    targetKind === 'movie'
+      ? movie
+      : targetKind === 'album'
+        ? album
+        : '';
+
+  if (!targetKind || !target) {
+    return null;
+  }
+
+  const cacheKey =
+    normalizeArtworkMatchText(
+      [targetKind, target, params.artist, params.title].join('|')
+    );
+
+  const cached = googleArtworkCache.get(cacheKey);
+  if (
+    cached &&
+    Date.now() - cached.timestamp < GOOGLE_ARTWORK_CACHE_TTL_MS
+  ) {
+    return cached.imageUrl;
+  }
+
+  const apiKey =
+    process.env.GOOGLE_CUSTOM_SEARCH_API_KEY ||
+    process.env.GOOGLE_CSE_API_KEY ||
+    '';
+
+  const cx =
+    process.env.GOOGLE_CUSTOM_SEARCH_CX ||
+    process.env.GOOGLE_CSE_CX ||
+    '';
+
+  if (!apiKey || !cx) {
+    googleArtworkCache.set(cacheKey, {
+      imageUrl: null,
+      timestamp: Date.now()
+    });
+    return null;
+  }
+
+  const query =
+    targetKind === 'movie'
+      ? `"${target}" official movie poster soundtrack`
+      : `"${target}" official album cover ${params.artist}`;
+
+  const googleUrl = new URL(
+    'https://www.googleapis.com/customsearch/v1'
+  );
+  googleUrl.searchParams.set('key', apiKey);
+  googleUrl.searchParams.set('cx', cx);
+  googleUrl.searchParams.set('q', query);
+  googleUrl.searchParams.set('searchType', 'image');
+  googleUrl.searchParams.set('num', '6');
+  googleUrl.searchParams.set('safe', 'active');
+  googleUrl.searchParams.set('imgSize', 'large');
+  googleUrl.searchParams.set('exactTerms', target);
+
+  try {
+    const response = await fetch(googleUrl.toString(), {
+      headers: {
+        'User-Agent': 'SABDHAM-Music/1.0',
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(6500)
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Google Custom Search returned ${response.status}`
+      );
+    }
+
+    const data = (await response.json()) as any;
+    const targetNormalized = normalizeArtworkMatchText(target);
+
+    for (const item of data.items || []) {
+      const imageUrl = String(item?.link || '').trim();
+      if (!imageUrl || isBlockedArtworkHost(imageUrl)) continue;
+
+      const width = Number(item?.image?.width || 0);
+      const height = Number(item?.image?.height || 0);
+
+      if (
+        (width > 0 && width < 300) ||
+        (height > 0 && height < 300)
+      ) {
+        continue;
+      }
+
+      const evidence = normalizeArtworkMatchText(
+        [
+          item?.title,
+          item?.snippet,
+          item?.displayLink,
+          item?.image?.contextLink
+        ].filter(Boolean).join(' ')
+      );
+
+      // Strict semantic gate: the exact normalized movie/album phrase must
+      // appear in Google's result metadata. If there is any doubt, reject it.
+      if (
+        !targetNormalized ||
+        !evidence.includes(targetNormalized)
+      ) {
+        continue;
+      }
+
+      const reachable = await isReachableImageUrl(imageUrl);
+      if (!reachable) continue;
+
+      googleArtworkCache.set(cacheKey, {
+        imageUrl,
+        timestamp: Date.now()
+      });
+
+      return imageUrl;
+    }
+  } catch (err) {
+    console.warn('[Google Artwork] Strict fallback failed:', err);
+  }
+
+  googleArtworkCache.set(cacheKey, {
+    imageUrl: null,
+    timestamp: Date.now()
+  });
+  return null;
+}
+
+app.get('/api/artwork/google-verified', async (req, res) => {
+  const title = String(req.query.title || '').trim();
+  const artist = String(req.query.artist || '').trim();
+  const album = String(req.query.album || '').trim();
+  const movie = String(req.query.movie || '').trim();
+
+  if (
+    !isMeaningfulArtworkLabel(movie) &&
+    !isMeaningfulArtworkLabel(album)
+  ) {
+    return res.status(404).end();
+  }
+
+  const imageUrl = await findStrictGoogleArtwork({
+    title,
+    artist,
+    album,
+    movie
+  });
+
+  if (!imageUrl) {
+    // Client will use the unchanged SABDHAM default cover as final fallback.
+    return res.status(404).end();
+  }
+
+  res.setHeader(
+    'Cache-Control',
+    'public, max-age=86400, stale-while-revalidate=604800'
+  );
+
+  return res.redirect(302, imageUrl);
+});
+
 async function fetchExternalMetadata(title: string, artist: string): Promise<{ coverUrl: string; album: string; year?: number }> {
   try {
     const cleanT = title
