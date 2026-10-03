@@ -2504,16 +2504,16 @@ if (incoming.isEmpty()) {
             }
     }
 
-    fun moveQueuedTrack(trackId: String, direction: Int) {
-        if (direction == 0) return
+    fun moveQueuedTrack(trackId: String, direction: Int): Boolean {
+        if (direction == 0) return false
 
         val currentQueue = _queue.value.distinctBy { it.id }
-        if (currentQueue.size < 2) return
+        if (currentQueue.size < 2) return false
 
         val fromIndex =
             currentQueue.indexOfFirst { it.id == trackId }
 
-        if (fromIndex < 0) return
+        if (fromIndex < 0) return false
 
         val currentId =
             mediaController?.currentMediaItem?.mediaId
@@ -2527,7 +2527,7 @@ if (incoming.isEmpty()) {
         val firstMovableIndex =
             if (playingIndex >= 0) playingIndex + 1 else 0
 
-        if (fromIndex < firstMovableIndex) return
+        if (fromIndex < firstMovableIndex) return false
 
         val step = if (direction > 0) 1 else -1
 
@@ -2535,7 +2535,7 @@ if (incoming.isEmpty()) {
             (fromIndex + step)
                 .coerceIn(firstMovableIndex, currentQueue.lastIndex)
 
-        if (targetIndex == fromIndex) return
+        if (targetIndex == fromIndex) return false
 
         val targetTrackId = currentQueue[targetIndex].id
 
@@ -2582,8 +2582,9 @@ if (incoming.isEmpty()) {
                 )
             }
         }
-    }
 
+        return true
+    }
     fun addToQueue(track: Track) {
         val currentQueue = _queue.value
 
