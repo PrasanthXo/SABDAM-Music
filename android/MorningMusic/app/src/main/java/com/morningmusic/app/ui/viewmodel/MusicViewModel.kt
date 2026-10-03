@@ -2744,6 +2744,8 @@ if (incoming.isEmpty()) {
         _queue.value = currentQueue + track
 
         val controller = mediaController ?: return
+        val playbackGenerationAtAdd =
+            playbackRequestGeneration.get()
 
         // Resolve the newly queued song without interrupting the item that is
         // already playing. When resolution completes, insert it according to
@@ -2780,9 +2782,14 @@ if (incoming.isEmpty()) {
                 return@launch
             }
 
-            // The user may have removed/changed the active queue while the
-            // resolver was working.
-            if (_queue.value.none { it.id == track.id }) {
+            // The user may have changed playback or removed the song while
+            // the resolver was working. Never inject an old queue item into a
+            // newly started playback session.
+            if (
+                playbackRequestGeneration.get() !=
+                    playbackGenerationAtAdd ||
+                _queue.value.none { it.id == track.id }
+            ) {
                 return@launch
             }
 
