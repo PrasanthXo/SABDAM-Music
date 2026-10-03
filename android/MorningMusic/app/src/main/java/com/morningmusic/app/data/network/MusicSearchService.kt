@@ -21,6 +21,14 @@ data class ResolvedStream(
     val source: String
 )
 
+data class SearchPlaylistResult(
+    val id: String,
+    val title: String,
+    val owner: String,
+    val itemCount: Int,
+    val source: String = "youtube"
+)
+
 object MusicSearchService {
 
     const val DEFAULT_PRIMARY_URL = "https://sabdham-backend.onrender.com"
@@ -517,5 +525,242 @@ object MusicSearchService {
         )
 
         combined
+    }
+
+    suspend fun searchPlaylists(
+        query: String,
+        maxResults: Int = 12
+    ): List<SearchPlaylistResult> = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) {
+            return@withContext emptyList()
+        }
+
+        val encodedQuery =
+            URLEncoder.encode(trimmed, "UTF-8")
+
+        val endpointsToTry =
+            listOf(activeBackendUrl, DEFAULT_PRIMARY_URL)
+                .distinct()
+
+        for (baseUrl in endpointsToTry) {
+            var connection: HttpURLConnection? = null
+
+            try {
+                val urlString =
+                    "$baseUrl/api/youtube/search-playlists" +
+                        "?q=$encodedQuery&maxResults=" +
+                        maxResults.coerceIn(1, 20)
+
+                connection =
+                    URL(urlString).openConnection() as HttpURLConnection
+
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 4500
+                connection.readTimeout = 4500
+                connection.setRequestProperty(
+                    "Accept",
+                    "application/json"
+                )
+
+                if (connection.responseCode != 200) {
+                    continue
+                }
+
+                val response =
+                    connection.inputStream
+                        .bufferedReader()
+                        .use { it.readText() }
+
+                val json = JSONObject(response)
+                val items =
+                    json.optJSONArray("playlists")
+                        ?: return@withContext emptyList()
+
+                val results =
+                    mutableListOf<SearchPlaylistResult>()
+
+                for (index in 0 until items.length()) {
+                    val item = items.optJSONObject(index) ?: continue
+
+                    val id = item.optString("id").trim()
+                    val title = item.optString("title").trim()
+
+                    if (id.isBlank() || title.isBlank()) {
+                        continue
+                    }
+
+                    results +=
+                        SearchPlaylistResult(
+                            id = id,
+                            title = title,
+                            owner =
+                                item.optString(
+                                    "owner",
+                                    "YouTube"
+                                ),
+                            itemCount =
+                                item.optInt(
+                                    "itemCount",
+                                    0
+                                ).coerceAtLeast(0),
+                            source =
+                                item.optString(
+                                    "source",
+                                    "youtube"
+                                )
+                        )
+                }
+
+                return@withContext results
+                    .distinctBy { it.id }
+                    .take(maxResults.coerceIn(1, 20))
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "SABDHAM_PLAYLIST_SEARCH",
+                    "Playlist search failed for $baseUrl",
+                    e
+                )
+            } finally {
+                connection?.disconnect()
+            }
+        }
+
+        emptyList()
+    }
+
+    suspend fun fetchPlaylistTracks(
+        playlistId: String,
+        maxResults: Int = 100
+    ): List<Track> = withContext(Dispatchers.IO) {
+        val cleanId = playlistId.trim()
+
+        if (cleanId.isBlank()) {
+            return@withContext emptyList()
+        }
+
+        val encodedId =
+            URLEncoder.encode(cleanId, "UTF-8")
+
+        val endpointsToTry =
+            listOf(activeBackendUrl, DEFAULT_PRIMARY_URL)
+                .distinct()
+
+        for (baseUrl in endpointsToTry) {
+            var connection: HttpURLConnection? = null
+
+            try {
+                val urlString =
+                    "$baseUrl/api/youtube/playlist" +
+                        "?id=$encodedId&maxResults=" +
+                        maxResults.coerceIn(20, 100)
+
+                connection =
+                    URL(urlString).openConnection() as HttpURLConnection
+
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 8000
+                connection.readTimeout = 12000
+                connection.setRequestProperty(
+                    "Accept",
+                    "application/json"
+                )
+
+                if (connection.responseCode != 200) {
+                    continue
+                }
+
+                val response =
+                    connection.inputStream
+                        .bufferedReader()
+                        .use { it.readText() }
+
+                val json = JSONObject(response)
+                val items =
+                    json.optJSONArray("tracks")
+                        ?: return@withContext emptyList()
+
+                val tracks = mutableListOf<Track>()
+
+                for (index in 0 until items.length()) {
+                    val item = items.optJSONObject(index) ?: continue
+
+                    val id = item.optString("id").trim()
+                    val title = item.optString("title").trim()
+
+                    if (id.isBlank() || title.isBlank()) {
+                        continue
+                    }
+
+                    val youtubeVideoId =
+                        item.optString(
+                            "youtubeVideoId",
+                            item.optString("audio_source_id")
+                        ).trim()
+
+                    tracks +=
+                        Track(
+                            id = id,
+                            title = title,
+                            artist =
+                                item.optString(
+                                    "artist",
+                                    "Unknown Artist"
+                                ),
+                            album =
+                                item.optString(
+                                    "album",
+                                    "Playlist"
+                                ),
+                            movie = item.optString("movie"),
+                            durationSeconds =
+                                item.optLong(
+                                    "duration",
+                                    180
+                                ),
+                            durationFormatted =
+                                item.optString(
+                                    "durationFormatted",
+                                    ""
+                                ),
+                            // Preserve SABDHAM artwork policy:
+                            // never use YouTube thumbnails.
+                            coverUrl = "",
+                            audioUrl =
+                                item.optString(
+                                    "audioUrl",
+                                    if (youtubeVideoId.isNotBlank()) {
+                                        "yt:$youtubeVideoId"
+                                    } else {
+                                        ""
+                                    }
+                                ),
+                            youtubeVideoId = youtubeVideoId,
+                            language =
+                                item.optString(
+                                    "language",
+                                    "all"
+                                ),
+                            genre =
+                                item.optString(
+                                    "genre",
+                                    "Playlist"
+                                )
+                        )
+                }
+
+                return@withContext tracks.distinctBy { it.id }
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "SABDHAM_PLAYLIST_SEARCH",
+                    "Playlist load failed for $baseUrl id=$cleanId",
+                    e
+                )
+            } finally {
+                connection?.disconnect()
+            }
+        }
+
+        emptyList()
     }
 }
