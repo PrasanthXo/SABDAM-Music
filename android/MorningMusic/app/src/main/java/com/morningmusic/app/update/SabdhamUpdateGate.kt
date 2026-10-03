@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,7 +33,7 @@ import java.net.URL
 private const val UPDATE_ENDPOINT =
     "https://sabdham-backend.onrender.com/api/app/update"
 
-private data class SabdhamUpdateInfo(
+data class SabdhamUpdateInfo(
     val latestVersionCode: Int,
     val minimumVersionCode: Int,
     val latestVersionName: String,
@@ -43,6 +42,23 @@ private data class SabdhamUpdateInfo(
     val message: String,
     val releaseNotes: List<String>
 )
+
+object SabdhamUpdateCenter {
+    var optionalUpdate by mutableStateOf<SabdhamUpdateInfo?>(null)
+        private set
+
+    internal fun publish(
+        info: SabdhamUpdateInfo?,
+        currentVersionCode: Int
+    ) {
+        optionalUpdate =
+            info?.takeIf {
+                it.latestVersionCode > currentVersionCode &&
+                    !it.forceUpdate &&
+                    currentVersionCode >= it.minimumVersionCode
+            }
+    }
+}
 
 @Composable
 fun SabdhamUpdateGate() {
@@ -58,19 +74,25 @@ fun SabdhamUpdateGate() {
     }
 
     var updateInfo by remember { mutableStateOf<SabdhamUpdateInfo?>(null) }
-    var dismissedOptionalUpdate by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentVersionCode, currentVersionName) {
-        updateInfo = runCatching {
-            fetchUpdateInfo(
-                currentVersionCode = currentVersionCode,
-                currentVersionName = currentVersionName
-            )
-        }.getOrNull()
+        val fetchedInfo =
+            runCatching {
+                fetchUpdateInfo(
+                    currentVersionCode = currentVersionCode,
+                    currentVersionName = currentVersionName
+                )
+            }.getOrNull()
+
+        updateInfo = fetchedInfo
+        SabdhamUpdateCenter.publish(
+            info = fetchedInfo,
+            currentVersionCode = currentVersionCode
+        )
     }
 
     val info = updateInfo ?: return
-    if (dismissedOptionalUpdate || info.latestVersionCode <= currentVersionCode) return
+    if (info.latestVersionCode <= currentVersionCode) return
 
     val isRequired =
         info.forceUpdate || currentVersionCode < info.minimumVersionCode
@@ -85,9 +107,7 @@ fun SabdhamUpdateGate() {
 
     AlertDialog(
         onDismissRequest = {
-            if (!isRequired) {
-                dismissedOptionalUpdate = true
-            }
+            // Major/required updates stay on screen until the user updates.
         },
         title = {
             Text(
@@ -135,7 +155,7 @@ fun SabdhamUpdateGate() {
         confirmButton = {
             Button(
                 onClick = {
-                    openHiddenDownloadLink(context, info.downloadUrl)
+                    openSabdhamHiddenDownloadLink(context, info.downloadUrl)
                 }
             ) {
                 Text("Download update")
@@ -195,7 +215,7 @@ private suspend fun fetchUpdateInfo(
         }
     }
 
-private fun openHiddenDownloadLink(
+fun openSabdhamHiddenDownloadLink(
     context: Context,
     downloadUrl: String
 ) {
