@@ -1,0 +1,40 @@
+# SABDHAM 1.2.3
+
+Release date: 3 October 2026
+
+## Home top bar redesign
+
+- Replaced the oversized neon toolbar with a cleaner compact layout.
+- Reduced toolbar height and empty vertical space.
+- Removed waveform lines that crossed the toolbar content.
+- Simplified the dark-green background and border for a calmer modern look.
+- Improved spacing between the SABDHAM brand, greeting and notification button.
+- Kept the existing SABDHAM logo and MUSIC FOR EVERY MOOD tagline.
+- Kept the greeting and signed-in profile name.
+- Preserved the notification unread-count badge and compact-phone support.
+
+## Search playback queue
+
+- Search-result playback now queues only songs matching the clicked song's language and genre.
+- The clicked song title is excluded from following queue items, so alternate results with the same title are not repeated.
+- Related queue items are deduplicated by normalized title.
+- Playlist and catalogue playback logic is unchanged.
+
+## Playlist search
+
+- Fixed zero-result playlist searches when YouTube uses its newer playlist result layout.
+- Public YouTube playlist discovery now applies the playlist-only search filter.
+- Playlist search has a second raw-query fallback and longer Android network timeouts for Render wakeups.
+- Spotify and YouTube playlist providers remain merged when available.
+
+## Playlist click fixes
+
+- Playlist card click targets are separated from the three-dot menu so opening the menu cannot accidentally open the playlist.
+- YouTube and Spotify playlist actions now use provider+ID keys to avoid click-state collisions.
+- Spotify Add to Library now uses the Spotify importer instead of the YouTube importer.
+- Playlist Add to Queue remains available from the three-dot menu.
+
+## Version
+
+- Android versionName: 1.2.3
+- Android versionCode: 9

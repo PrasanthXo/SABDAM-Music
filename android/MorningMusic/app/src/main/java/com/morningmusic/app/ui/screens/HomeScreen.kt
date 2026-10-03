@@ -1659,11 +1659,22 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 ) {
                                     items(
                                         items = searchPlaylistResults,
-                                        key = { it.id }
+                                        key = {
+                                            it.source.trim().lowercase() +
+                                                ":" +
+                                                it.id.trim()
+                                        }
                                     ) { playlist ->
+                                        val playlistInteractionKey =
+                                            playlist.source
+                                                .trim()
+                                                .lowercase() +
+                                                ":" +
+                                                playlist.id.trim()
+
                                         val loading =
                                             loadingSearchPlaylistId ==
-                                                playlist.id
+                                                playlistInteractionKey
 
                                         Surface(
                                             modifier = Modifier
@@ -1672,17 +1683,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                     RoundedCornerShape(
                                                         16.dp
                                                     )
-                                                )
-                                                .clickable(
-                                                    enabled =
-                                                        loadingSearchPlaylistId ==
-                                                            null
-                                                ) {
-                                                    viewModel
-                                                        .openSearchPlaylist(
-                                                            playlist
-                                                        )
-                                                },
+                                                ),
                                             shape =
                                                 RoundedCornerShape(16.dp),
                                             color = Color(0xFF171D19),
@@ -1697,9 +1698,30 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                 verticalAlignment =
                                                     Alignment.CenterVertically
                                             ) {
-                                                Box(
+                                                Row(
                                                     modifier = Modifier
-                                                        .size(58.dp)
+                                                        .weight(1f)
+                                                        .clip(
+                                                            RoundedCornerShape(
+                                                                12.dp
+                                                            )
+                                                        )
+                                                        .clickable(
+                                                            enabled =
+                                                                loadingSearchPlaylistId ==
+                                                                    null
+                                                        ) {
+                                                            viewModel
+                                                                .openSearchPlaylist(
+                                                                    playlist
+                                                                )
+                                                        },
+                                                    verticalAlignment =
+                                                        Alignment.CenterVertically
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(58.dp)
                                                         .clip(
                                                             RoundedCornerShape(
                                                                 12.dp
@@ -1796,6 +1818,8 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                     }
                                                 }
 
+                                                }
+
                                                 Column(
                                                     horizontalAlignment =
                                                         Alignment.CenterHorizontally
@@ -1834,7 +1858,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                         IconButton(
                                                             onClick = {
                                                                 searchPlaylistMenuId =
-                                                                    playlist.id
+                                                                    playlistInteractionKey
                                                             },
                                                             modifier =
                                                                 Modifier.size(
@@ -1861,7 +1885,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                         DropdownMenu(
                                                             expanded =
                                                                 searchPlaylistMenuId ==
-                                                                    playlist.id,
+                                                                    playlistInteractionKey,
                                                             onDismissRequest = {
                                                                 searchPlaylistMenuId =
                                                                     null
@@ -1877,7 +1901,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                                         text =
                                                                             if (
                                                                                 searchPlaylistLibraryActionId ==
-                                                                                    playlist.id
+                                                                                    playlistInteractionKey
                                                                             ) {
                                                                                 "Adding to Library..."
                                                                             } else {
@@ -1918,23 +1942,40 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                                             null
                                                                     ) {
                                                                         searchPlaylistLibraryActionId =
-                                                                            playlist.id
+                                                                            playlistInteractionKey
                                                                         searchPlaylistLibraryMessage =
                                                                             null
 
                                                                         playlistScope.launch {
                                                                             val result =
-                                                                                SabdhamLibraryService
-                                                                                    .importYouTubePlaylist(
-                                                                                        context =
-                                                                                            context,
-                                                                                        playlistId =
-                                                                                            playlist.id,
-                                                                                        playlistName =
-                                                                                            playlist.title,
-                                                                                        playlistOwner =
-                                                                                            playlist.owner
-                                                                                    )
+                                                                                if (
+                                                                                    playlist.source
+                                                                                        .equals(
+                                                                                            "spotify",
+                                                                                            ignoreCase = true
+                                                                                        )
+                                                                                ) {
+                                                                                    SabdhamLibraryService
+                                                                                        .importPlaylistByLink(
+                                                                                            context =
+                                                                                                context,
+                                                                                            playlistUrl =
+                                                                                                "https://open.spotify.com/playlist/" +
+                                                                                                    playlist.id
+                                                                                        )
+                                                                                } else {
+                                                                                    SabdhamLibraryService
+                                                                                        .importYouTubePlaylist(
+                                                                                            context =
+                                                                                                context,
+                                                                                            playlistId =
+                                                                                                playlist.id,
+                                                                                            playlistName =
+                                                                                                playlist.title,
+                                                                                            playlistOwner =
+                                                                                                playlist.owner
+                                                                                        )
+                                                                                }
 
                                                                             if (
                                                                                 result.success
@@ -1966,7 +2007,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
                                                                             if (
                                                                                 searchPlaylistLibraryActionId ==
-                                                                                    playlist.id
+                                                                                    playlistInteractionKey
                                                                             ) {
                                                                                 searchPlaylistLibraryActionId =
                                                                                     null
@@ -1982,7 +2023,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                                         text =
                                                                             if (
                                                                                 searchPlaylistActionId ==
-                                                                                    playlist.id
+                                                                                    playlistInteractionKey
                                                                             ) {
                                                                                 "Adding to Queue..."
                                                                             } else {
@@ -7088,8 +7129,7 @@ private fun SabdhamHomeTopBar(
 ) {
     val green = Color(0xFF00E676)
     val brightGreen = Color(0xFF48FF9B)
-    val deepGreen = Color(0xFF03140D)
-    val shape = RoundedCornerShape(26.dp)
+    val shape = RoundedCornerShape(22.dp)
 
     val greetingAccent =
         when (greeting.trim().lowercase(Locale.getDefault())) {
@@ -7104,16 +7144,16 @@ private fun SabdhamHomeTopBar(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         val compact = maxWidth < 390.dp
-        val barHeight = if (compact) 126.dp else 144.dp
-        val logoSize = if (compact) 42.dp else 54.dp
-        val brandFont = if (compact) 16.sp else 21.sp
-        val taglineFont = if (compact) 6.sp else 7.5.sp
-        val greetingFont = if (compact) 16.sp else 21.sp
-        val nameFont = if (compact) 13.sp else 15.sp
-        val bellSize = if (compact) 44.dp else 50.dp
+        val barHeight = if (compact) 92.dp else 98.dp
+        val logoSize = if (compact) 42.dp else 46.dp
+        val brandFont = if (compact) 17.sp else 19.sp
+        val taglineFont = if (compact) 6.5.sp else 7.sp
+        val greetingFont = if (compact) 13.sp else 15.sp
+        val nameFont = if (compact) 11.sp else 12.sp
+        val bellSize = if (compact) 42.dp else 44.dp
 
         Box(
             modifier = Modifier
@@ -7123,200 +7163,131 @@ private fun SabdhamHomeTopBar(
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            Color(0xFF020807),
-                            deepGreen,
-                            Color(0xFF00120B),
-                            Color(0xFF06130D)
+                            Color(0xFF07110D),
+                            Color(0xFF061A11),
+                            Color(0xFF07110D)
                         )
                     )
                 )
                 .border(
                     width = 1.dp,
-                    brush = Brush.horizontalGradient(
-                        listOf(
-                            green.copy(alpha = 0.45f),
-                            Color(0xFF1B3327),
-                            brightGreen.copy(alpha = 0.72f)
-                        )
-                    ),
+                    color = green.copy(alpha = 0.32f),
                     shape = shape
                 )
         ) {
-            Canvas(
-                modifier = Modifier.matchParentSize()
-            ) {
-                val w = size.width
-                val h = size.height
-
-                fun wavePath(
-                    startY: Float,
-                    amplitude: Float,
-                    phase: Float
-                ): Path {
-                    return Path().apply {
-                        moveTo(0f, startY)
-                        cubicTo(
-                            w * 0.18f,
-                            startY - amplitude + phase,
-                            w * 0.34f,
-                            startY + amplitude,
-                            w * 0.50f,
-                            startY
-                        )
-                        cubicTo(
-                            w * 0.68f,
-                            startY - amplitude,
-                            w * 0.82f,
-                            startY + amplitude - phase,
-                            w,
-                            startY - amplitude * 0.10f
-                        )
-                    }
-                }
-
-                val waveBase = h * 0.74f
-
-                drawPath(
-                    path = wavePath(waveBase, h * 0.18f, 0f),
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            green.copy(alpha = 0.42f),
-                            brightGreen.copy(alpha = 0.75f),
-                            green.copy(alpha = 0.34f)
+            // Clean, low-profile accent only. No waveform lines crossing the content.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset(x = (-24).dp)
+                    .size(if (compact) 104.dp else 116.dp)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                green.copy(alpha = 0.10f),
+                                Color.Transparent
+                            )
                         ),
-                        startX = 0f,
-                        endX = w
-                    ),
-                    style = Stroke(width = 2.dp.toPx())
-                )
-
-                drawPath(
-                    path = wavePath(waveBase + h * 0.06f, h * 0.13f, h * 0.04f),
-                    color = green.copy(alpha = 0.22f),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-
-                drawPath(
-                    path = wavePath(waveBase - h * 0.05f, h * 0.09f, -h * 0.03f),
-                    color = brightGreen.copy(alpha = 0.18f),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            green.copy(alpha = 0.18f),
-                            Color.Transparent
-                        )
-                    ),
-                    radius = h * 0.80f,
-                    center = Offset(w * 0.78f, h * 0.72f)
-                )
-            }
+                        CircleShape
+                    )
+            )
 
             Row(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(
-                        start = if (compact) 10.dp else 14.dp,
-                        end = if (compact) 10.dp else 12.dp,
-                        top = 14.dp,
-                        bottom = 16.dp
+                        start = if (compact) 12.dp else 14.dp,
+                        end = if (compact) 10.dp else 12.dp
                     ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
+                Image(
+                    painter = painterResource(R.drawable.sabdham_logo),
+                    contentDescription = "SABDHAM logo",
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .weight(if (compact) 1.15f else 1.28f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.sabdham_logo),
-                        contentDescription = "SABDHAM logo",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(logoSize)
-                            .clip(RoundedCornerShape(if (compact) 12.dp else 14.dp))
-                    )
+                        .size(logoSize)
+                        .clip(RoundedCornerShape(13.dp))
+                )
 
-                    Spacer(Modifier.width(if (compact) 7.dp else 10.dp))
-
-                    Column(
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "SABDHAM",
-                            color = Color(0xFFE9FFF3),
-                            fontSize = brandFont,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = FontFamily.SansSerif,
-                            letterSpacing = if (compact) 1.2.sp else 1.8.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Clip
-                        )
-
-                        Spacer(Modifier.height(2.dp))
-
-                        Text(
-                            text = "MUSIC FOR EVERY MOOD",
-                            color = Color(0xFFB9C8C0),
-                            fontSize = taglineFont,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.SansSerif,
-                            letterSpacing = if (compact) 1.0.sp else 1.6.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Clip
-                        )
-                    }
-                }
+                Spacer(Modifier.width(if (compact) 9.dp else 11.dp))
 
                 Column(
-                    modifier = Modifier
-                        .weight(if (compact) 1.05f else 1.14f)
-                        .padding(horizontal = if (compact) 3.dp else 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "SABDHAM",
+                        color = Color(0xFFF1FFF7),
+                        fontSize = brandFont,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.SansSerif,
+                        letterSpacing = if (compact) 1.0.sp else 1.4.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip
+                    )
+
+                    Spacer(Modifier.height(1.dp))
+
+                    Text(
+                        text = "MUSIC FOR EVERY MOOD",
+                        color = Color(0xFF98AAA0),
+                        fontSize = taglineFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.SansSerif,
+                        letterSpacing = if (compact) 0.8.sp else 1.0.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip
+                    )
+                }
+
+                Spacer(Modifier.width(if (compact) 5.dp else 8.dp))
+
+                Column(
+                    modifier = Modifier.widthIn(
+                        min = if (compact) 104.dp else 118.dp,
+                        max = if (compact) 132.dp else 154.dp
+                    ),
+                    horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        horizontalArrangement = Arrangement.End
                     ) {
                         Text(
                             text = "Good ",
-                            color = Color.White,
+                            color = Color(0xFFCFD8D3),
                             fontSize = greetingFont,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1
                         )
                         Text(
                             text = greetingAccent,
                             color = brightGreen,
                             fontSize = greetingFont,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
                     }
 
-                    Spacer(Modifier.height(if (compact) 5.dp else 7.dp))
+                    Spacer(Modifier.height(3.dp))
 
                     Text(
                         text = profileName,
-                        color = Color(0xFFD7DDD9),
+                        color = Color.White,
                         fontSize = nameFont,
                         fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.SansSerif,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.End,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
-                // Keep the unread badge OUTSIDE the clipped bell surface so its
-                // number is never cut off on compact phones.
+                Spacer(Modifier.width(if (compact) 8.dp else 10.dp))
+
+                // Badge lives outside the clipped bell surface so the count stays visible.
                 Box(
                     modifier = Modifier.size(bellSize),
                     contentAlignment = Alignment.Center
@@ -7324,19 +7295,12 @@ private fun SabdhamHomeTopBar(
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .clip(RoundedCornerShape(if (compact) 16.dp else 18.dp))
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0xFF083524),
-                                        Color(0xFF03110B)
-                                    )
-                                )
-                            )
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF0A2117))
                             .border(
                                 1.dp,
-                                green.copy(alpha = 0.85f),
-                                RoundedCornerShape(if (compact) 16.dp else 18.dp)
+                                green.copy(alpha = 0.62f),
+                                RoundedCornerShape(14.dp)
                             )
                             .clickable(onClick = onNotificationsClick),
                         contentAlignment = Alignment.Center
@@ -7345,7 +7309,7 @@ private fun SabdhamHomeTopBar(
                             imageVector = Icons.Default.NotificationsNone,
                             contentDescription = "Notifications",
                             tint = Color(0xFFEFFFF6),
-                            modifier = Modifier.size(if (compact) 24.dp else 28.dp)
+                            modifier = Modifier.size(if (compact) 23.dp else 24.dp)
                         )
                     }
 
@@ -7353,33 +7317,25 @@ private fun SabdhamHomeTopBar(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .offset(
-                                    x = if (compact) 5.dp else 6.dp,
-                                    y = if (compact) (-5).dp else (-6).dp
-                                )
+                                .offset(x = 5.dp, y = (-5).dp)
                                 .defaultMinSize(
-                                    minWidth = if (compact) 22.dp else 24.dp,
-                                    minHeight = if (compact) 22.dp else 24.dp
+                                    minWidth = if (compact) 20.dp else 21.dp,
+                                    minHeight = if (compact) 20.dp else 21.dp
                                 )
                                 .clip(CircleShape)
                                 .background(Color(0xFFFF3B3B))
                                 .border(
-                                    1.dp,
-                                    Color.White.copy(alpha = 0.35f),
+                                    1.2.dp,
+                                    Color(0xFF07110D),
                                     CircleShape
                                 )
                                 .padding(horizontal = 4.dp, vertical = 1.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text =
-                                    if (unreadCount > 99) {
-                                        "99+"
-                                    } else {
-                                        unreadCount.toString()
-                                    },
+                                text = if (unreadCount > 99) "99+" else unreadCount.toString(),
                                 color = Color.White,
-                                fontSize = if (compact) 11.sp else 12.sp,
+                                fontSize = if (compact) 10.sp else 10.5.sp,
                                 fontWeight = FontWeight.Black,
                                 maxLines = 1
                             )
@@ -7390,6 +7346,7 @@ private fun SabdhamHomeTopBar(
         }
     }
 }
+
 
 @Composable
 private fun SabdhamTopBarNotificationCenter(
@@ -7402,8 +7359,8 @@ private fun SabdhamTopBarNotificationCenter(
         listOf(
             Triple(
                 Icons.Default.NewReleases,
-                "SABDHAM 1.2.2",
-                "Notification badge numbers are now fully visible, with the latest search, playlists, audio output and player improvements."
+                "SABDHAM 1.2.3",
+                "A cleaner, more compact Home top bar is now available with improved spacing and notification visibility."
             ),
             Triple(
                 Icons.Default.LibraryMusic,
