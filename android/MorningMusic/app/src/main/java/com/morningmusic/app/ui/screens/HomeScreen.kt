@@ -51,8 +51,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import android.view.inputmethod.InputMethodManager
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -873,22 +876,46 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var activeNavTab by remember { mutableStateOf("home") }
     var isFullPlayerVisible by remember { mutableStateOf(false) }
     val playerFocusManager = LocalFocusManager.current
+    val playerKeyboardController = LocalSoftwareKeyboardController.current
     val playerRootView = LocalView.current
 
     fun dismissKeyboardForPlayer() {
         playerFocusManager.clearFocus(force = true)
+        playerKeyboardController?.hide()
+
+        val activity = context as? android.app.Activity
+        val windowToken =
+            activity?.window?.decorView?.windowToken
+                ?: playerRootView.windowToken
+
         val inputMethodManager =
             context.getSystemService(Context.INPUT_METHOD_SERVICE)
                 as? InputMethodManager
+
         inputMethodManager?.hideSoftInputFromWindow(
-            playerRootView.windowToken,
-            0
+            windowToken,
+            InputMethodManager.HIDE_NOT_ALWAYS
         )
+
+        activity?.window?.let { window ->
+            WindowInsetsControllerCompat(
+                window,
+                window.decorView
+            ).hide(WindowInsetsCompat.Type.ime())
+        }
+
+        activity?.currentFocus?.clearFocus()
         playerRootView.clearFocus()
     }
 
     LaunchedEffect(isFullPlayerVisible) {
         if (isFullPlayerVisible) {
+            // Run more than once because some keyboards re-attach during
+            // the same frame in which the full player is composed.
+            dismissKeyboardForPlayer()
+            delay(80L)
+            dismissKeyboardForPlayer()
+            delay(220L)
             dismissKeyboardForPlayer()
         }
     }
