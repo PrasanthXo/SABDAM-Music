@@ -1,6 +1,8 @@
 name: Build SABDHAM Backend
 
 on:
+  pull_request:
+    branches: [ main ]
   push:
     branches: [ main ]
     paths:
