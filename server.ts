@@ -4417,6 +4417,117 @@ async function scrapeYouTubeVideos(query: string, limit: number = 15): Promise<a
   }
 }
 
+
+async function scrapeYouTubePlaylists(
+  query: string,
+  limit: number = 12
+): Promise<any[]> {
+  try {
+    const searchUrl =
+      `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+
+    const res = await fetch(searchUrl, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+          'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+          'Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!res.ok) return [];
+
+    const html = await res.text();
+    const jsonMatch =
+      html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
+
+    if (!jsonMatch) return [];
+
+    const data = JSON.parse(jsonMatch[1]);
+    const results: any[] = [];
+    const seen = new Set<string>();
+
+    const textFrom = (value: any): string => {
+      if (!value) return '';
+      if (typeof value.simpleText === 'string') {
+        return value.simpleText.trim();
+      }
+      if (Array.isArray(value.runs)) {
+        return value.runs
+          .map((run: any) => String(run?.text || ''))
+          .join('')
+          .trim();
+      }
+      return '';
+    };
+
+    const parseCount = (value: any): number => {
+      const text = textFrom(value) || String(value || '');
+      const match = text.replace(/,/g, '').match(/(\d+)/);
+      return match ? Math.max(parseInt(match[1], 10) || 0, 0) : 0;
+    };
+
+    const visit = (node: any) => {
+      if (
+        !node ||
+        typeof node !== 'object' ||
+        results.length >= limit
+      ) {
+        return;
+      }
+
+      const renderer = node.playlistRenderer;
+
+      if (renderer) {
+        const id = String(renderer.playlistId || '').trim();
+        const title = textFrom(renderer.title);
+        const owner =
+          textFrom(renderer.longBylineText) ||
+          textFrom(renderer.shortBylineText) ||
+          'YouTube';
+
+        const itemCount =
+          parseCount(renderer.videoCountText) ||
+          Math.max(Number(renderer.videoCount || 0) || 0, 0);
+
+        if (id && title && !seen.has(id)) {
+          seen.add(id);
+          results.push({
+            id,
+            title: decodeHtmlEntities(title),
+            owner: decodeHtmlEntities(owner),
+            itemCount,
+            source: 'youtube'
+          });
+        }
+      }
+
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          visit(child);
+          if (results.length >= limit) break;
+        }
+      } else {
+        for (const value of Object.values(node)) {
+          visit(value);
+          if (results.length >= limit) break;
+        }
+      }
+    };
+
+    visit(data);
+    return results.slice(0, limit);
+  } catch (err) {
+    console.warn(
+      '[SABDHAM Playlist Search] Public scraper failed:',
+      err
+    );
+    return [];
+  }
+}
+
 function isAuthenticYouTubeVideoId(id?: string | null): boolean {
   if (!id || typeof id !== 'string') return false;
   const clean = id.replace(/^yt-/, '').replace(/^yt:/, '').trim();
@@ -5406,7 +5517,7 @@ app.get('/api/youtube/search-playlists', async (req, res) => {
         20
       );
 
-    if (!query || !youtubeConfig.isConfigured()) {
+    if (!query) {
       return res.json({ playlists: [] });
     }
 
@@ -5418,103 +5529,177 @@ app.get('/api/youtube/search-playlists', async (req, res) => {
       return res.json(cached);
     }
 
-    const searchUrl = youtubeConfig.buildApiUrl('search', {
-      part: 'snippet',
-      type: 'playlist',
-      q: query,
-      maxResults: maxResults.toString(),
-      safeSearch: 'moderate'
-    });
+    let playlists: any[] = [];
 
-    const searchResponse = await fetch(searchUrl, {
-      headers: {
-        'Accept': 'application/json'
-      },
-      signal: AbortSignal.timeout(4500)
-    });
-
-    if (!searchResponse.ok) {
-      console.warn(
-        '[SABDHAM Playlist Search] YouTube returned',
-        searchResponse.status
-      );
-      return res.json({ playlists: [] });
-    }
-
-    const searchData = (await searchResponse.json()) as any;
-    const searchItems = Array.isArray(searchData.items)
-      ? searchData.items
-      : [];
-
-    const ids =
-      searchItems
-        .map((item: any) => String(item?.id?.playlistId || '').trim())
-        .filter(Boolean);
-
-    let itemCounts = new Map<string, number>();
-
-    if (ids.length > 0) {
+    // Preferred path: official YouTube Data API.
+    if (youtubeConfig.isConfigured()) {
       try {
-        const detailsUrl = youtubeConfig.buildApiUrl('playlists', {
-          part: 'contentDetails',
-          id: ids.join(',')
+        const searchUrl = youtubeConfig.buildApiUrl('search', {
+          part: 'snippet',
+          type: 'playlist',
+          q: query,
+          maxResults: maxResults.toString(),
+          safeSearch: 'moderate'
         });
 
-        const detailsResponse = await fetch(detailsUrl, {
+        const searchResponse = await fetch(searchUrl, {
           headers: {
             'Accept': 'application/json'
           },
-          signal: AbortSignal.timeout(3500)
+          signal: AbortSignal.timeout(4500)
         });
 
-        if (detailsResponse.ok) {
-          const detailsData = (await detailsResponse.json()) as any;
+        if (searchResponse.ok) {
+          const searchData = (await searchResponse.json()) as any;
+          const searchItems = Array.isArray(searchData.items)
+            ? searchData.items
+            : [];
 
-          itemCounts = new Map(
-            (detailsData.items || []).map((item: any) => [
-              String(item?.id || ''),
-              Number(item?.contentDetails?.itemCount || 0)
-            ])
+          const ids =
+            searchItems
+              .map((item: any) =>
+                String(item?.id?.playlistId || '').trim()
+              )
+              .filter(Boolean);
+
+          let itemCounts = new Map<string, number>();
+
+          if (ids.length > 0) {
+            try {
+              const detailsUrl =
+                youtubeConfig.buildApiUrl('playlists', {
+                  part: 'contentDetails',
+                  id: ids.join(',')
+                });
+
+              const detailsResponse = await fetch(detailsUrl, {
+                headers: {
+                  'Accept': 'application/json'
+                },
+                signal: AbortSignal.timeout(3500)
+              });
+
+              if (detailsResponse.ok) {
+                const detailsData =
+                  (await detailsResponse.json()) as any;
+
+                itemCounts = new Map(
+                  (detailsData.items || []).map((item: any) => [
+                    String(item?.id || ''),
+                    Number(
+                      item?.contentDetails?.itemCount || 0
+                    )
+                  ])
+                );
+              }
+            } catch (err) {
+              console.warn(
+                '[SABDHAM Playlist Search] Count lookup failed:',
+                err
+              );
+            }
+          }
+
+          playlists =
+            searchItems
+              .map((item: any) => {
+                const id =
+                  String(item?.id?.playlistId || '').trim();
+
+                const title =
+                  String(item?.snippet?.title || '').trim();
+
+                if (!id || !title) return null;
+
+                return {
+                  id,
+                  title: decodeHtmlEntities(title),
+                  owner: decodeHtmlEntities(
+                    String(
+                      item?.snippet?.channelTitle || 'YouTube'
+                    ).trim()
+                  ),
+                  itemCount: itemCounts.get(id) || 0,
+                  source: 'youtube'
+                };
+              })
+              .filter(Boolean);
+        } else {
+          console.warn(
+            '[SABDHAM Playlist Search] YouTube API returned',
+            searchResponse.status,
+            '- using public-search fallback'
           );
         }
       } catch (err) {
         console.warn(
-          '[SABDHAM Playlist Search] Count lookup failed:',
+          '[SABDHAM Playlist Search] YouTube API failed, using public-search fallback:',
           err
         );
       }
     }
 
-    const playlists =
-      searchItems
-        .map((item: any) => {
-          const id =
-            String(item?.id?.playlistId || '').trim();
+    // Quota/key/network-safe fallback. This keeps playlist search visible
+    // even when YouTube Data API search is unavailable.
+    if (playlists.length === 0) {
+      playlists = await scrapeYouTubePlaylists(
+        query,
+        maxResults
+      );
+    }
 
-          const title =
-            String(item?.snippet?.title || '').trim();
+    const payload = {
+      playlists:
+        playlists
+          .filter(
+            (playlist: any) =>
+              playlist &&
+              String(playlist.id || '').trim() &&
+              String(playlist.title || '').trim()
+          )
+          .filter(
+            (playlist: any, index: number, all: any[]) =>
+              all.findIndex(
+                (candidate: any) =>
+                  String(candidate.id) === String(playlist.id)
+              ) === index
+          )
+          .slice(0, maxResults)
+    };
 
-          if (!id || !title) return null;
-
-          return {
-            id,
-            title: decodeHtmlEntities(title),
-            owner: decodeHtmlEntities(
-              String(item?.snippet?.channelTitle || 'YouTube').trim()
-            ),
-            itemCount: itemCounts.get(id) || 0,
-            source: 'youtube'
-          };
-        })
-        .filter(Boolean);
-
-    const payload = { playlists };
-    setCache(cacheKey, payload);
+    // Avoid caching an empty transient failure for a long period.
+    if (payload.playlists.length > 0) {
+      setCache(cacheKey, payload);
+    }
 
     return res.json(payload);
   } catch (err) {
     console.warn('[SABDHAM Playlist Search] Failed:', err);
-    return res.json({ playlists: [] });
+
+    // Final best-effort fallback before returning empty.
+    try {
+      const query = String(req.query.q || '').trim();
+      const maxResults =
+        Math.min(
+          Math.max(
+            parseInt(
+              String(req.query.maxResults || '12'),
+              10
+            ) || 12,
+            1
+          ),
+          20
+        );
+
+      const playlists =
+        query
+          ? await scrapeYouTubePlaylists(query, maxResults)
+          : [];
+
+      return res.json({ playlists });
+    } catch {
+      return res.json({ playlists: [] });
+    }
   }
 });
 
