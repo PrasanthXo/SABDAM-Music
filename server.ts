@@ -2702,34 +2702,56 @@ function parseIsoDuration(duration: string): { seconds: number; formatted: strin
 
 // Clean up YouTube video title
 function cleanYouTubeTitle(rawTitle: string): { title: string; artistSuggestion?: string } {
-  let clean = decodeHtmlEntities(rawTitle);
-  // Remove common YouTube music video noise
-  clean = clean
-    .replace(/\s*\(Official Video\)/gi, '')
-    .replace(/\s*\[Official Video\]/gi, '')
-    .replace(/\s*\(Official Music Video\)/gi, '')
-    .replace(/\s*\[Official Music Video\]/gi, '')
-    .replace(/\s*\(Lyric Video\)/gi, '')
-    .replace(/\s*\[Lyric Video\]/gi, '')
-    .replace(/\s*\(Official Audio\)/gi, '')
-    .replace(/\s*\[Official Audio\]/gi, '')
-    .replace(/\s*\(Audio\)/gi, '')
-    .replace(/\s*\[Audio\]/gi, '')
-    .replace(/\s*\|.*$/g, '') // remove trailing pipe channels
+  let clean = decodeHtmlEntities(rawTitle || '')
+    .replace(/\u00a0/g, ' ')
     .trim();
 
-  // If title has "Artist - Song", extract
-  if (clean.includes(' - ')) {
-    const parts = clean.split(' - ');
-    if (parts.length >= 2) {
+  // Remove video-platform presentation text while preserving the real
+  // song title, including Tamil/Sinhala and other Unicode scripts.
+  clean = clean
+    .replace(
+      /\s*[\(\[]\s*(?:official\s*)?(?:music\s*)?(?:video|audio|lyric(?:s)?(?:\s*video)?|visuali[sz]er|m\s*\/?\s*v|mv|hd|4k|full\s*song|full\s*video)\s*[\)\]]\s*/gi,
+      ' '
+    )
+    .replace(
+      /\s*[-|:]\s*(?:official\s*)?(?:music\s*)?(?:video|audio|lyric(?:s)?(?:\s*video)?|visuali[sz]er|m\s*\/?\s*v|mv|hd|4k|full\s*song|full\s*video)\s*$/gi,
+      ' '
+    )
+    .replace(/\b(?:official\s+music\s+video|official\s+video|official\s+audio|lyric(?:s)?\s+video|video\s+song|full\s+video|full\s+song)\b\s*$/gi, ' ')
+    .replace(/\s+\b(?:m\s*\/?\s*v|mv)\b\s*$/gi, ' ')
+    .replace(/\s*\|\s*.*$/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^[-|:]+|[-|:]+$/g, '')
+    .trim();
+
+  // YouTube commonly formats music as "Artist - Song". Keep the artist
+  // separately and show only the song title in SABDHAM.
+  const artistSongMatch = clean.match(/^(.+?)\s+[\-–—]\s+(.+)$/u);
+  if (artistSongMatch) {
+    const artistSuggestion = artistSongMatch[1].trim();
+    const songTitle = artistSongMatch[2].trim();
+
+    if (artistSuggestion && songTitle) {
       return {
-        artistSuggestion: parts[0].trim(),
-        title: parts.slice(1).join(' - ').trim(),
+        artistSuggestion,
+        title: songTitle
       };
     }
   }
 
-  return { title: clean };
+  return {
+    title: clean || decodeHtmlEntities(rawTitle || '').trim()
+  };
+}
+
+function cleanYouTubeChannelArtist(rawArtist: string): string {
+  return decodeHtmlEntities(rawArtist || '')
+    .replace(/\s*-\s*Topic\s*$/i, '')
+    .replace(/\s+VEVO\s*$/i, '')
+    .replace(/\s+(?:Official\s+Channel|Official)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // Ensure results are strictly popular single songs, filtering out playlists/jukeboxes
@@ -4555,15 +4577,16 @@ async function scrapeYouTubeVideos(query: string, limit: number = 15): Promise<a
               // Skip short clips / reels < 25s
               if (duration < 25) continue;
 
-              // Clean title metadata
-              const cleanedTitle = title
-                .replace(/\[(Official\s*(Video|Audio|Music Video|Lyric Video|4K|HD|Track)).*?\]/gi, '')
-                .replace(/\((Official\s*(Video|Audio|Music Video|Lyric Video|4K|HD|Track)).*?\)/gi, '')
-                .replace(/\|\s*(Full\s*(Video|Audio)\s*Song|Official\s*Music\s*Video|4K|Lyrical|Trending).*$/gi, '')
-                .trim();
+              // Clean video-style titles before SABDHAM displays them.
+              const cleaned = cleanYouTubeTitle(title);
+              const cleanedTitle = cleaned.title || title;
+              const cleanedArtist =
+                cleaned.artistSuggestion ||
+                cleanYouTubeChannelArtist(artist) ||
+                artist;
 
               let trackLang = 'english';
-              const textToScan = `${cleanedTitle} ${artist} ${query}`.toLowerCase();
+              const textToScan = `${cleanedTitle} ${cleanedArtist} ${query}`.toLowerCase();
               if (textToScan.includes('tamil') || /[\u0B80-\u0BFF]/.test(title)) {
                 trackLang = 'tamil';
               } else if (textToScan.includes('sinhala') || textToScan.includes('sinhalese') || /[\u0D80-\u0DFF]/.test(title)) {
@@ -4575,7 +4598,7 @@ async function scrapeYouTubeVideos(query: string, limit: number = 15): Promise<a
                 audio_source_id: videoId,
                 youtubeVideoId: videoId,
                 title: cleanedTitle || title,
-                artist,
+                artist: cleanedArtist,
                 album: 'YouTube Audio',
                 duration,
                 durationFormatted: durText,
@@ -5301,8 +5324,15 @@ app.get('/api/youtube/search', async (req, res) => {
                 const videoId = item.id?.videoId;
                 if (!videoId) return null;
 
-                const trackName = item.snippet?.title || 'Unknown Track';
-                const channelTitle = item.snippet?.channelTitle || 'Unknown Artist';
+                const rawTrackName = item.snippet?.title || 'Unknown Track';
+                const rawChannelTitle = item.snippet?.channelTitle || 'Unknown Artist';
+                const cleaned = cleanYouTubeTitle(rawTrackName);
+                const trackName = cleaned.title || rawTrackName;
+                const channelArtist = cleanYouTubeChannelArtist(rawChannelTitle);
+                const displayArtist =
+                  cleaned.artistSuggestion ||
+                  channelArtist ||
+                  'Unknown Artist';
                 const durationSec = durationsMap[videoId] || 180;
                 const mins = Math.floor(durationSec / 60);
                 const secs = durationSec % 60;
@@ -5312,7 +5342,7 @@ app.get('/api/youtube/search', async (req, res) => {
                 const coverUrl = '';
 
                 let trackLang = 'english';
-                const textToScan = `${trackName} ${channelTitle} ${query}`.toLowerCase();
+                const textToScan = `${trackName} ${displayArtist} ${query}`.toLowerCase();
                 if (textToScan.includes('tamil') || /[\u0B80-\u0BFF]/.test(trackName)) {
                   trackLang = 'tamil';
                 } else if (textToScan.includes('sinhala') || /[\u0D80-\u0DFF]/.test(trackName)) {
@@ -5324,7 +5354,7 @@ app.get('/api/youtube/search', async (req, res) => {
                   audio_source_id: videoId,
                   youtubeVideoId: videoId,
                   title: trackName,
-                  artist: channelTitle,
+                  artist: displayArtist,
                   album: 'YouTube Audio',
                   duration: durationSec,
                   durationFormatted: durationFormatted,
