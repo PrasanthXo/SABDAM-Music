@@ -114,6 +114,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         StateFlow<List<SearchPlaylistResult>> =
         _searchPlaylistResults.asStateFlow()
 
+    private val _openedSearchPlaylist =
+        MutableStateFlow<SearchPlaylistResult?>(null)
+    val openedSearchPlaylist: StateFlow<SearchPlaylistResult?> =
+        _openedSearchPlaylist.asStateFlow()
+
+    private val _openedSearchPlaylistTracks =
+        MutableStateFlow<List<Track>>(emptyList())
+    val openedSearchPlaylistTracks: StateFlow<List<Track>> =
+        _openedSearchPlaylistTracks.asStateFlow()
+
     private val _loadingSearchPlaylistId =
         MutableStateFlow<String?>(null)
     val loadingSearchPlaylistId: StateFlow<String?> =
@@ -933,6 +943,9 @@ if (incoming.isEmpty()) {
         searchPlaylistExpansionJob = null
         _loadingSearchPlaylistId.value = null
 
+        _openedSearchPlaylist.value = null
+        _openedSearchPlaylistTracks.value = emptyList()
+
         if (trimmed.isEmpty()) {
             _searchResults.value = emptyList()
             _searchPlaylistResults.value = emptyList()
@@ -1042,21 +1055,23 @@ if (incoming.isEmpty()) {
         }
     }
 
-    fun playSearchPlaylist(
+    fun openSearchPlaylist(
         playlist: SearchPlaylistResult
     ) {
         if (_loadingSearchPlaylistId.value != null) {
             return
         }
 
-        _loadingSearchPlaylistId.value = playlist.id
-        _searchPlaylistMessage.value = null
-
+        searchPlaylistOpenJob?.cancel()
+        searchPlaylistOpenJob = null
         searchPlaylistExpansionJob?.cancel()
         searchPlaylistExpansionJob = null
 
-        val playbackGenerationAtOpen =
-            playbackRequestGeneration.get()
+        _loadingSearchPlaylistId.value = playlist.id
+        _openedSearchPlaylist.value = playlist
+        _openedSearchPlaylistTracks.value = emptyList()
+        _searchPlaylistMessage.value = null
+
         val searchQueryAtOpen =
             normalizeSearchText(_searchQuery.value)
         val playlistOpenRequestId =
@@ -1065,70 +1080,31 @@ if (incoming.isEmpty()) {
         searchPlaylistOpenJob =
             viewModelScope.launch {
                 try {
-                    // Start playback from the first page instead of waiting
-                    // for all 100 playlist items to download.
-                    val firstTracks =
+                    val tracks =
                         MusicSearchService.fetchPlaylistTracks(
                             playlistId = playlist.id,
-                            maxResults = 20
+                            maxResults = 100
                         )
-
-                    if (firstTracks.isEmpty()) {
-                        _searchPlaylistMessage.value =
-                            "No playable songs found in this playlist"
-                        return@launch
-                    }
 
                     if (
                         searchPlaylistOpenGeneration.get() !=
                             playlistOpenRequestId ||
-                        playbackRequestGeneration.get() !=
-                            playbackGenerationAtOpen ||
                         normalizeSearchText(_searchQuery.value) !=
                             searchQueryAtOpen
                     ) {
                         return@launch
                     }
 
-                    playPlaylist(firstTracks)
+                    val playlistQueue =
+                        sanitizePlaylistQueue(tracks)
 
-                    val activePlaybackGeneration =
-                        playbackRequestGeneration.get()
+                    _openedSearchPlaylistTracks.value =
+                        playlistQueue
 
-                    // Load the rest after playback has already started.
-                    searchPlaylistExpansionJob =
-                        viewModelScope.launch {
-                            try {
-                                val fullTracks =
-                                    MusicSearchService.fetchPlaylistTracks(
-                                        playlistId = playlist.id,
-                                        maxResults = 100
-                                    )
-
-                                if (
-                                    playbackRequestGeneration.get() ==
-                                        activePlaybackGeneration &&
-                                    playlistPlaybackMode
-                                ) {
-                                    extendActivePlaylistQueue(
-                                        tracks = fullTracks,
-                                        playbackGeneration =
-                                            activePlaybackGeneration
-                                    )
-                                }
-                            } catch (
-                                e: kotlinx.coroutines.CancellationException
-                            ) {
-                                throw e
-                            } catch (e: Exception) {
-                                android.util.Log.w(
-                                    "SABDHAM_PLAYLIST_SEARCH",
-                                    "Playlist expansion failed " +
-                                        playlist.id,
-                                    e
-                                )
-                            }
-                        }
+                    if (playlistQueue.isEmpty()) {
+                        _searchPlaylistMessage.value =
+                            "No playable songs found in this playlist"
+                    }
                 } catch (
                     e: kotlinx.coroutines.CancellationException
                 ) {
@@ -1140,8 +1116,15 @@ if (incoming.isEmpty()) {
                         e
                     )
 
-                    _searchPlaylistMessage.value =
-                        "Unable to load this playlist"
+                    if (
+                        searchPlaylistOpenGeneration.get() ==
+                            playlistOpenRequestId
+                    ) {
+                        _openedSearchPlaylistTracks.value =
+                            emptyList()
+                        _searchPlaylistMessage.value =
+                            "Unable to load this playlist"
+                    }
                 } finally {
                     if (
                         searchPlaylistOpenGeneration.get() ==
@@ -1159,6 +1142,20 @@ if (incoming.isEmpty()) {
                 }
             }
     }
+
+    fun closeSearchPlaylist() {
+        searchPlaylistOpenGeneration.incrementAndGet()
+        searchPlaylistOpenJob?.cancel()
+        searchPlaylistOpenJob = null
+        searchPlaylistExpansionJob?.cancel()
+        searchPlaylistExpansionJob = null
+
+        _loadingSearchPlaylistId.value = null
+        _openedSearchPlaylist.value = null
+        _openedSearchPlaylistTracks.value = emptyList()
+        _searchPlaylistMessage.value = null
+    }
+
     fun addSearchPlaylistToQueue(
         playlist: SearchPlaylistResult
     ) {
