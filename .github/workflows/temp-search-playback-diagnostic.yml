@@ -44,6 +44,39 @@ jobs:
           curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/youtube/search?q=Gangnam%20Style%20PSY&language=all&maxResults=25" -o /tmp/search-psy.json || true
           cat /tmp/search-psy.json || true
 
+          echo "=== YOUTUBEI.JS DIRECT RESOLVER ==="
+          mkdir -p /tmp/ytjs-test
+          cd /tmp/ytjs-test
+          npm init -y >/dev/null 2>&1
+          npm install youtubei.js@18.1.0 --silent
+          node --input-type=module <<'NODE'
+          import { Innertube } from 'youtubei.js';
+          try {
+            const yt = await Innertube.create();
+            const format = await yt.getStreamingData(
+              '9bZkp7q19f0',
+              { type: 'audio', quality: 'best' }
+            );
+            console.log('FORMAT', JSON.stringify({
+              itag: format?.itag,
+              mime_type: format?.mime_type,
+              bitrate: format?.bitrate,
+              urlPrefix: String(format?.url || '').slice(0, 120)
+            }));
+            if (!format?.url) process.exit(2);
+            const response = await fetch(format.url, {
+              headers: { Range: 'bytes=0-1023' }
+            });
+            console.log('AUDIO_FETCH', response.status, response.headers.get('content-type'), response.headers.get('content-length'));
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            console.log('AUDIO_BYTES', bytes.length);
+          } catch (error) {
+            console.error('YTJS_ERROR', error?.stack || error);
+            process.exitCode = 1;
+          }
+          NODE
+          cd "$GITHUB_WORKSPACE"
+
           echo "=== PIPED STREAM API PROBES ==="
           for base in \
             https://pipedapi.kavin.rocks \
