@@ -4061,7 +4061,7 @@ fun FullPlayerSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(58.dp)
+                    .height(82.dp)
             ) {
                 IconButton(
                     onClick = onDismiss,
@@ -4095,11 +4095,15 @@ fun FullPlayerSheet(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.widthIn(max = 180.dp)
                     )
+                    Spacer(Modifier.height(4.dp))
+
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .heightIn(min = 38.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF173D2C))
                             .clickable { onAudioRouteClick() }
-                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -4110,17 +4114,23 @@ fun FullPlayerSheet(
                                     Icons.Default.Speaker
                                 },
                             contentDescription = "Audio output",
-                            tint = Color(0xFF1DB954),
-                            modifier = Modifier.size(11.dp)
+                            tint = Color(0xFF1ED760),
+                            modifier = Modifier.size(19.dp)
                         )
-                        Spacer(Modifier.width(3.dp))
+                        Spacer(Modifier.width(7.dp))
                         Text(
-                            text = audioRouteName,
-                            color = Color(0xFF1DB954),
-                            fontSize = 9.sp,
+                            text =
+                                if (audioRouteName.isBlank()) {
+                                    "Audio output"
+                                } else {
+                                    audioRouteName
+                                },
+                            color = Color(0xFF1ED760),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 160.dp)
+                            modifier = Modifier.widthIn(max = 190.dp)
                         )
                     }
                 }
