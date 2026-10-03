@@ -1,0 +1,17 @@
+name: Temp Postmerge Render Check
+on:
+  push:
+    branches:
+      - fix/search-playlist-detail-2026-10-03
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check live Audius route
+        run: |
+          set -x
+          for i in 1 2 3 4 5; do
+            echo "ATTEMPT $i"
+            curl -i --max-time 30 'https://sabdham-backend.onrender.com/api/audius/resolve?title=Gangnam%20Style&artist=PSY' || true
+            sleep 15
+          done
