@@ -1,0 +1,14 @@
+{
+  "latestVersionCode": 9,
+  "minimumVersionCode": 9,
+  "latestVersionName": "1.2.3",
+  "forceUpdate": true,
+  "downloadUrl": "https://raw.githubusercontent.com/PrasanthXo/SABDAM-Music/main/public/downloads/SABDHAM-signed.apk",
+  "message": "SABDHAM 1.2.3 is required. Update now for the cleaner Home top bar, smarter search queue, playlist discovery fixes and improved playlist click actions.",
+  "releaseNotes": [
+    "Cleaner compact Home top bar with improved spacing and less visual clutter.",
+    "Search-result playback queues related songs by matching language and genre while excluding repeated titles.",
+    "Playlist search zero-result cases fixed with stronger public playlist discovery.",
+    "Playlist card tap, three-dot menu, Add to Queue and provider-specific actions are more reliable."
+  ]
+}
