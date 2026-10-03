@@ -775,8 +775,11 @@ object MusicSearchService {
                     URL(urlString).openConnection() as HttpURLConnection
 
                 connection.requestMethod = "GET"
-                connection.connectTimeout = 5500
-                connection.readTimeout = 5500
+                // Render may still be waking while song search starts.
+                // Do not turn a slow public-playlist response into a fake
+                // zero-result state after only 5.5 seconds.
+                connection.connectTimeout = 10000
+                connection.readTimeout = 12000
                 connection.setRequestProperty(
                     "Accept",
                     "application/json"
