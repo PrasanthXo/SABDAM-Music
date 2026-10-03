@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.sabdham.music.BuildConfig
+import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -47,18 +47,33 @@ private data class SabdhamUpdateInfo(
 @Composable
 fun SabdhamUpdateGate() {
     val context = LocalContext.current
+    val packageInfo = remember(context) {
+        context.packageManager.getPackageInfo(context.packageName, 0)
+    }
+    val currentVersionCode = remember(packageInfo) {
+        PackageInfoCompat.getLongVersionCode(packageInfo).toInt()
+    }
+    val currentVersionName = remember(packageInfo) {
+        packageInfo.versionName ?: currentVersionCode.toString()
+    }
+
     var updateInfo by remember { mutableStateOf<SabdhamUpdateInfo?>(null) }
     var dismissedOptionalUpdate by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        updateInfo = runCatching { fetchUpdateInfo() }.getOrNull()
+    LaunchedEffect(currentVersionCode, currentVersionName) {
+        updateInfo = runCatching {
+            fetchUpdateInfo(
+                currentVersionCode = currentVersionCode,
+                currentVersionName = currentVersionName
+            )
+        }.getOrNull()
     }
 
     val info = updateInfo ?: return
-    if (dismissedOptionalUpdate || info.latestVersionCode <= BuildConfig.VERSION_CODE) return
+    if (dismissedOptionalUpdate || info.latestVersionCode <= currentVersionCode) return
 
     val isRequired =
-        info.forceUpdate || BuildConfig.VERSION_CODE < info.minimumVersionCode
+        info.forceUpdate || currentVersionCode < info.minimumVersionCode
 
     BackHandler(enabled = isRequired) {
         // Required updates cannot be dismissed with the Android back button.
@@ -140,7 +155,10 @@ fun SabdhamUpdateGate() {
     )
 }
 
-private suspend fun fetchUpdateInfo(): SabdhamUpdateInfo =
+private suspend fun fetchUpdateInfo(
+    currentVersionCode: Int,
+    currentVersionName: String
+): SabdhamUpdateInfo =
     withContext(Dispatchers.IO) {
         val connection = (URL(UPDATE_ENDPOINT).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
@@ -171,11 +189,11 @@ private suspend fun fetchUpdateInfo(): SabdhamUpdateInfo =
             }
 
             SabdhamUpdateInfo(
-                latestVersionCode = json.optInt("latestVersionCode", BuildConfig.VERSION_CODE),
+                latestVersionCode = json.optInt("latestVersionCode", currentVersionCode),
                 minimumVersionCode = json.optInt("minimumVersionCode", 0),
                 latestVersionName = json.optString(
                     "latestVersionName",
-                    BuildConfig.VERSION_NAME
+                    currentVersionName
                 ),
                 downloadUrl = json.optString("downloadUrl").trim(),
                 forceUpdate = json.optBoolean("forceUpdate", false),
