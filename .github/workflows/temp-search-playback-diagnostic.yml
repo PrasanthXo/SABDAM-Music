@@ -49,30 +49,37 @@ jobs:
           cd /tmp/ytjs-test
           npm init -y >/dev/null 2>&1
           npm install youtubei.js@18.1.0 --silent
-          node --input-type=module <<'NODE'
+          node --input-type=module <<'NODE' || true
           import { Innertube } from 'youtubei.js';
-          try {
-            const yt = await Innertube.create();
-            const format = await yt.getStreamingData(
-              '9bZkp7q19f0',
-              { type: 'audio', quality: 'best' }
-            );
-            console.log('FORMAT', JSON.stringify({
-              itag: format?.itag,
-              mime_type: format?.mime_type,
-              bitrate: format?.bitrate,
-              urlPrefix: String(format?.url || '').slice(0, 120)
-            }));
-            if (!format?.url) process.exit(2);
-            const response = await fetch(format.url, {
-              headers: { Range: 'bytes=0-1023' }
-            });
-            console.log('AUDIO_FETCH', response.status, response.headers.get('content-type'), response.headers.get('content-length'));
-            const bytes = new Uint8Array(await response.arrayBuffer());
-            console.log('AUDIO_BYTES', bytes.length);
-          } catch (error) {
-            console.error('YTJS_ERROR', error?.stack || error);
-            process.exitCode = 1;
+          const clients = [undefined, 'ANDROID', 'TV_EMBEDDED', 'YTMUSIC_ANDROID', 'YTMUSIC'];
+          const yt = await Innertube.create();
+          for (const client of clients) {
+            try {
+              const options = { type: 'audio', quality: 'best' };
+              if (client) options.client = client;
+              const info = await yt.getBasicInfo('9bZkp7q19f0', client ? { client } : undefined);
+              console.log('CLIENT_INFO', client || 'DEFAULT', JSON.stringify({
+                playability: info?.playability_status?.status,
+                reason: info?.playability_status?.reason,
+                adaptive: info?.streaming_data?.adaptive_formats?.length || 0,
+                formats: info?.streaming_data?.formats?.length || 0
+              }));
+              const format = info.chooseFormat(options);
+              const url = await format.decipher(yt.session.player);
+              console.log('FORMAT', client || 'DEFAULT', JSON.stringify({
+                itag: format?.itag,
+                mime_type: format?.mime_type,
+                bitrate: format?.bitrate,
+                urlPrefix: String(url || '').slice(0, 120)
+              }));
+              if (!url) continue;
+              const response = await fetch(url, { headers: { Range: 'bytes=0-1023' } });
+              console.log('AUDIO_FETCH', client || 'DEFAULT', response.status, response.headers.get('content-type'), response.headers.get('content-length'));
+              const bytes = new Uint8Array(await response.arrayBuffer());
+              console.log('AUDIO_BYTES', client || 'DEFAULT', bytes.length);
+            } catch (error) {
+              console.error('YTJS_CLIENT_ERROR', client || 'DEFAULT', error?.message || error);
+            }
           }
           NODE
           cd "$GITHUB_WORKSPACE"
