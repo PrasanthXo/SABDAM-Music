@@ -1,4 +1,4 @@
-package com.morningmusic.app.ui.screens
+﻿package com.morningmusic.app.ui.screens
 
 
 import androidx.compose.ui.draw.blur
@@ -1787,7 +1787,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                                         ignoreCase = true
                                                                     )
                                                             ) {
-                                                                "Spotify • " +
+                                                                "Spotify â€¢ " +
                                                                     playlist.owner
                                                             } else {
                                                                 playlist.owner
@@ -7148,7 +7148,7 @@ private fun SabdhamHomeTopBar(
     ) {
         val compact = maxWidth < 390.dp
         val barHeight = if (compact) 92.dp else 98.dp
-        val logoSize = if (compact) 42.dp else 46.dp
+        val logoSize = if (compact) 48.dp else 54.dp
         val brandFont = if (compact) 17.sp else 19.sp
         val taglineFont = if (compact) 6.5.sp else 7.sp
         val greetingFont = if (compact) 13.sp else 15.sp
@@ -7163,32 +7163,71 @@ private fun SabdhamHomeTopBar(
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            Color(0xFF07110D),
-                            Color(0xFF061A11),
-                            Color(0xFF07110D)
+                            Color(0xFF04110A),
+                            Color(0xFF07351F),
+                            Color(0xFF082417),
+                            Color(0xFF04110A)
                         )
                     )
                 )
                 .border(
-                    width = 1.dp,
-                    color = green.copy(alpha = 0.32f),
+                    width = 1.2.dp,
+                    color = green.copy(alpha = 0.46f),
                     shape = shape
                 )
         ) {
-            // Clean, low-profile accent only. No waveform lines crossing the content.
+            // Premium soft glow behind SABDHAM logo.
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .offset(x = (-24).dp)
-                    .size(if (compact) 104.dp else 116.dp)
+                    .offset(x = (-22).dp)
+                    .size(if (compact) 148.dp else 164.dp)
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
-                                green.copy(alpha = 0.10f),
+                                green.copy(alpha = 0.20f),
+                                green.copy(alpha = 0.07f),
                                 Color.Transparent
                             )
                         ),
                         CircleShape
+                    )
+            )
+
+            // Soft center glow adds depth without busy waveform lines.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(x = if (compact) 38.dp else 52.dp)
+                    .size(
+                        width = if (compact) 190.dp else 230.dp,
+                        height = if (compact) 86.dp else 92.dp
+                    )
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                green.copy(alpha = 0.09f),
+                                Color.Transparent
+                            )
+                        ),
+                        CircleShape
+                    )
+            )
+
+            // Subtle lower highlight.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(0.82f)
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                green.copy(alpha = 0.34f),
+                                Color.Transparent
+                            )
+                        )
                     )
             )
 
@@ -9541,6 +9580,8 @@ private fun SabdhamEqualizerBand(
         )
     }
 }
+
+
 
 
 
