@@ -4029,7 +4029,16 @@ fun FullPlayerSheet(
             else -> 260.dp
         }.coerceAtMost(maxWidth - 64.dp)
 
-        val fullPlayerBottomReserve = 78.dp
+        // Reserve the actual mobile safe-area plus the fixed bottom bar.
+        // This prevents the volume/audio-output panel from ever sitting under
+        // the navigation dock on gesture-navigation or small-screen phones.
+        val bottomSafeInset =
+            WindowInsets.safeDrawing
+                .asPaddingValues()
+                .calculateBottomPadding()
+
+        val fullPlayerBottomReserve =
+            82.dp + bottomSafeInset
 
         // Ambient SABDHAM green glow
         Box(
