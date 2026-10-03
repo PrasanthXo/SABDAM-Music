@@ -5,7 +5,7 @@ import com.morningmusic.app.data.model.Track
 import java.util.Calendar
 import kotlin.random.Random
 
-private const val DAILY_CATALOG_PREFS = "sabdham_daily_catalog_rotation_v2"
+private const val DAILY_CATALOG_PREFS = "sabdham_daily_catalog_rotation_v3"
 
 fun currentLocalCatalogDay(): Int {
     val calendar = Calendar.getInstance()
@@ -17,8 +17,8 @@ fun currentLocalCatalogDay(): Int {
  *
  * - Rotates once per device-local calendar day.
  * - Liked songs stay eligible and are never added to seen-history.
- * - Never-before-shown catalogue songs are placed before older songs.
- * - Previously shown songs only fill remaining slots, so older content moves back.
+ * - Previously shown unliked songs do not return while unseen songs remain.
+ * - A new cycle starts only after every unliked song in that catalogue has been seen.
  * - Newly added track IDs are automatically "new" because they are absent from history.
  */
 fun dailyRotatedCatalog(
@@ -62,7 +62,11 @@ fun dailyRotatedCatalog(
     val liked = uniquePool.filter { it.id in likedTrackIds }
     val unliked = uniquePool.filterNot { it.id in likedTrackIds }
     val unseenUnliked = unliked.filterNot { it.id in seenIds }
-    val seenUnliked = unliked.filter { it.id in seenIds }
+
+    // Never refill today's catalogue with previously seen songs.
+    // Only when the entire unliked pool has been seen do we start a fresh cycle.
+    val cycleReset = unliked.isNotEmpty() && unseenUnliked.isEmpty()
+    val eligibleUnliked = if (cycleReset) unliked else unseenUnliked
 
     fun shuffled(items: List<Track>, salt: Int): List<Track> {
         val seed = (dayIndex.toLong() * 1_000_003L + catalogKey.hashCode() + salt).toInt()
@@ -74,17 +78,13 @@ fun dailyRotatedCatalog(
             if (size >= desiredCount) break
             add(track)
         }
-        for (track in shuffled(unseenUnliked, 23)) {
-            if (size >= desiredCount) break
-            add(track)
-        }
-        for (track in shuffled(seenUnliked, 37)) {
+        for (track in shuffled(eligibleUnliked, 23)) {
             if (size >= desiredCount) break
             add(track)
         }
     }
 
-    val nextSeen = seenIds.toMutableSet()
+    val nextSeen = if (cycleReset) mutableSetOf() else seenIds.toMutableSet()
     selected.forEach { track ->
         if (track.id !in likedTrackIds) nextSeen.add(track.id)
     }
