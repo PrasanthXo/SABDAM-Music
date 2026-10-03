@@ -36,6 +36,14 @@ jobs:
           curl -fsS -m 45 "https://sabdham-backend.onrender.com/api/stream/resolve?title=Gangnam%20Style&artist=PSY&direct=1" -o /tmp/resolve.json || true
           cat /tmp/resolve.json || true
 
+          echo "=== SABDHAM MUSIC SEARCH WITH PSY ==="
+          curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/music/search?q=Gangnam%20Style%20PSY&language=all&maxResults=25" -o /tmp/music-psy.json || true
+          cat /tmp/music-psy.json || true
+
+          echo "=== SABDHAM YOUTUBE SEARCH WITH PSY ==="
+          curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/youtube/search?q=Gangnam%20Style%20PSY&language=all&maxResults=25" -o /tmp/search-psy.json || true
+          cat /tmp/search-psy.json || true
+
           echo "=== INVIDIOUS INSTANCE PROBES ==="
           for base in \
             https://inv.nadeko.net \
