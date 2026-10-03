@@ -415,6 +415,8 @@ if (incoming.isEmpty()) {
     ) {
         val exhaustedQueries = mutableSetOf<String>()
         val queryPages = queries.associateWith { 1 }.toMutableMap()
+        val emptyStreaks = queries.associateWith { 0 }.toMutableMap()
+        val failureStreaks = queries.associateWith { 0 }.toMutableMap()
         var requestCount = 0
         var consecutiveNoGrowth = 0
 
@@ -439,6 +441,8 @@ if (incoming.isEmpty()) {
 
                 val page = queryPages[query] ?: 1
 
+                var requestFailed = false
+
                 val incoming =
                     try {
                         MusicSearchService.searchSongs(
@@ -448,6 +452,7 @@ if (incoming.isEmpty()) {
                             maxResults = 25
                         )
                     } catch (e: Exception) {
+                        requestFailed = true
                         android.util.Log.w(
                             "SABDHAM_CATALOG_FILL",
                             "Failed query=$query page=$page",
@@ -457,12 +462,40 @@ if (incoming.isEmpty()) {
                     }
 
                 requestCount++
-                queryPages[query] = page + 1
 
-                if (incoming.isEmpty()) {
-                    exhaustedQueries.add(query)
+                if (requestFailed) {
+                    val failures = (failureStreaks[query] ?: 0) + 1
+                    failureStreaks[query] = failures
+
+                    // A Render cold start or temporary network failure should
+                    // not permanently kill this catalogue query. Retry the same
+                    // page a few times before giving up for this app session.
+                    if (failures >= 3) {
+                        exhaustedQueries.add(query)
+                    } else {
+                        delay(1200L)
+                    }
                     continue
                 }
+
+                failureStreaks[query] = 0
+
+                if (incoming.isEmpty()) {
+                    val empties = (emptyStreaks[query] ?: 0) + 1
+                    emptyStreaks[query] = empties
+
+                    // Retry an empty page once because upstream search can
+                    // occasionally return a transient empty response.
+                    if (empties >= 2) {
+                        exhaustedQueries.add(query)
+                    } else {
+                        delay(700L)
+                    }
+                    continue
+                }
+
+                emptyStreaks[query] = 0
+                queryPages[query] = page + 1
 
                 val existingKeys =
                     target.value
@@ -500,7 +533,7 @@ if (incoming.isEmpty()) {
 
             if (roundGrowth == 0) {
                 consecutiveNoGrowth++
-                if (consecutiveNoGrowth >= 2) break
+                if (consecutiveNoGrowth >= 3) break
             } else {
                 consecutiveNoGrowth = 0
             }
