@@ -962,15 +962,21 @@ if (incoming.isEmpty()) {
 
                     val playlistsDeferred =
                         async(Dispatchers.IO) {
-                            MusicSearchService.searchPlaylists(
-                                query = trimmed,
-                                maxResults = 12
-                            )
+                            // Playlist discovery uses YouTube search.list,
+                            // which has a much tighter daily quota. Wait until
+                            // the user has paused typing and ignore tiny queries.
+                            if (trimmed.length < 3) {
+                                emptyList()
+                            } else {
+                                delay(500)
+                                MusicSearchService.searchPlaylists(
+                                    query = trimmed,
+                                    maxResults = 12
+                                )
+                            }
                         }
 
                     val remoteResults = songsDeferred.await()
-                    val playlistResults =
-                        playlistsDeferred.await()
 
                     if (
                         normalizeSearchText(_searchQuery.value) !=
@@ -984,6 +990,16 @@ if (incoming.isEmpty()) {
                         query = trimmed,
                         limit = 50
                     )
+
+                    val playlistResults =
+                        playlistsDeferred.await()
+
+                    if (
+                        normalizeSearchText(_searchQuery.value) !=
+                            requestedQuery
+                    ) {
+                        return@coroutineScope
+                    }
 
                     _searchPlaylistResults.value =
                         playlistResults
@@ -1018,6 +1034,11 @@ if (incoming.isEmpty()) {
         _loadingSearchPlaylistId.value = playlist.id
         _searchPlaylistMessage.value = null
 
+        val playbackGenerationAtOpen =
+            playbackRequestGeneration.get()
+        val searchQueryAtOpen =
+            normalizeSearchText(_searchQuery.value)
+
         viewModelScope.launch {
             try {
                 val tracks =
@@ -1029,6 +1050,17 @@ if (incoming.isEmpty()) {
                 if (tracks.isEmpty()) {
                     _searchPlaylistMessage.value =
                         "No playable songs found in this playlist"
+                    return@launch
+                }
+
+                // Do not let a slow playlist request interrupt a newer song,
+                // playlist, or search action.
+                if (
+                    playbackRequestGeneration.get() !=
+                        playbackGenerationAtOpen ||
+                    normalizeSearchText(_searchQuery.value) !=
+                        searchQueryAtOpen
+                ) {
                     return@launch
                 }
 
