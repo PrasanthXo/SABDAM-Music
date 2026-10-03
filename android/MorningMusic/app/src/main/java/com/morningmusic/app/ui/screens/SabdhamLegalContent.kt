@@ -28,6 +28,10 @@ SABDHAM is an independent music discovery, playback, playlist and personal music
 
 SABDHAM may display or reference music information, metadata, artwork, artist information, streaming references and other material supplied by third-party services or publicly accessible internet sources.
 
+Artwork and metadata may be supplied by Apple/iTunes, Last.fm, MusicBrainz, Cover Art Archive and The Movie Database (TMDB), subject to provider availability and applicable provider terms.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
 SABDHAM and Santh Creatives do not claim ownership of third-party musical works, recordings, lyrics, artwork, photographs, trademarks, videos, artist names or other protected intellectual property.
 
 All third-party rights remain with their respective owners, artists, labels, publishers, licensors, photographers, platforms and other rights holders.
