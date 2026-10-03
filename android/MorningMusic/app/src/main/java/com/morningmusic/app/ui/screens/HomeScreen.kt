@@ -22,6 +22,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -41,6 +43,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -2603,8 +2606,10 @@ fun HomeScreen(viewModel: MusicViewModel) {
         }
 
         // Compact/collapsed phone bottom navigation.
-        // Inactive tabs remain icon-only; the selected tab expands with its label.
-        Row(
+        // Remove it entirely while the full player is visible so there is only
+        // one bottom navigation in composition and one touch target per tab.
+        if (!isFullPlayerVisible) {
+            Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(
@@ -2647,6 +2652,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 selected = activeNavTab == "profile",
                 onClick = { activeNavTab = "profile" }
             )
+            }
         }
 
         // Native Floating Mini Player Docked at Bottom.
@@ -4171,6 +4177,7 @@ fun FullPlayerSheet(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .clipToBounds()
             .background(Color(0xFF121212))
     ) {
         val compact = maxHeight < 760.dp
@@ -4683,6 +4690,13 @@ fun FullPlayerSheet(
                 }
 
                 else -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                     // Artwork
                     Box(
                         modifier = Modifier
@@ -5001,6 +5015,7 @@ fun FullPlayerSheet(
                     }
 
                     Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
         }
