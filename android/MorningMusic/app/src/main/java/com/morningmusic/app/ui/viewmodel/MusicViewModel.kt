@@ -20,6 +20,8 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.morningmusic.app.data.model.Artist
 import com.morningmusic.app.data.model.Genre
 import com.morningmusic.app.data.model.Track
+import com.morningmusic.app.audio.AudioRouteManager
+import com.morningmusic.app.audio.AudioRouteState
 import com.morningmusic.app.data.repository.MusicRepository
 import com.morningmusic.app.data.network.MusicSearchService
 import com.morningmusic.app.data.network.SabdhamLibraryService
@@ -42,6 +44,25 @@ import java.util.Calendar
  * and lock screen controls when the device display is switched off.
  */
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val audioRouteManager = AudioRouteManager(application)
+    val audioRouteState: StateFlow<AudioRouteState> = audioRouteManager.state
+
+    fun transferAudioTo(routeId: String) {
+        audioRouteManager.transferTo(routeId)
+    }
+
+    fun addSharedAudioRoute(routeId: String) {
+        audioRouteManager.addSharedRoute(routeId)
+    }
+
+    fun removeSharedAudioRoute(routeId: String) {
+        audioRouteManager.removeSharedRoute(routeId)
+    }
+
+    fun refreshAudioRoutes() {
+        audioRouteManager.refresh()
+    }
 
     data class PlaybackInterestProfile(
         val preferredLanguage: String?,
@@ -2566,10 +2587,11 @@ if (incoming.isEmpty()) {
     }
 
     override fun onCleared() {
-        super.onCleared()
+        audioRouteManager.close()
         controllerFuture?.let { future ->
             MediaController.releaseFuture(future)
         }
+        super.onCleared()
     }
 }
 
