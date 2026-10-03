@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -2648,8 +2649,10 @@ fun HomeScreen(viewModel: MusicViewModel) {
             )
         }
 
-        // Native Floating Mini Player Docked at Bottom
-        currentTrack?.let { track ->
+        // Native Floating Mini Player Docked at Bottom.
+        // Do not keep a second interactive player composed underneath the
+        // full-screen player; that caused overlapping semantics/layout glitches.
+        if (!isFullPlayerVisible) currentTrack?.let { track ->
             NativeMiniPlayer(
                 track = track,
                 isPlaying = isPlaying,
@@ -3946,6 +3949,8 @@ fun NativeMiniPlayer(
     modifier: Modifier = Modifier
 ) {
     val progress = if (duration > 0) (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f) else 0f
+    val compactControls =
+        LocalConfiguration.current.screenWidthDp < 390
 
     Surface(
         modifier = modifier
@@ -4030,31 +4035,34 @@ fun NativeMiniPlayer(
                     }
                 }
 
-                IconButton(onClick = onLikeClick) {
-                    Icon(
-                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = "Like",
-                        tint = if (isLiked) Color(0xFF1DB954) else Color(0xFF777788),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                  IconButton(onClick = onMuteClick, modifier = Modifier.size(32.dp)) {
-                      Icon(
-                          imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                          contentDescription = if (isMuted) "Unmute" else "Mute",
-                          tint = Color.White,
-                          modifier = Modifier.size(21.dp)
-                      )
-                  }
+                if (!compactControls) {
+                    IconButton(onClick = onLikeClick) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = if (isLiked) Color(0xFF1DB954) else Color(0xFF777788),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
 
-                  IconButton(onClick = onPreviousClick, modifier = Modifier.size(32.dp)) {
-                      Icon(
-                          imageVector = Icons.Default.SkipPrevious,
-                          contentDescription = "Previous",
-                          tint = Color.White,
-                          modifier = Modifier.size(23.dp)
-                      )
-                  }
+                    IconButton(onClick = onMuteClick, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                            contentDescription = if (isMuted) "Unmute" else "Mute",
+                            tint = Color.White,
+                            modifier = Modifier.size(21.dp)
+                        )
+                    }
+
+                    IconButton(onClick = onPreviousClick, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = Color.White,
+                            modifier = Modifier.size(23.dp)
+                        )
+                    }
+                }
 
                   IconButton(
                       onClick = onPlayPauseClick,
@@ -4165,14 +4173,15 @@ fun FullPlayerSheet(
             .fillMaxSize()
             .background(Color(0xFF121212))
     ) {
-        val compact = maxHeight < 720.dp
+        val compact = maxHeight < 760.dp
 
         // Keep enough vertical room for controls + volume + fixed bottom navigation.
+        // Short phones get a smaller artwork block instead of compressing controls.
         val artworkSize = when {
-            maxHeight < 650.dp -> 150.dp
-            maxHeight < 720.dp -> 180.dp
-            maxHeight < 800.dp -> 220.dp
-            else -> 260.dp
+            maxHeight < 650.dp -> 132.dp
+            maxHeight < 720.dp -> 158.dp
+            maxHeight < 800.dp -> 195.dp
+            else -> 250.dp
         }.coerceAtMost(maxWidth - 64.dp)
 
         // Reserve the actual mobile safe-area plus the fixed bottom bar.
