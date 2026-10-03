@@ -5063,6 +5063,14 @@ app.get('/api/youtube/search-playlists', async (req, res) => {
       return res.json({ playlists: [] });
     }
 
+    const cacheKey =
+      `youtube-playlist-search:${query.toLowerCase()}:${maxResults}`;
+
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const searchUrl = youtubeConfig.buildApiUrl('search', {
       part: 'snippet',
       type: 'playlist',
@@ -5143,16 +5151,20 @@ app.get('/api/youtube/search-playlists', async (req, res) => {
 
           return {
             id,
-            title,
-            owner:
-              String(item?.snippet?.channelTitle || 'YouTube').trim(),
+            title: decodeHtmlEntities(title),
+            owner: decodeHtmlEntities(
+              String(item?.snippet?.channelTitle || 'YouTube').trim()
+            ),
             itemCount: itemCounts.get(id) || 0,
             source: 'youtube'
           };
         })
         .filter(Boolean);
 
-    return res.json({ playlists });
+    const payload = { playlists };
+    setCache(cacheKey, payload);
+
+    return res.json(payload);
   } catch (err) {
     console.warn('[SABDHAM Playlist Search] Failed:', err);
     return res.json({ playlists: [] });
