@@ -496,8 +496,8 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 mutableListOf<Track>()
             }
 
-        // Keep a little extra inventory behind the visible 50 so the next
-        // day's rotation can change songs without cross-row duplication.
+        // Every catalogue must reach the visible target before any row is
+        // allowed to reserve extra songs for future daily rotation.
         val sectionCapacity = targetPerSection + 10
 
         preferredPools.forEachIndexed { index, pool ->
@@ -506,7 +506,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                     semanticCatalogKey(it)
                 }
             ) {
-                if (sections[index].size >= sectionCapacity) break
+                if (sections[index].size >= targetPerSection) break
 
                 val key = semanticCatalogKey(track)
                 val available = remaining.remove(key) ?: continue
@@ -514,21 +514,48 @@ fun HomeScreen(viewModel: MusicViewModel) {
             }
         }
 
-        // Fairly fill every section from the remaining language pool.
-        var cursor = 0
+        // First fill only deficient rows. With 6 rows and a 330-song language
+        // pool this guarantees 50 per row before any catalogue can take extras.
+        var deficitCursor = 0
+        var safety = 0
+
         while (
             remaining.isNotEmpty() &&
-            sections.any { it.size < sectionCapacity }
+            sections.any { it.size < targetPerSection } &&
+            safety < 100_000
         ) {
-            val first = remaining.entries.first()
-            val sectionIndex = cursor % sections.size
+            val sectionIndex = deficitCursor % sections.size
 
-            if (sections[sectionIndex].size < sectionCapacity) {
+            if (sections[sectionIndex].size < targetPerSection) {
+                val first = remaining.entries.first()
                 sections[sectionIndex].add(first.value)
                 remaining.remove(first.key)
             }
 
-            cursor++
+            deficitCursor++
+            safety++
+        }
+
+        // Only after the visible minimum is satisfied do we distribute up to
+        // 10 reserve songs per row for tomorrow's rotation.
+        var reserveCursor = 0
+        safety = 0
+
+        while (
+            remaining.isNotEmpty() &&
+            sections.any { it.size < sectionCapacity } &&
+            safety < 100_000
+        ) {
+            val sectionIndex = reserveCursor % sections.size
+
+            if (sections[sectionIndex].size < sectionCapacity) {
+                val first = remaining.entries.first()
+                sections[sectionIndex].add(first.value)
+                remaining.remove(first.key)
+            }
+
+            reserveCursor++
+            safety++
         }
 
         return sections.map { it.toList() }
