@@ -924,6 +924,11 @@ if (incoming.isEmpty()) {
             return
         }
 
+        // Never show playlist results from the previous query while a new
+        // search is still loading.
+        _searchPlaylistResults.value = emptyList()
+        _searchPlaylistMessage.value = null
+
         _suggestions.value = generateSuggestions(trimmed)
 
         val localResults = rankSearchResults(
