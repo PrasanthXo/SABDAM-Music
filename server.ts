@@ -2668,6 +2668,7 @@ const externalArtworkCache = new Map<
   { imageUrl: string | null; timestamp: number }
 >();
 const EXTERNAL_ARTWORK_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const EXTERNAL_ARTWORK_NEGATIVE_CACHE_TTL_MS = 30 * 60 * 1000;
 
 function normalizeArtworkMatchText(value: string): string {
   return String(value || '')
@@ -2908,6 +2909,13 @@ async function findVerifiedAppleArtwork(params: {
 let musicBrainzArtworkQueue: Promise<void> = Promise.resolve();
 let lastMusicBrainzArtworkRequestAt = 0;
 
+function escapeMusicBrainzArtworkQueryValue(value: string): string {
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .trim();
+}
+
 function enqueueMusicBrainzArtworkRequest<T>(
   task: () => Promise<T>
 ): Promise<T> {
@@ -2950,10 +2958,13 @@ async function findVerifiedMusicBrainzArtwork(params: {
 
   if (!title) return null;
 
+  const safeTitle = escapeMusicBrainzArtworkQueryValue(title);
+  const safeArtist = escapeMusicBrainzArtworkQueryValue(artist);
+
   const query =
-    artist
-      ? `recording:"${title}" AND artist:"${artist}"`
-      : `recording:"${title}"`;
+    safeArtist
+      ? `recording:"${safeTitle}" AND artist:"${safeArtist}"`
+      : `recording:"${safeTitle}"`;
 
   try {
     const data = await enqueueMusicBrainzArtworkRequest(async () => {
@@ -3080,12 +3091,15 @@ async function findStrictExternalArtwork(params: {
     );
 
   const cached = externalArtworkCache.get(cacheKey);
-  if (
-    cached &&
-    Date.now() - cached.timestamp <
-      EXTERNAL_ARTWORK_CACHE_TTL_MS
-  ) {
-    return cached.imageUrl;
+  if (cached) {
+    const ttl =
+      cached.imageUrl
+        ? EXTERNAL_ARTWORK_CACHE_TTL_MS
+        : EXTERNAL_ARTWORK_NEGATIVE_CACHE_TTL_MS;
+
+    if (Date.now() - cached.timestamp < ttl) {
+      return cached.imageUrl;
+    }
   }
 
   const appleArtwork =
