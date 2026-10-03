@@ -142,16 +142,8 @@ private fun rememberSabdhamArtworkModel(track: Track): Any? {
         }
 
     val primary =
-        remember(
-            track.id,
-            track.coverUrl,
-            hasStrongArtworkIdentity
-        ) {
-            if (hasStrongArtworkIdentity) {
-                null
-            } else {
-                usableExistingArtwork(track)
-            }
+        remember(track.id, track.coverUrl) {
+            usableExistingArtwork(track)
         }
 
     val verifiedFallback =
@@ -160,28 +152,43 @@ private fun rememberSabdhamArtworkModel(track: Track): Any? {
             track.title,
             track.artist,
             track.album,
-            track.movie
+            track.movie,
+            track.language,
+            track.year
         ) {
             buildVerifiedArtworkFallbackUrl(track)
         }
 
-    var useVerifiedFallback by remember(
+    var verifiedFailed by remember(
         track.id,
-        primary,
-        verifiedFallback,
-        hasStrongArtworkIdentity
+        verifiedFallback
     ) {
-        mutableStateOf(
-            hasStrongArtworkIdentity ||
-                (primary == null && verifiedFallback != null)
-        )
+        mutableStateOf(false)
+    }
+
+    var primaryFailed by remember(
+        track.id,
+        primary
+    ) {
+        mutableStateOf(false)
     }
 
     val selectedUrl =
-        if (useVerifiedFallback) {
-            verifiedFallback
-        } else {
-            primary
+        when {
+            hasStrongArtworkIdentity &&
+                verifiedFallback != null &&
+                !verifiedFailed ->
+                verifiedFallback
+
+            primary != null && !primaryFailed ->
+                primary
+
+            !hasStrongArtworkIdentity &&
+                verifiedFallback != null &&
+                !verifiedFailed ->
+                verifiedFallback
+
+            else -> null
         }
 
     if (selectedUrl == null) {
@@ -191,17 +198,21 @@ private fun rememberSabdhamArtworkModel(track: Track): Any? {
     return remember(
         selectedUrl,
         verifiedFallback,
-        useVerifiedFallback
+        primary,
+        hasStrongArtworkIdentity,
+        verifiedFailed,
+        primaryFailed
     ) {
         coil.request.ImageRequest.Builder(context)
             .data(selectedUrl)
             .listener(
                 onError = { _, _ ->
-                    if (
-                        !useVerifiedFallback &&
-                        verifiedFallback != null
-                    ) {
-                        useVerifiedFallback = true
+                    when (selectedUrl) {
+                        verifiedFallback ->
+                            verifiedFailed = true
+
+                        primary ->
+                            primaryFailed = true
                     }
                 }
             )
