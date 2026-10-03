@@ -43,6 +43,16 @@ import java.util.Calendar
  */
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
+    data class PlaybackInterestProfile(
+        val preferredLanguage: String?,
+        val topGenres: List<String>,
+        val topArtists: List<String>,
+        val playCount: Int
+    )
+
+    private val _playbackInterestVersion = MutableStateFlow(0)
+    val playbackInterestVersion: StateFlow<Int> = _playbackInterestVersion.asStateFlow()
+
     private val _currentTrack = MutableStateFlow<Track?>(null)
     val currentTrack: StateFlow<Track?> = _currentTrack.asStateFlow()
 
@@ -411,6 +421,7 @@ if (incoming.isEmpty()) {
                                     if (matchingTrack != null) {
                                         _currentTrack.value = matchingTrack
                                         saveLastPlayedTrack(matchingTrack)
+                                        recordPlaybackInterest(matchingTrack)
                                     }
                                 }
                             }
@@ -790,6 +801,107 @@ if (incoming.isEmpty()) {
         // Fallback queue: combine all available catalog
         return allTracks
     }
+    private fun recordPlaybackInterest(track: Track) {
+        try {
+            val prefs =
+                getApplication<android.app.Application>()
+                    .getSharedPreferences(
+                        "sabdham_playback_interest",
+                        android.content.Context.MODE_PRIVATE
+                    )
+
+            fun readCounts(key: String): JSONObject {
+                return try {
+                    JSONObject(prefs.getString(key, "{}") ?: "{}")
+                } catch (_: Exception) {
+                    JSONObject()
+                }
+            }
+
+            fun increment(target: JSONObject, rawValue: String) {
+                val value = rawValue.trim().lowercase()
+                if (value.isBlank()) return
+                target.put(value, target.optInt(value, 0) + 1)
+            }
+
+            val languages = readCounts("languages")
+            val genres = readCounts("genres")
+            val artists = readCounts("artists")
+
+            increment(languages, track.language)
+
+            track.genre
+                .split(Regex("[,/|&]+"))
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .forEach { increment(genres, it) }
+
+            increment(artists, track.artist)
+
+            prefs.edit()
+                .putString("languages", languages.toString())
+                .putString("genres", genres.toString())
+                .putString("artists", artists.toString())
+                .putInt("play_count", prefs.getInt("play_count", 0) + 1)
+                .apply()
+
+            _playbackInterestVersion.value = _playbackInterestVersion.value + 1
+        } catch (e: Exception) {
+            android.util.Log.w(
+                "SABDHAM_INTEREST",
+                "Unable to record playback interest",
+                e
+            )
+        }
+    }
+
+    fun getPlaybackInterestProfile(): PlaybackInterestProfile {
+        return try {
+            val prefs =
+                getApplication<android.app.Application>()
+                    .getSharedPreferences(
+                        "sabdham_playback_interest",
+                        android.content.Context.MODE_PRIVATE
+                    )
+
+            fun topValues(key: String, limit: Int): List<String> {
+                val obj =
+                    try {
+                        JSONObject(prefs.getString(key, "{}") ?: "{}")
+                    } catch (_: Exception) {
+                        JSONObject()
+                    }
+
+                val entries = mutableListOf<Pair<String, Int>>()
+                val keys = obj.keys()
+
+                while (keys.hasNext()) {
+                    val value = keys.next()
+                    entries.add(value to obj.optInt(value, 0))
+                }
+
+                return entries
+                    .sortedByDescending { it.second }
+                    .map { it.first }
+                    .take(limit)
+            }
+
+            PlaybackInterestProfile(
+                preferredLanguage = topValues("languages", 1).firstOrNull(),
+                topGenres = topValues("genres", 3),
+                topArtists = topValues("artists", 3),
+                playCount = prefs.getInt("play_count", 0)
+            )
+        } catch (_: Exception) {
+            PlaybackInterestProfile(
+                preferredLanguage = null,
+                topGenres = emptyList(),
+                topArtists = emptyList(),
+                playCount = 0
+            )
+        }
+    }
+
     private fun saveLastPlayedTrack(track: Track) {
         try {
             val json = JSONObject().apply {
