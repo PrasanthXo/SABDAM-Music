@@ -1659,11 +1659,22 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 ) {
                                     items(
                                         items = searchPlaylistResults,
-                                        key = { it.id }
+                                        key = {
+                                            it.source.trim().lowercase() +
+                                                ":" +
+                                                it.id.trim()
+                                        }
                                     ) { playlist ->
+                                        val playlistInteractionKey =
+                                            playlist.source
+                                                .trim()
+                                                .lowercase() +
+                                                ":" +
+                                                playlist.id.trim()
+
                                         val loading =
                                             loadingSearchPlaylistId ==
-                                                playlist.id
+                                                playlistInteractionKey
 
                                         Surface(
                                             modifier = Modifier
@@ -1672,17 +1683,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                     RoundedCornerShape(
                                                         16.dp
                                                     )
-                                                )
-                                                .clickable(
-                                                    enabled =
-                                                        loadingSearchPlaylistId ==
-                                                            null
-                                                ) {
-                                                    viewModel
-                                                        .openSearchPlaylist(
-                                                            playlist
-                                                        )
-                                                },
+                                                ),
                                             shape =
                                                 RoundedCornerShape(16.dp),
                                             color = Color(0xFF171D19),
@@ -1697,9 +1698,30 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                 verticalAlignment =
                                                     Alignment.CenterVertically
                                             ) {
-                                                Box(
+                                                Row(
                                                     modifier = Modifier
-                                                        .size(58.dp)
+                                                        .weight(1f)
+                                                        .clip(
+                                                            RoundedCornerShape(
+                                                                12.dp
+                                                            )
+                                                        )
+                                                        .clickable(
+                                                            enabled =
+                                                                loadingSearchPlaylistId ==
+                                                                    null
+                                                        ) {
+                                                            viewModel
+                                                                .openSearchPlaylist(
+                                                                    playlist
+                                                                )
+                                                        },
+                                                    verticalAlignment =
+                                                        Alignment.CenterVertically
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(58.dp)
                                                         .clip(
                                                             RoundedCornerShape(
                                                                 12.dp
@@ -1796,6 +1818,8 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                     }
                                                 }
 
+                                                }
+
                                                 Column(
                                                     horizontalAlignment =
                                                         Alignment.CenterHorizontally
@@ -1834,7 +1858,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                         IconButton(
                                                             onClick = {
                                                                 searchPlaylistMenuId =
-                                                                    playlist.id
+                                                                    playlistInteractionKey
                                                             },
                                                             modifier =
                                                                 Modifier.size(
@@ -1861,7 +1885,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                         DropdownMenu(
                                                             expanded =
                                                                 searchPlaylistMenuId ==
-                                                                    playlist.id,
+                                                                    playlistInteractionKey,
                                                             onDismissRequest = {
                                                                 searchPlaylistMenuId =
                                                                     null
@@ -1877,7 +1901,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                                         text =
                                                                             if (
                                                                                 searchPlaylistLibraryActionId ==
-                                                                                    playlist.id
+                                                                                    playlistInteractionKey
                                                                             ) {
                                                                                 "Adding to Library..."
                                                                             } else {
@@ -1918,23 +1942,40 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                                             null
                                                                     ) {
                                                                         searchPlaylistLibraryActionId =
-                                                                            playlist.id
+                                                                            playlistInteractionKey
                                                                         searchPlaylistLibraryMessage =
                                                                             null
 
                                                                         playlistScope.launch {
                                                                             val result =
-                                                                                SabdhamLibraryService
-                                                                                    .importYouTubePlaylist(
-                                                                                        context =
-                                                                                            context,
-                                                                                        playlistId =
-                                                                                            playlist.id,
-                                                                                        playlistName =
-                                                                                            playlist.title,
-                                                                                        playlistOwner =
-                                                                                            playlist.owner
-                                                                                    )
+                                                                                if (
+                                                                                    playlist.source
+                                                                                        .equals(
+                                                                                            "spotify",
+                                                                                            ignoreCase = true
+                                                                                        )
+                                                                                ) {
+                                                                                    SabdhamLibraryService
+                                                                                        .importPlaylistByLink(
+                                                                                            context =
+                                                                                                context,
+                                                                                            playlistUrl =
+                                                                                                "https://open.spotify.com/playlist/" +
+                                                                                                    playlist.id
+                                                                                        )
+                                                                                } else {
+                                                                                    SabdhamLibraryService
+                                                                                        .importYouTubePlaylist(
+                                                                                            context =
+                                                                                                context,
+                                                                                            playlistId =
+                                                                                                playlist.id,
+                                                                                            playlistName =
+                                                                                                playlist.title,
+                                                                                            playlistOwner =
+                                                                                                playlist.owner
+                                                                                        )
+                                                                                }
 
                                                                             if (
                                                                                 result.success
@@ -1966,7 +2007,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
                                                                             if (
                                                                                 searchPlaylistLibraryActionId ==
-                                                                                    playlist.id
+                                                                                    playlistInteractionKey
                                                                             ) {
                                                                                 searchPlaylistLibraryActionId =
                                                                                     null
@@ -1982,7 +2023,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                                         text =
                                                                             if (
                                                                                 searchPlaylistActionId ==
-                                                                                    playlist.id
+                                                                                    playlistInteractionKey
                                                                             ) {
                                                                                 "Adding to Queue..."
                                                                             } else {
