@@ -800,7 +800,16 @@ if (incoming.isEmpty()) {
     }
 
     private fun isSearchVideoJunk(track: Track): Boolean {
-        val value = normalizeSearchText(track.title)
+        val value =
+            normalizeSearchText(
+                listOf(
+                    track.title,
+                    track.artist,
+                    track.album,
+                    track.language,
+                    track.genre
+                ).joinToString(" ")
+            )
 
         return listOf(
             "karaoke",
@@ -821,7 +830,11 @@ if (incoming.isEmpty()) {
             "full video",
             "4k",
             "remix",
-            "cover song"
+            "remixed",
+            "phonk",
+            "sped up",
+            "cover song",
+            "originally performed"
         ).any { value.contains(it) }
     }
 
@@ -1941,7 +1954,22 @@ if (incoming.isEmpty()) {
         val exactStreamUrl =
             if (exactVideoId.isNotBlank()) {
                 try {
-                    MusicSearchService.getStreamUrl(exactVideoId)
+                    val backendUrl =
+                        MusicSearchService.getStreamUrl(
+                            exactVideoId
+                        )
+
+                    when {
+                        MusicSearchService.isPlayableMediaUrl(
+                            backendUrl
+                        ) ->
+                            backendUrl
+
+                        else ->
+                            MusicSearchService.resolveYouTubeOnDevice(
+                                exactVideoId
+                            )
+                    }
                 } catch (e: Exception) {
                     android.util.Log.w(
                         "SABDHAM_SEARCH_PLAY",
