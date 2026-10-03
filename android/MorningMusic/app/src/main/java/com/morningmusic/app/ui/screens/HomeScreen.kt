@@ -1772,7 +1772,18 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
                                                     Text(
                                                         text =
-                                                            playlist.owner,
+                                                            if (
+                                                                playlist.source
+                                                                    .equals(
+                                                                        "spotify",
+                                                                        ignoreCase = true
+                                                                    )
+                                                            ) {
+                                                                "Spotify • " +
+                                                                    playlist.owner
+                                                            } else {
+                                                                playlist.owner
+                                                            },
                                                         color =
                                                             Color(
                                                                 0xFF8B928E
