@@ -104,6 +104,8 @@ private fun buildVerifiedArtworkFallbackUrl(track: Track): String? {
         .appendQueryParameter("artist", track.artist)
         .appendQueryParameter("album", track.album)
         .appendQueryParameter("movie", track.movie)
+        .appendQueryParameter("language", track.language)
+        .appendQueryParameter("year", track.year.toString())
         .build()
         .toString()
 }
@@ -127,9 +129,29 @@ private fun usableExistingArtwork(track: Track): String? {
 private fun rememberSabdhamArtworkModel(track: Track): Any? {
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    val hasStrongArtworkIdentity =
+        remember(
+            track.id,
+            track.movie,
+            track.album,
+            track.language,
+            track.year
+        ) {
+            isMeaningfulArtworkLabel(track.movie) ||
+                isMeaningfulArtworkLabel(track.album)
+        }
+
     val primary =
-        remember(track.id, track.coverUrl) {
-            usableExistingArtwork(track)
+        remember(
+            track.id,
+            track.coverUrl,
+            hasStrongArtworkIdentity
+        ) {
+            if (hasStrongArtworkIdentity) {
+                null
+            } else {
+                usableExistingArtwork(track)
+            }
         }
 
     val verifiedFallback =
@@ -146,9 +168,13 @@ private fun rememberSabdhamArtworkModel(track: Track): Any? {
     var useVerifiedFallback by remember(
         track.id,
         primary,
-        verifiedFallback
+        verifiedFallback,
+        hasStrongArtworkIdentity
     ) {
-        mutableStateOf(primary == null && verifiedFallback != null)
+        mutableStateOf(
+            hasStrongArtworkIdentity ||
+                (primary == null && verifiedFallback != null)
+        )
     }
 
     val selectedUrl =
