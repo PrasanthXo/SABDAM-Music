@@ -18,6 +18,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -40,12 +42,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -865,6 +871,8 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var isSettingsPageVisible by remember { mutableStateOf(false) }
     var isEditProfileDialogVisible by remember { mutableStateOf(false) }
     var isAuthDialogVisible by remember { mutableStateOf(false) }
+    var isTopBarNotificationCenterVisible by remember { mutableStateOf(false) }
+    var unreadTopBarNotifications by remember { mutableStateOf(3) }
     var playlistTargetTrack by remember { mutableStateOf<Track?>(null) }
     var cloudPlaylists by remember { mutableStateOf<List<CloudPlaylist>>(emptyList()) }
     var playlistLoading by remember { mutableStateOf(false) }
@@ -959,44 +967,22 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 .padding(bottom = if (currentTrack != null) 180.dp else 100.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            // App Header & Time Greeting - Home only
+            // SABDHAM neon top bar - Home only
             if (activeNavTab == "home") {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "SABDHAM MUSIC",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1DB954),
-                            letterSpacing = 1.5.sp
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = greeting,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
-                        )
-                    }
-
-                    Image(
-                        painter = androidx.compose.ui.res.painterResource(R.drawable.sabdham_logo),
-                        contentDescription = "SABDHAM",
-                        contentScale = ContentScale.FillBounds,
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                item {
+                    SabdhamHomeTopBar(
+                        greeting = greeting,
+                        profileName =
+                            authUser?.name
+                                ?.trim()
+                                ?.takeIf { it.isNotBlank() }
+                                ?: "SABDHAM Listener",
+                        unreadCount = unreadTopBarNotifications,
+                        onNotificationsClick = {
+                            isTopBarNotificationCenterVisible = true
+                        }
                     )
-
                 }
-            }
             }
 
             // SABDHAM Search Header + Search Box
@@ -2614,6 +2600,18 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         viewModel.onSearchQueryChange("")
                     }
                     isFullPlayerVisible = false
+                }
+            )
+        }
+
+        if (isTopBarNotificationCenterVisible) {
+            SabdhamTopBarNotificationCenter(
+                unreadCount = unreadTopBarNotifications,
+                onMarkAllRead = {
+                    unreadTopBarNotifications = 0
+                },
+                onDismiss = {
+                    isTopBarNotificationCenterVisible = false
                 }
             )
         }
@@ -7078,6 +7076,440 @@ private fun SignedInProfileView(
         }
     }
     }
+}
+
+
+@Composable
+private fun SabdhamHomeTopBar(
+    greeting: String,
+    profileName: String,
+    unreadCount: Int,
+    onNotificationsClick: () -> Unit
+) {
+    val green = Color(0xFF00E676)
+    val brightGreen = Color(0xFF48FF9B)
+    val deepGreen = Color(0xFF03140D)
+    val shape = RoundedCornerShape(26.dp)
+
+    val greetingAccent =
+        when (greeting.trim().lowercase(Locale.getDefault())) {
+            "good morning" -> "Morning"
+            "good afternoon" -> "Afternoon"
+            "good night" -> "Night"
+            else -> greeting.removePrefix("Good ").replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+            }
+        }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        val compact = maxWidth < 390.dp
+        val barHeight = if (compact) 126.dp else 144.dp
+        val logoSize = if (compact) 42.dp else 54.dp
+        val brandFont = if (compact) 16.sp else 21.sp
+        val taglineFont = if (compact) 6.sp else 7.5.sp
+        val greetingFont = if (compact) 16.sp else 21.sp
+        val nameFont = if (compact) 13.sp else 15.sp
+        val bellSize = if (compact) 44.dp else 50.dp
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(barHeight)
+                .clip(shape)
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            Color(0xFF020807),
+                            deepGreen,
+                            Color(0xFF00120B),
+                            Color(0xFF06130D)
+                        )
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.horizontalGradient(
+                        listOf(
+                            green.copy(alpha = 0.45f),
+                            Color(0xFF1B3327),
+                            brightGreen.copy(alpha = 0.72f)
+                        )
+                    ),
+                    shape = shape
+                )
+        ) {
+            Canvas(
+                modifier = Modifier.matchParentSize()
+            ) {
+                val w = size.width
+                val h = size.height
+
+                fun wavePath(
+                    startY: Float,
+                    amplitude: Float,
+                    phase: Float
+                ): Path {
+                    return Path().apply {
+                        moveTo(0f, startY)
+                        cubicTo(
+                            w * 0.18f,
+                            startY - amplitude + phase,
+                            w * 0.34f,
+                            startY + amplitude,
+                            w * 0.50f,
+                            startY
+                        )
+                        cubicTo(
+                            w * 0.68f,
+                            startY - amplitude,
+                            w * 0.82f,
+                            startY + amplitude - phase,
+                            w,
+                            startY - amplitude * 0.10f
+                        )
+                    }
+                }
+
+                val waveBase = h * 0.74f
+
+                drawPath(
+                    path = wavePath(waveBase, h * 0.18f, 0f),
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            green.copy(alpha = 0.42f),
+                            brightGreen.copy(alpha = 0.75f),
+                            green.copy(alpha = 0.34f)
+                        ),
+                        startX = 0f,
+                        endX = w
+                    ),
+                    style = Stroke(width = 2.dp.toPx())
+                )
+
+                drawPath(
+                    path = wavePath(waveBase + h * 0.06f, h * 0.13f, h * 0.04f),
+                    color = green.copy(alpha = 0.22f),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+
+                drawPath(
+                    path = wavePath(waveBase - h * 0.05f, h * 0.09f, -h * 0.03f),
+                    color = brightGreen.copy(alpha = 0.18f),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            green.copy(alpha = 0.18f),
+                            Color.Transparent
+                        )
+                    ),
+                    radius = h * 0.80f,
+                    center = Offset(w * 0.78f, h * 0.72f)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = if (compact) 10.dp else 14.dp,
+                        end = if (compact) 10.dp else 12.dp,
+                        top = 14.dp,
+                        bottom = 16.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(if (compact) 1.15f else 1.28f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.sabdham_logo),
+                        contentDescription = "SABDHAM logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(logoSize)
+                            .clip(RoundedCornerShape(if (compact) 12.dp else 14.dp))
+                    )
+
+                    Spacer(Modifier.width(if (compact) 7.dp else 10.dp))
+
+                    Column(
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "SABDHAM",
+                            color = Color(0xFFE9FFF3),
+                            fontSize = brandFont,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.SansSerif,
+                            letterSpacing = if (compact) 1.2.sp else 1.8.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Clip
+                        )
+
+                        Spacer(Modifier.height(2.dp))
+
+                        Text(
+                            text = "MUSIC FOR EVERY MOOD",
+                            color = Color(0xFFB9C8C0),
+                            fontSize = taglineFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.SansSerif,
+                            letterSpacing = if (compact) 1.0.sp else 1.6.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Clip
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(if (compact) 1.05f else 1.14f)
+                        .padding(horizontal = if (compact) 3.dp else 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Good ",
+                            color = Color.White,
+                            fontSize = greetingFont,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.SansSerif,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = greetingAccent,
+                            color = brightGreen,
+                            fontSize = greetingFont,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.SansSerif,
+                            maxLines = 1
+                        )
+                    }
+
+                    Spacer(Modifier.height(if (compact) 5.dp else 7.dp))
+
+                    Text(
+                        text = profileName,
+                        color = Color(0xFFD7DDD9),
+                        fontSize = nameFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.SansSerif,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(bellSize)
+                        .clip(RoundedCornerShape(if (compact) 16.dp else 18.dp))
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF083524),
+                                    Color(0xFF03110B)
+                                )
+                            )
+                        )
+                        .border(
+                            1.dp,
+                            green.copy(alpha = 0.85f),
+                            RoundedCornerShape(if (compact) 16.dp else 18.dp)
+                        )
+                        .clickable(onClick = onNotificationsClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.NotificationsNone,
+                        contentDescription = "Notifications",
+                        tint = Color(0xFFEFFFF6),
+                        modifier = Modifier.size(if (compact) 24.dp else 28.dp)
+                    )
+
+                    if (unreadCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 2.dp, y = (-2).dp)
+                                .size(if (compact) 19.dp else 21.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFF3B3B)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = unreadCount.coerceAtMost(9).toString(),
+                                color = Color.White,
+                                fontSize = if (compact) 10.sp else 11.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SabdhamTopBarNotificationCenter(
+    unreadCount: Int,
+    onMarkAllRead: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val green = Color(0xFF00E676)
+    val notifications =
+        listOf(
+            Triple(
+                Icons.Default.NewReleases,
+                "SABDHAM 1.2.0",
+                "New search, playlists, audio output, artwork and player improvements are ready."
+            ),
+            Triple(
+                Icons.Default.LibraryMusic,
+                "Music-only search",
+                "Search now prioritizes real music and filters news, reviews and other non-music videos."
+            ),
+            Triple(
+                Icons.Default.Speaker,
+                "Audio output",
+                "Choose supported phone or Bluetooth audio routes from the player volume panel."
+            )
+        )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF07100B),
+        titleContentColor = Color.White,
+        textContentColor = Color(0xFFD5DDD8),
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = null,
+                    tint = green,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(9.dp))
+                Column {
+                    Text(
+                        text = "Notifications",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 20.sp
+                    )
+                    Text(
+                        text =
+                            if (unreadCount > 0) {
+                                "$unreadCount new"
+                            } else {
+                                "All caught up"
+                            },
+                        color = Color(0xFF9AA79F),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                notifications.forEach { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF101813))
+                            .border(
+                                1.dp,
+                                Color(0xFF1B3225),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF0B2A1B)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = item.first,
+                                contentDescription = null,
+                                tint = green,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = item.second,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = item.third,
+                                color = Color(0xFFB7C1BB),
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onMarkAllRead()
+                    onDismiss()
+                }
+            ) {
+                Text(
+                    text = if (unreadCount > 0) "Mark all read" else "Done",
+                    color = green,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            if (unreadCount > 0) {
+                TextButton(onClick = onDismiss) {
+                    Text(
+                        text = "Close",
+                        color = Color(0xFFB7C1BB)
+                    )
+                }
+            }
+        }
+    )
 }
 
 private fun sabdhamSupportWordCount(text: String): Int =
