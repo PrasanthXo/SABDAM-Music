@@ -212,6 +212,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val throwbacksSource by viewModel.throwbacks.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
+    val homeCatalogTarget = 50
 
     // Native catalogue day changes once at the device's local midnight.
     // The minute check also catches up after the app resumes from background.
@@ -224,52 +225,52 @@ fun HomeScreen(viewModel: MusicViewModel) {
     }
 
     val popularTamil = remember(popularTamilSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, popularTamilSource, "popular_tamil", catalogDay, 20, likedTrackIds)
+        dailyRotatedCatalog(context, popularTamilSource, "popular_tamil", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val popularEnglish = remember(popularEnglishSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, popularEnglishSource, "popular_english", catalogDay, 20, likedTrackIds)
+        dailyRotatedCatalog(context, popularEnglishSource, "popular_english", catalogDay, homeCatalogTarget, likedTrackIds)
     }
 
     val tamilNew = remember(popularTamilSource, catalogDay, likedTrackIds) {
         val pool = popularTamilSource.filter { it.year >= 2023 || it.isTrendingNow }
-        dailyRotatedCatalog(context, pool, "tamil_new", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "tamil_new", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val tamilModern = remember(popularTamilSource, catalogDay, likedTrackIds) {
         val pool = popularTamilSource.filter { it.year in 2010..2022 }
-        dailyRotatedCatalog(context, pool, "tamil_modern", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "tamil_modern", catalogDay, homeCatalogTarget, likedTrackIds)
     }
 
     val acousticMelodies = remember(acousticMelodiesSource, catalogDay, likedTrackIds) {
         val pool = acousticMelodiesSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
-        dailyRotatedCatalog(context, pool, "acoustic", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "acoustic", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val newReleases = remember(newReleasesSource, catalogDay, likedTrackIds) {
         val pool = newReleasesSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
-        dailyRotatedCatalog(context, pool, "new_releases", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "new_releases", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val tamilEvergreen = remember(tamilEvergreenSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, tamilEvergreenSource, "tamil_evergreen", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, tamilEvergreenSource, "tamil_evergreen", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val tamilRomantic = remember(tamilRomanticSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, tamilRomanticSource, "tamil_romantic", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, tamilRomanticSource, "tamil_romantic", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val tamilDance = remember(tamilDanceSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, tamilDanceSource, "tamil_dance", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, tamilDanceSource, "tamil_dance", catalogDay, homeCatalogTarget, likedTrackIds)
     }
 
     val englishPop = remember(englishPopSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, englishPopSource, "international_pop", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, englishPopSource, "international_pop", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val internationalTrending = remember(popularEnglishSource, catalogDay, likedTrackIds) {
         val pool = popularEnglishSource.filter { it.year >= 2023 || it.isTrendingNow }
-        dailyRotatedCatalog(context, pool, "international_trending", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "international_trending", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val internationalRnB = remember(popularEnglishSource, catalogDay, likedTrackIds) {
         val pool = popularEnglishSource.filter {
             it.genre.contains("R&B", ignoreCase = true) ||
                 it.genre.contains("Synthwave", ignoreCase = true)
         }
-        dailyRotatedCatalog(context, pool, "international_rnb", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "international_rnb", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val internationalLove = remember(popularEnglishSource, catalogDay, likedTrackIds) {
         val pool = popularEnglishSource.filter {
@@ -277,28 +278,28 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 it.genre.contains("Acoustic", ignoreCase = true) ||
                 it.genre.contains("Pop", ignoreCase = true)
         }
-        dailyRotatedCatalog(context, pool, "international_love", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "international_love", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val internationalThrowbacks = remember(popularEnglishSource, catalogDay, likedTrackIds) {
         val pool = popularEnglishSource.filter { it.year in 1990..2019 }
-        dailyRotatedCatalog(context, pool, "international_throwbacks", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "international_throwbacks", catalogDay, homeCatalogTarget, likedTrackIds)
     }
 
     val chillRelax = remember(chillRelaxSource, catalogDay, likedTrackIds) {
         val pool = chillRelaxSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
-        dailyRotatedCatalog(context, pool, "chill_relax", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "chill_relax", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val partyHits = remember(partyHitsSource, catalogDay, likedTrackIds) {
         val pool = partyHitsSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
-        dailyRotatedCatalog(context, pool, "party_hits", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "party_hits", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val throwbacks = remember(throwbacksSource, catalogDay, likedTrackIds) {
         val pool = throwbacksSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
-        dailyRotatedCatalog(context, pool, "throwbacks", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "throwbacks", catalogDay, homeCatalogTarget, likedTrackIds)
     }
     val dailyTrending = remember(catalogDay, likedTrackIds) {
         val pool = viewModel.trending.filterNot { it.language.equals("sinhala", ignoreCase = true) }
-        dailyRotatedCatalog(context, pool, "trending", catalogDay, 20, likedTrackIds)
+        dailyRotatedCatalog(context, pool, "trending", catalogDay, homeCatalogTarget, likedTrackIds)
     }
 
     val tamilCatalog = remember(tamilNew, popularTamil, tamilRomantic, tamilDance, tamilEvergreen, tamilModern) {
@@ -434,9 +435,10 @@ fun HomeScreen(viewModel: MusicViewModel) {
             .mapTo(mutableSetOf()) { it.id }
     }
 
-    // Keep Home rows unique without starving later catalogues.
-    // Songs are allocated fairly across Tamil and international sections first,
-    // then each section keeps its own daily rotation.
+    // Keep every Home row unique while targeting at least 50 songs per row.
+    // Partition the large raw Tamil/international pools FIRST; daily rotation
+    // happens only after ownership is assigned, so the same song cannot land
+    // in multiple Home catalogues.
     data class UniqueHomeCatalogs(
         val popularTamil: List<Track>,
         val tamilNew: List<Track>,
@@ -452,50 +454,78 @@ fun HomeScreen(viewModel: MusicViewModel) {
         val internationalThrowbacks: List<Track>
     )
 
+    fun semanticCatalogKey(track: Track): String {
+        val title =
+            track.title.trim()
+                .lowercase()
+                .replace(Regex("\\s+"), " ")
+
+        val artist =
+            track.artist.trim()
+                .lowercase()
+                .replace(Regex("\\s+"), " ")
+
+        return "$title|$artist"
+    }
+
     fun allocateUniqueSections(
         master: List<Track>,
-        preferredPools: List<List<Track>>
+        preferredPools: List<List<Track>>,
+        targetPerSection: Int
     ): List<List<Track>> {
         if (preferredPools.isEmpty()) return emptyList()
 
-        val masterUnique = master.distinctBy { it.id }
-        if (masterUnique.isEmpty()) return List(preferredPools.size) { emptyList() }
+        val masterUnique =
+            master
+                .filter { it.id.isNotBlank() }
+                .distinctBy { semanticCatalogKey(it) }
+
+        if (masterUnique.isEmpty()) {
+            return List(preferredPools.size) { emptyList() }
+        }
 
         val remaining = linkedMapOf<String, Track>()
-        masterUnique.forEach { track -> remaining[track.id] = track }
+        masterUnique.forEach { track ->
+            remaining[semanticCatalogKey(track)] = track
+        }
 
-        val sections = MutableList(preferredPools.size) { mutableListOf<Track>() }
-        val baseTarget = maxOf(1, masterUnique.size / preferredPools.size)
+        val sections =
+            MutableList(preferredPools.size) {
+                mutableListOf<Track>()
+            }
 
-        // Give every catalogue its preferred songs first, but cap the first pass
-        // so broad catalogues cannot consume the whole language pool.
+        // Keep a little extra inventory behind the visible 50 so the next
+        // day's rotation can change songs without cross-row duplication.
+        val sectionCapacity = targetPerSection + 10
+
         preferredPools.forEachIndexed { index, pool ->
-            for (track in pool.distinctBy { it.id }) {
-                if (sections[index].size >= baseTarget) break
-                val available = remaining.remove(track.id) ?: continue
+            for (
+                track in pool.distinctBy {
+                    semanticCatalogKey(it)
+                }
+            ) {
+                if (sections[index].size >= sectionCapacity) break
+
+                val key = semanticCatalogKey(track)
+                val available = remaining.remove(key) ?: continue
                 sections[index].add(available)
             }
         }
 
-        // If a narrow genre has no exact match, give it one unused song rather
-        // than rendering an empty catalogue.
-        sections.forEach { section ->
-            if (section.isEmpty() && remaining.isNotEmpty()) {
-                val first = remaining.entries.first()
-                section.add(first.value)
-                remaining.remove(first.key)
-            }
-        }
-
-        // Spread all remaining tracks evenly. No track can enter two rows.
+        // Fairly fill every section from the remaining language pool.
         var cursor = 0
-        while (remaining.isNotEmpty()) {
+        while (
+            remaining.isNotEmpty() &&
+            sections.any { it.size < sectionCapacity }
+        ) {
             val first = remaining.entries.first()
             val sectionIndex = cursor % sections.size
-            if (sections[sectionIndex].size < 18) {
+
+            if (sections[sectionIndex].size < sectionCapacity) {
                 sections[sectionIndex].add(first.value)
+                remaining.remove(first.key)
             }
-            remaining.remove(first.key)
+
             cursor++
         }
 
@@ -504,80 +534,201 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
     val uniqueHomeCatalogs = remember(
         catalogDay,
-        popularTamil,
-        tamilNew,
-        tamilModern,
-        tamilEvergreen,
-        tamilRomantic,
-        tamilDance,
-        popularEnglish,
-        internationalTrending,
-        englishPop,
-        internationalRnB,
-        internationalLove,
-        internationalThrowbacks
+        popularTamilSource,
+        tamilEvergreenSource,
+        tamilRomanticSource,
+        tamilDanceSource,
+        popularEnglishSource,
+        englishPopSource,
+        personalizedHomeIds,
+        likedTrackIds
     ) {
         val tamilMaster =
-            (popularTamil + tamilNew + tamilModern + tamilEvergreen + tamilRomantic + tamilDance)
+            (
+                popularTamilSource +
+                    tamilEvergreenSource +
+                    tamilRomanticSource +
+                    tamilDanceSource
+                )
                 .filterNot { it.id in personalizedHomeIds }
-                .distinctBy { it.id }
+                .distinctBy { semanticCatalogKey(it) }
 
-        val tamilSections = allocateUniqueSections(
-            master = tamilMaster,
-            preferredPools = listOf(
-                tamilNew,
-                tamilRomantic,
-                tamilDance,
-                tamilEvergreen,
-                tamilModern,
-                popularTamil
+        val tamilNewPool =
+            popularTamilSource.filter {
+                it.year >= 2023 || it.isTrendingNow
+            }
+
+        val tamilModernPool =
+            popularTamilSource.filter {
+                it.year in 2010..2022
+            }
+
+        val tamilRomanticPool =
+            popularTamilSource.filter {
+                it.genre.contains("Love", ignoreCase = true) ||
+                    it.genre.contains("Romantic", ignoreCase = true) ||
+                    it.genre.contains("Acoustic", ignoreCase = true) ||
+                    it.genre.contains("Melody", ignoreCase = true)
+            } + tamilRomanticSource
+
+        val tamilDancePool =
+            popularTamilSource.filter {
+                it.genre.contains("Dance", ignoreCase = true) ||
+                    it.genre.contains("Kuthu", ignoreCase = true) ||
+                    it.genre.contains("Party", ignoreCase = true) ||
+                    it.genre.contains("Pop", ignoreCase = true)
+            } + tamilDanceSource
+
+        val tamilEvergreenPool =
+            (
+                popularTamilSource.filter { it.year in 1900..2009 } +
+                    tamilEvergreenSource
+                )
+                .sortedBy { it.year }
+
+        val tamilSections =
+            allocateUniqueSections(
+                master = tamilMaster,
+                preferredPools = listOf(
+                    tamilNewPool,
+                    tamilRomanticPool,
+                    tamilDancePool,
+                    tamilEvergreenPool,
+                    tamilModernPool,
+                    popularTamilSource
+                ),
+                targetPerSection = homeCatalogTarget
             )
-        )
 
         val internationalMaster =
-            (popularEnglish + internationalTrending + englishPop + internationalRnB +
-                internationalLove + internationalThrowbacks)
+            (popularEnglishSource + englishPopSource)
                 .filterNot { it.id in personalizedHomeIds }
-                .distinctBy { it.id }
+                .distinctBy { semanticCatalogKey(it) }
 
-        val internationalSections = allocateUniqueSections(
-            master = internationalMaster,
-            preferredPools = listOf(
-                internationalTrending,
-                internationalRnB,
-                internationalLove,
-                internationalThrowbacks,
-                englishPop,
-                popularEnglish
+        val internationalTrendingPool =
+            popularEnglishSource.filter {
+                it.year >= 2023 || it.isTrendingNow
+            }
+
+        val internationalRnBPool =
+            popularEnglishSource.filter {
+                it.genre.contains("R&B", ignoreCase = true) ||
+                    it.genre.contains("Soul", ignoreCase = true) ||
+                    it.genre.contains("Synthwave", ignoreCase = true)
+            }
+
+        val internationalLovePool =
+            popularEnglishSource.filter {
+                it.genre.contains("Love", ignoreCase = true) ||
+                    it.genre.contains("Romantic", ignoreCase = true) ||
+                    it.genre.contains("Acoustic", ignoreCase = true) ||
+                    it.genre.contains("Pop", ignoreCase = true)
+            }
+
+        val internationalThrowbackPool =
+            popularEnglishSource.filter {
+                it.year in 1900..2019
+            }
+
+        val internationalSections =
+            allocateUniqueSections(
+                master = internationalMaster,
+                preferredPools = listOf(
+                    internationalTrendingPool,
+                    internationalRnBPool,
+                    internationalLovePool,
+                    internationalThrowbackPool,
+                    englishPopSource,
+                    popularEnglishSource
+                ),
+                targetPerSection = homeCatalogTarget
             )
-        )
+
+        fun rotate(
+            tracks: List<Track>,
+            key: String
+        ): List<Track> {
+            return dailyRotatedCatalog(
+                context = context,
+                pool = tracks,
+                catalogKey = key,
+                dayIndex = catalogDay,
+                targetCount = homeCatalogTarget,
+                likedTrackIds = likedTrackIds
+            )
+        }
 
         UniqueHomeCatalogs(
-            popularTamil = tamilSections.getOrElse(5) { emptyList() },
-            tamilNew = tamilSections.getOrElse(0) { emptyList() },
-            tamilModern = tamilSections.getOrElse(4) { emptyList() },
-            tamilEvergreen = tamilSections.getOrElse(3) { emptyList() },
-            tamilRomantic = tamilSections.getOrElse(1) { emptyList() },
-            tamilDance = tamilSections.getOrElse(2) { emptyList() },
-            popularEnglish = internationalSections.getOrElse(5) { emptyList() },
-            internationalTrending = internationalSections.getOrElse(0) { emptyList() },
-            englishPop = internationalSections.getOrElse(4) { emptyList() },
-            internationalRnB = internationalSections.getOrElse(1) { emptyList() },
-            internationalLove = internationalSections.getOrElse(2) { emptyList() },
-            internationalThrowbacks = internationalSections.getOrElse(3) { emptyList() }
+            popularTamil =
+                rotate(
+                    tamilSections.getOrElse(5) { emptyList() },
+                    "home_unique_popular_tamil_50"
+                ),
+            tamilNew =
+                rotate(
+                    tamilSections.getOrElse(0) { emptyList() },
+                    "home_unique_tamil_new_50"
+                ),
+            tamilModern =
+                rotate(
+                    tamilSections.getOrElse(4) { emptyList() },
+                    "home_unique_tamil_modern_50"
+                ),
+            tamilEvergreen =
+                rotate(
+                    tamilSections.getOrElse(3) { emptyList() },
+                    "home_unique_tamil_evergreen_50"
+                ),
+            tamilRomantic =
+                rotate(
+                    tamilSections.getOrElse(1) { emptyList() },
+                    "home_unique_tamil_romantic_50"
+                ),
+            tamilDance =
+                rotate(
+                    tamilSections.getOrElse(2) { emptyList() },
+                    "home_unique_tamil_dance_50"
+                ),
+            popularEnglish =
+                rotate(
+                    internationalSections.getOrElse(5) { emptyList() },
+                    "home_unique_international_chart_50"
+                ),
+            internationalTrending =
+                rotate(
+                    internationalSections.getOrElse(0) { emptyList() },
+                    "home_unique_international_trending_50"
+                ),
+            englishPop =
+                rotate(
+                    internationalSections.getOrElse(4) { emptyList() },
+                    "home_unique_international_pop_50"
+                ),
+            internationalRnB =
+                rotate(
+                    internationalSections.getOrElse(1) { emptyList() },
+                    "home_unique_international_rnb_50"
+                ),
+            internationalLove =
+                rotate(
+                    internationalSections.getOrElse(2) { emptyList() },
+                    "home_unique_international_love_50"
+                ),
+            internationalThrowbacks =
+                rotate(
+                    internationalSections.getOrElse(3) { emptyList() },
+                    "home_unique_international_throwbacks_50"
+                )
         )
     }
 
     val likedSongs = likedTracks
 
-    // Do not flood the backend when Home opens.
-    // Each section already has local/seeded content and loads more on demand.
-    // Keeping startup network pressure low leaves the resolver free for playback.
+    // Expand the shared language pools in the background so every main
+    // Home catalogue can hold at least 50 unique songs. The ViewModel limits
+    // concurrency and deduplicates by title + artist.
     LaunchedEffect(Unit) {
-        android.util.Log.d(
-            "SABDHAM_HOME",
-            "Deferred catalog expansion; sections load more on demand"
-        )
+        viewModel.ensureHomeCatalogMinimum(homeCatalogTarget)
     }
     val greeting = remember { viewModel.getTimeGreeting() }
 
