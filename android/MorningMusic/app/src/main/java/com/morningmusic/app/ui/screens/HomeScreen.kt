@@ -72,6 +72,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val isShuffle by viewModel.isShuffle.collectAsState()
     val isRepeat by viewModel.isRepeat.collectAsState()
     val isMuted by viewModel.isMuted.collectAsState()
+    val playbackInterestVersion by viewModel.playbackInterestVersion.collectAsState()
 
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
@@ -190,10 +191,129 @@ fun HomeScreen(viewModel: MusicViewModel) {
         englishPop,
         internationalRnB,
         internationalLove,
-        internationalThrowbacks
+        internationalThrowbacks,
+        personalizedHomeIds
     ) {
         (internationalTrending + popularEnglish + englishPop + internationalRnB + internationalLove + internationalThrowbacks)
             .distinctBy { it.id }
+    }
+
+    val playbackInterestProfile = remember(playbackInterestVersion) {
+        viewModel.getPlaybackInterestProfile()
+    }
+
+    val personalizationPool = remember(
+        popularTamilSource,
+        popularEnglishSource,
+        tamilEvergreenSource,
+        tamilRomanticSource,
+        tamilDanceSource,
+        englishPopSource,
+        chillRelaxSource,
+        partyHitsSource,
+        throwbacksSource,
+        newReleasesSource,
+        acousticMelodiesSource
+    ) {
+        (
+            popularTamilSource +
+                popularEnglishSource +
+                tamilEvergreenSource +
+                tamilRomanticSource +
+                tamilDanceSource +
+                englishPopSource +
+                chillRelaxSource +
+                partyHitsSource +
+                throwbacksSource +
+                newReleasesSource +
+                acousticMelodiesSource
+            )
+            .filterNot { it.language.equals("sinhala", ignoreCase = true) }
+            .distinctBy { it.id }
+    }
+
+    val personalizedForYou = remember(
+        personalizationPool,
+        playbackInterestVersion,
+        catalogDay
+    ) {
+        if (playbackInterestProfile.playCount < 3) {
+            emptyList()
+        } else {
+            fun interestScore(track: Track): Int {
+                var score = 0
+
+                if (!playbackInterestProfile.preferredLanguage.isNullOrBlank() &&
+                    track.language.equals(
+                        playbackInterestProfile.preferredLanguage,
+                        ignoreCase = true
+                    )
+                ) {
+                    score += 6
+                }
+
+                playbackInterestProfile.topGenres.forEachIndexed { index, genre ->
+                    if (track.genre.contains(genre, ignoreCase = true) ||
+                        genre.contains(track.genre, ignoreCase = true)
+                    ) {
+                        score += 5 - index
+                    }
+                }
+
+                playbackInterestProfile.topArtists.forEachIndexed { index, artist ->
+                    if (track.artist.contains(artist, ignoreCase = true) ||
+                        artist.contains(track.artist, ignoreCase = true)
+                    ) {
+                        score += 7 - index
+                    }
+                }
+
+                return score
+            }
+
+            personalizationPool
+                .map { it to interestScore(it) }
+                .filter { it.second > 0 }
+                .sortedWith(
+                    compareByDescending<Pair<Track, Int>> { it.second }
+                        .thenByDescending { it.first.popularityScore }
+                )
+                .map { it.first }
+                .distinctBy { it.id }
+                .take(4)
+        }
+    }
+
+    val personalizedArtistMix = remember(
+        personalizationPool,
+        personalizedForYou,
+        playbackInterestVersion,
+        catalogDay
+    ) {
+        if (playbackInterestProfile.playCount < 3 ||
+            playbackInterestProfile.topArtists.isEmpty()
+        ) {
+            emptyList()
+        } else {
+            val forYouIds = personalizedForYou.mapTo(mutableSetOf()) { it.id }
+
+            personalizationPool
+                .filterNot { it.id in forYouIds }
+                .filter { track ->
+                    playbackInterestProfile.topArtists.any { artist ->
+                        track.artist.contains(artist, ignoreCase = true) ||
+                            artist.contains(track.artist, ignoreCase = true)
+                    }
+                }
+                .sortedByDescending { it.popularityScore }
+                .distinctBy { it.id }
+                .take(4)
+        }
+    }
+
+    val personalizedHomeIds = remember(personalizedForYou, personalizedArtistMix) {
+        (personalizedForYou + personalizedArtistMix)
+            .mapTo(mutableSetOf()) { it.id }
     }
 
     // Keep Home rows unique without starving later catalogues.
@@ -281,6 +401,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     ) {
         val tamilMaster =
             (popularTamil + tamilNew + tamilModern + tamilEvergreen + tamilRomantic + tamilDance)
+                .filterNot { it.id in personalizedHomeIds }
                 .distinctBy { it.id }
 
         val tamilSections = allocateUniqueSections(
@@ -298,6 +419,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
         val internationalMaster =
             (popularEnglish + internationalTrending + englishPop + internationalRnB +
                 internationalLove + internationalThrowbacks)
+                .filterNot { it.id in personalizedHomeIds }
                 .distinctBy { it.id }
 
         val internationalSections = allocateUniqueSections(
@@ -873,6 +995,38 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                     isPlaying = isPlaying,
                                     likedTrackIds = likedTrackIds,
                                     onTrackClick = { viewModel.playCatalogTrack(it, likedSongs) },
+                                    onLikeClick = { viewModel.toggleLike(it) },
+                                    onAddToQueue = { viewModel.addToQueue(it) },
+                                    onAddToPlaylist = { playlistTargetTrack = it }
+                                )
+                            }
+                        }
+
+                        if (personalizedForYou.isNotEmpty()) {
+                            item {
+                                SectionHeader("For You") { viewModel.playCatalog(personalizedForYou) }
+                                HorizontalTrackGrid(
+                                    tracks = personalizedForYou,
+                                    currentTrack = currentTrack,
+                                    isPlaying = isPlaying,
+                                    likedTrackIds = likedTrackIds,
+                                    onTrackClick = { viewModel.playCatalogTrack(it, personalizedForYou) },
+                                    onLikeClick = { viewModel.toggleLike(it) },
+                                    onAddToQueue = { viewModel.addToQueue(it) },
+                                    onAddToPlaylist = { playlistTargetTrack = it }
+                                )
+                            }
+                        }
+
+                        if (personalizedArtistMix.isNotEmpty()) {
+                            item {
+                                SectionHeader("Favorite Artists Mix") { viewModel.playCatalog(personalizedArtistMix) }
+                                HorizontalTrackGrid(
+                                    tracks = personalizedArtistMix,
+                                    currentTrack = currentTrack,
+                                    isPlaying = isPlaying,
+                                    likedTrackIds = likedTrackIds,
+                                    onTrackClick = { viewModel.playCatalogTrack(it, personalizedArtistMix) },
                                     onLikeClick = { viewModel.toggleLike(it) },
                                     onAddToQueue = { viewModel.addToQueue(it) },
                                     onAddToPlaylist = { playlistTargetTrack = it }
