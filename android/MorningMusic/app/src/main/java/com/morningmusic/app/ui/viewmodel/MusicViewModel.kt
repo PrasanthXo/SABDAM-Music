@@ -3019,6 +3019,9 @@ if (incoming.isEmpty()) {
                     ?: return null
             } else {
                 rawResolvedUrl
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: return null
             }
 
         val metadataBuilder =
