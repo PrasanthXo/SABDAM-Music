@@ -11,14 +11,26 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe Gangnam direct catalog
+      - name: Probe Invidious redirect mode
         shell: bash
         run: |
-          set -e
-          for q in "PSY Gangnam Style" "PSY 6 Gangnam Style" "PSY 6 Six Rules Part 1" "Gangnam Style Korean PSY"
+          set +e
+          for base in \
+            https://inv.nadeko.net \
+            https://invidious.nerdvpn.de \
+            https://invidious.tiekoetter.com \
+            https://invidious.no-logs.com \
+            https://invidious.f5.si \
+            https://yewtu.be
           do
-            echo "=== $q ==="
-            encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$q")
-            curl -fsS -m 20 "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=25&p=1&q=$encoded&_marker=0" -o /tmp/jsq.json || true
-            python3 -c "import json; d=json.load(open('/tmp/jsq.json')); [print((x.get('song') or ''),'|',(x.get('primary_artists') or x.get('singers') or ''),'|',(x.get('album') or ''),'|',(x.get('language') or ''),'|',(x.get('id') or '')) for x in (d.get('results') or [])[:15]]" || true
+            echo "=== $base local=false ==="
+            curl -sS -m 15 -D - -o /tmp/body "$base/latest_version?id=9bZkp7q19f0&itag=140&local=false" | grep -iE 'HTTP/|location:|content-type:|content-length:' | tail -10
+            echo "BODY:"
+            head -c 80 /tmp/body | xxd -g 1
+            echo
+            echo "=== $base no-local ==="
+            curl -sS -m 15 -D - -o /tmp/body "$base/latest_version?id=9bZkp7q19f0&itag=140" | grep -iE 'HTTP/|location:|content-type:|content-length:' | tail -10
+            echo "BODY:"
+            head -c 80 /tmp/body | xxd -g 1
+            echo
           done
