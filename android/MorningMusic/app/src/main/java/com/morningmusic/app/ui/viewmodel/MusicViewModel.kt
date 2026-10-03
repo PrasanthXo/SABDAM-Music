@@ -2175,21 +2175,30 @@ if (incoming.isEmpty()) {
                 exactVideoId.isNotBlank()
             ) {
                 try {
-                    val backendUrl =
-                        MusicSearchService.getStreamUrl(
+                    val directUrl =
+                        MusicSearchService.resolveExactStreamUrl(
                             exactVideoId
                         )
 
-                    when {
-                        MusicSearchService.isPlayableMediaUrl(
-                            backendUrl
-                        ) ->
-                            backendUrl
-
-                        else ->
-                            MusicSearchService.resolveYouTubeOnDevice(
+                    if (!directUrl.isNullOrBlank()) {
+                        directUrl
+                    } else {
+                        val backendUrl =
+                            MusicSearchService.getStreamUrl(
                                 exactVideoId
                             )
+
+                        when {
+                            MusicSearchService.isPlayableMediaUrl(
+                                backendUrl
+                            ) ->
+                                backendUrl
+
+                            else ->
+                                MusicSearchService.resolveYouTubeOnDevice(
+                                    exactVideoId
+                                ) ?: backendUrl
+                        }
                     }
                 } catch (e: Exception) {
                     android.util.Log.w(
@@ -2197,7 +2206,10 @@ if (incoming.isEmpty()) {
                         "Exact search resolver failed id=$exactVideoId title=${track.title}",
                         e
                     )
-                    null
+
+                    MusicSearchService.getStreamUrl(
+                        exactVideoId
+                    )
                 }
             } else {
                 null
@@ -2811,24 +2823,6 @@ if (incoming.isEmpty()) {
 
         val hasExactYouTubeId = exactYouTubeRef.isNotBlank()
 
-        // CATALOGUE ONLY:
-        // refresh the stream for the exact stored YouTube ID first.
-        val exactCatalogueUrl =
-            if (forceFreshResolve && hasExactYouTubeId) {
-                try {
-                    MusicSearchService.getStreamUrl(exactYouTubeRef)
-                } catch (e: Exception) {
-                    android.util.Log.w(
-                        "SABDHAM_CATALOG",
-                        "Exact YouTube ID failed: $exactYouTubeRef",
-                        e
-                    )
-                    null
-                }
-            } else {
-                null
-            }
-
         // Search by title/artist ONLY when:
         // - there is no usable exact catalogue ID, or
         // - refreshing that exact ID failed.
@@ -2887,6 +2881,33 @@ if (incoming.isEmpty()) {
                     }
                 }
 
+        val exactCatalogueUrl =
+            if (
+                forceFreshResolve &&
+                normalizedResolvedStreamUrl.isNullOrBlank() &&
+                hasExactYouTubeId
+            ) {
+                try {
+                    MusicSearchService.resolveExactStreamUrl(
+                        exactYouTubeRef
+                    )
+                        ?: MusicSearchService.getStreamUrl(
+                            exactYouTubeRef
+                        )
+                } catch (e: Exception) {
+                    android.util.Log.w(
+                        "SABDHAM_CATALOG",
+                        "Exact catalogue fallback failed: $exactYouTubeRef",
+                        e
+                    )
+                    MusicSearchService.getStreamUrl(
+                        exactYouTubeRef
+                    )
+                }
+            } else {
+                null
+            }
+
         val rawResolvedUrl = when {
             /*
              * Catalogue first choice:
@@ -2900,6 +2921,13 @@ if (incoming.isEmpty()) {
                 normalizedResolvedStreamUrl
             }
 
+            forceFreshResolve && !exactCatalogueUrl.isNullOrBlank() -> {
+                android.util.Log.d(
+                    "SABDHAM_CATALOG",
+                    "EXACT ID FALLBACK title=${queueTrack.title}"
+                )
+                exactCatalogueUrl
+            }
 
             // Normal search/playlist behavior remains unchanged.
             hasDirectAudio ->
