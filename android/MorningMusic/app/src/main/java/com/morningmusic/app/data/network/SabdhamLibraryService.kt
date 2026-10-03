@@ -1278,6 +1278,96 @@ object SabdhamLibraryService {
             connection?.disconnect()
         }
     }
+    suspend fun importYouTubePlaylist(
+        context: Context,
+        playlistId: String,
+        playlistName: String,
+        playlistOwner: String = ""
+    ): LibraryResult = withContext(Dispatchers.IO) {
+        val cleanId = playlistId.trim()
+        val cleanName =
+            playlistName.trim().ifBlank { "YouTube Playlist" }
+        val cleanOwner = playlistOwner.trim()
+
+        if (cleanId.isBlank()) {
+            return@withContext LibraryResult(
+                false,
+                "Invalid YouTube playlist."
+            )
+        }
+
+        try {
+            val existing = getPlaylists(context)
+
+            if (existing.success) {
+                val marker = "youtube-id:$cleanId"
+
+                val alreadyImported =
+                    existing.playlists.any { playlist ->
+                        playlist.description.contains(
+                            marker,
+                            ignoreCase = true
+                        )
+                    }
+
+                if (alreadyImported) {
+                    return@withContext existing.copy(
+                        success = true,
+                        message = "\"$cleanName\" is already in your Library."
+                    )
+                }
+            }
+
+            val tracks =
+                MusicSearchService.fetchPlaylistTracks(
+                    playlistId = cleanId,
+                    maxResults = 100
+                )
+
+            if (tracks.isEmpty()) {
+                return@withContext LibraryResult(
+                    false,
+                    "No playable songs found in this YouTube playlist."
+                )
+            }
+
+            val description =
+                buildString {
+                    append("Imported from YouTube")
+                    if (cleanOwner.isNotBlank()) {
+                        append(": ")
+                        append(cleanOwner)
+                    }
+                    append(" • youtube-id:")
+                    append(cleanId)
+                }
+
+            val uniqueTracks = tracks.distinctBy { it.id }
+
+            val result =
+                createPlaylist(
+                    context = context,
+                    name = cleanName,
+                    description = description,
+                    tracks = uniqueTracks
+                )
+
+            if (result.success) {
+                result.copy(
+                    message =
+                        "Added \"$cleanName\" to Library with " +
+                            "${uniqueTracks.size} songs."
+                )
+            } else {
+                result
+            }
+        } catch (e: Exception) {
+            LibraryResult(
+                false,
+                e.message ?: "Could not add playlist to Library."
+            )
+        }
+    }
     suspend fun importPlaylistByLink(
         context: Context,
         playlistUrl: String
