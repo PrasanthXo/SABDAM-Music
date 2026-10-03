@@ -44,6 +44,21 @@ jobs:
           curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/youtube/search?q=Gangnam%20Style%20PSY&language=all&maxResults=25" -o /tmp/search-psy.json || true
           cat /tmp/search-psy.json || true
 
+          echo "=== PIPED STREAM API PROBES ==="
+          for base in \
+            https://pipedapi.kavin.rocks \
+            https://pipedapi.leptons.xyz \
+            https://pipedapi.nosebs.ru \
+            https://piped-api.garudalinux.org \
+            https://api-piped.mha.fi
+          do
+            echo "--- $base ---"
+            curl -sS -m 15 -D /tmp/ph "$base/streams/9bZkp7q19f0" -o /tmp/pb || true
+            grep -iE 'HTTP/|content-type:|content-length:' /tmp/ph | tail -5 || true
+            head -c 1200 /tmp/pb || true
+            echo
+          done
+
           echo "=== INVIDIOUS INSTANCE PROBES ==="
           for base in \
             https://inv.nadeko.net \
