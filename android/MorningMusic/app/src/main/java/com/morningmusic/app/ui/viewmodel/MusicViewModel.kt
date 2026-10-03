@@ -2213,41 +2213,16 @@ if (incoming.isEmpty()) {
                 exactVideoId.isNotBlank()
             ) {
                 try {
-                    val directUrl =
-                        MusicSearchService.resolveExactStreamUrl(
-                            exactVideoId
-                        )
-
-                    if (!directUrl.isNullOrBlank()) {
-                        directUrl
-                    } else {
-                        val backendUrl =
-                            MusicSearchService.getStreamUrl(
-                                exactVideoId
-                            )
-
-                        when {
-                            MusicSearchService.isPlayableMediaUrl(
-                                backendUrl
-                            ) ->
-                                backendUrl
-
-                            else ->
-                                MusicSearchService.resolveYouTubeOnDevice(
-                                    exactVideoId
-                                ) ?: backendUrl
-                        }
-                    }
+                    MusicSearchService.resolveVerifiedYouTubeStream(
+                        exactVideoId
+                    )
                 } catch (e: Exception) {
                     android.util.Log.w(
                         "SABDHAM_SEARCH_PLAY",
-                        "Exact search resolver failed id=$exactVideoId title=${track.title}",
+                        "Verified YouTube resolver failed id=$exactVideoId title=${track.title}",
                         e
                     )
-
-                    MusicSearchService.getStreamUrl(
-                        exactVideoId
-                    )
+                    null
                 }
             } else {
                 null
@@ -2926,21 +2901,16 @@ if (incoming.isEmpty()) {
                 hasExactYouTubeId
             ) {
                 try {
-                    MusicSearchService.resolveExactStreamUrl(
+                    MusicSearchService.resolveVerifiedYouTubeStream(
                         exactYouTubeRef
                     )
-                        ?: MusicSearchService.getStreamUrl(
-                            exactYouTubeRef
-                        )
                 } catch (e: Exception) {
                     android.util.Log.w(
                         "SABDHAM_CATALOG",
-                        "Exact catalogue fallback failed: $exactYouTubeRef",
+                        "Verified catalogue YouTube fallback failed: $exactYouTubeRef",
                         e
                     )
-                    MusicSearchService.getStreamUrl(
-                        exactYouTubeRef
-                    )
+                    null
                 }
             } else {
                 null
@@ -2972,14 +2942,18 @@ if (incoming.isEmpty()) {
                 queueTrack.audioUrl
 
             !forceFreshResolve && queueTrack.youtubeVideoId.isNotBlank() ->
-                MusicSearchService.getStreamUrl(queueTrack.youtubeVideoId)
+                MusicSearchService.resolveVerifiedYouTubeStream(
+                    queueTrack.youtubeVideoId
+                )
 
             !forceFreshResolve &&
                 (
                     queueTrack.audioUrl.startsWith("yt:") ||
                     queueTrack.audioUrl.startsWith("yt-")
                 ) ->
-                MusicSearchService.getStreamUrl(queueTrack.audioUrl)
+                MusicSearchService.resolveVerifiedYouTubeStream(
+                    queueTrack.audioUrl
+                )
 
             // Catalogue fallback only if exact ID failed.
             !resolvedStream?.url.isNullOrBlank() -> {
@@ -3007,7 +2981,7 @@ if (incoming.isEmpty()) {
 
                 when {
                     youtubeFallback?.youtubeVideoId?.isNotBlank() == true ->
-                        MusicSearchService.getStreamUrl(
+                        MusicSearchService.resolveVerifiedYouTubeStream(
                             youtubeFallback.youtubeVideoId
                         )
 
@@ -3016,7 +2990,7 @@ if (incoming.isEmpty()) {
                             youtubeFallback.audioUrl.startsWith("yt:") ||
                             youtubeFallback.audioUrl.startsWith("yt-")
                         ) ->
-                        MusicSearchService.getStreamUrl(
+                        MusicSearchService.resolveVerifiedYouTubeStream(
                             youtubeFallback.audioUrl
                         )
 
@@ -3045,6 +3019,9 @@ if (incoming.isEmpty()) {
                     ?: return null
             } else {
                 rawResolvedUrl
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: return null
             }
 
         val metadataBuilder =
