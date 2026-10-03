@@ -202,6 +202,12 @@ fun HomeScreen(viewModel: MusicViewModel) {
 
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
+    val searchPlaylistResults by
+        viewModel.searchPlaylistResults.collectAsState()
+    val loadingSearchPlaylistId by
+        viewModel.loadingSearchPlaylistId.collectAsState()
+    val searchPlaylistMessage by
+        viewModel.searchPlaylistMessage.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val suggestions by viewModel.suggestions.collectAsState()
 
@@ -921,7 +927,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                             onValueChange = { viewModel.onSearchQueryChange(it) },
                             placeholder = {
                                 Text(
-                                    "Songs, artists, albums...",
+                                    "Songs, artists, albums, playlists...",
                                     color = Color(0xFF77777F),
                                     fontSize = 14.sp
                                 )
@@ -1157,8 +1163,11 @@ fun HomeScreen(viewModel: MusicViewModel) {
                     }
                 } else {
 
-                    // Existing functional search
-                    if (isSearching) {
+                    val hasSearchContent =
+                        searchResults.isNotEmpty() ||
+                            searchPlaylistResults.isNotEmpty()
+
+                    if (isSearching && !hasSearchContent) {
                         item {
                             Box(
                                 modifier = Modifier
@@ -1171,7 +1180,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 )
                             }
                         }
-                    } else if (searchResults.isEmpty()) {
+                    } else if (!isSearching && !hasSearchContent) {
                         item {
                             Box(
                                 modifier = Modifier
@@ -1183,14 +1192,14 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        "No tracks found",
+                                        "No results found",
                                         color = Color.White,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
 
                                     Text(
-                                        "Try another song or artist",
+                                        "Try another song, artist or playlist",
                                         color = Color.Gray,
                                         fontSize = 12.sp,
                                         modifier = Modifier.padding(top = 4.dp)
@@ -1200,32 +1209,363 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
                     } else {
                         item {
-                            SectionHeader(
-                                "Search Results (${searchResults.size})"
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        horizontal = 18.dp,
+                                        vertical = 8.dp
+                                    ),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(10.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xFF142019),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        Color(0xFF00E676)
+                                            .copy(alpha = 0.24f)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(
+                                            horizontal = 12.dp,
+                                            vertical = 10.dp
+                                        ),
+                                        verticalAlignment =
+                                            Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector =
+                                                Icons.Default.MusicNote,
+                                            contentDescription = null,
+                                            tint = Color(0xFF00E676),
+                                            modifier = Modifier.size(19.dp)
+                                        )
+
+                                        Spacer(Modifier.width(8.dp))
+
+                                        Column {
+                                            Text(
+                                                text = "Songs",
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight =
+                                                    FontWeight.Bold
+                                            )
+                                            Text(
+                                                text =
+                                                    searchResults.size
+                                                        .toString(),
+                                                color =
+                                                    Color(0xFF8B928E),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xFF142019),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        Color(0xFF00E676)
+                                            .copy(alpha = 0.24f)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(
+                                            horizontal = 12.dp,
+                                            vertical = 10.dp
+                                        ),
+                                        verticalAlignment =
+                                            Alignment.CenterVertically
+                                    ) {
+                                        Image(
+                                            painter = painterResource(
+                                                R.drawable
+                                                    .ic_playlist_sabdham
+                                            ),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            contentScale =
+                                                ContentScale.Crop
+                                        )
+
+                                        Spacer(Modifier.width(8.dp))
+
+                                        Column {
+                                            Text(
+                                                text = "Playlists",
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight =
+                                                    FontWeight.Bold
+                                            )
+                                            Text(
+                                                text =
+                                                    searchPlaylistResults
+                                                        .size
+                                                        .toString(),
+                                                color =
+                                                    Color(0xFF8B928E),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
 
-                        items(searchResults) { track ->
-                            val isThisPlaying = currentTrack?.id == track.id
+                        if (searchPlaylistResults.isNotEmpty()) {
+                            item {
+                                SectionHeader(
+                                    "Playlists (${searchPlaylistResults.size})"
+                                )
+                            }
 
-                            TrackListItem(
-                                track = track,
-                                isActive = isThisPlaying,
-                                isPlaying = isThisPlaying && isPlaying,
-                                isLiked = likedTrackIds.contains(track.id),
-                                onTrackClick = {
-                                    viewModel.playSearchTrack(track = track, sourceResults = searchResults)
-                                },
-                                onLikeClick = {
-                                    viewModel.toggleLike(track)
-                                },
-                                onAddToQueue = {
-                                    viewModel.addToQueue(track)
-                                },
-                                onAddToPlaylist = {
-                                    playlistTargetTrack = track
+                            item {
+                                LazyRow(
+                                    contentPadding =
+                                        PaddingValues(
+                                            horizontal = 18.dp
+                                        ),
+                                    horizontalArrangement =
+                                        Arrangement.spacedBy(10.dp)
+                                ) {
+                                    items(
+                                        items = searchPlaylistResults,
+                                        key = { it.id }
+                                    ) { playlist ->
+                                        val loading =
+                                            loadingSearchPlaylistId ==
+                                                playlist.id
+
+                                        Surface(
+                                            modifier = Modifier
+                                                .width(230.dp)
+                                                .clip(
+                                                    RoundedCornerShape(
+                                                        16.dp
+                                                    )
+                                                )
+                                                .clickable(
+                                                    enabled =
+                                                        loadingSearchPlaylistId ==
+                                                            null
+                                                ) {
+                                                    viewModel
+                                                        .playSearchPlaylist(
+                                                            playlist
+                                                        )
+                                                },
+                                            shape =
+                                                RoundedCornerShape(16.dp),
+                                            color = Color(0xFF171D19),
+                                            border = BorderStroke(
+                                                1.dp,
+                                                Color(0xFF274832)
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier =
+                                                    Modifier.padding(12.dp),
+                                                verticalAlignment =
+                                                    Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(58.dp)
+                                                        .clip(
+                                                            RoundedCornerShape(
+                                                                12.dp
+                                                            )
+                                                        )
+                                                        .background(
+                                                            Color(
+                                                                0xFF202922
+                                                            )
+                                                        ),
+                                                    contentAlignment =
+                                                        Alignment.Center
+                                                ) {
+                                                    Image(
+                                                        painter =
+                                                            painterResource(
+                                                                R.drawable
+                                                                    .ic_playlist_sabdham
+                                                            ),
+                                                        contentDescription =
+                                                            "Playlist",
+                                                        modifier =
+                                                            Modifier.size(
+                                                                42.dp
+                                                            ),
+                                                        contentScale =
+                                                            ContentScale.Crop
+                                                    )
+                                                }
+
+                                                Spacer(
+                                                    Modifier.width(10.dp)
+                                                )
+
+                                                Column(
+                                                    modifier =
+                                                        Modifier.weight(1f)
+                                                ) {
+                                                    Text(
+                                                        text =
+                                                            playlist.title,
+                                                        color = Color.White,
+                                                        fontSize = 14.sp,
+                                                        fontWeight =
+                                                            FontWeight
+                                                                .SemiBold,
+                                                        maxLines = 2,
+                                                        overflow =
+                                                            TextOverflow
+                                                                .Ellipsis
+                                                    )
+
+                                                    Spacer(
+                                                        Modifier.height(3.dp)
+                                                    )
+
+                                                    Text(
+                                                        text =
+                                                            playlist.owner,
+                                                        color =
+                                                            Color(
+                                                                0xFF8B928E
+                                                            ),
+                                                        fontSize = 11.sp,
+                                                        maxLines = 1,
+                                                        overflow =
+                                                            TextOverflow
+                                                                .Ellipsis
+                                                    )
+
+                                                    if (
+                                                        playlist.itemCount > 0
+                                                    ) {
+                                                        Text(
+                                                            text =
+                                                                "${playlist.itemCount} songs",
+                                                            color =
+                                                                Color(
+                                                                    0xFF00E676
+                                                                ),
+                                                            fontSize = 10.sp
+                                                        )
+                                                    }
+                                                }
+
+                                                if (loading) {
+                                                    CircularProgressIndicator(
+                                                        modifier =
+                                                            Modifier.size(
+                                                                22.dp
+                                                            ),
+                                                        color =
+                                                            Color(
+                                                                0xFF00E676
+                                                            ),
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector =
+                                                            Icons.Default
+                                                                .PlayArrow,
+                                                        contentDescription =
+                                                            "Open playlist",
+                                                        tint =
+                                                            Color(
+                                                                0xFF00E676
+                                                            )
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                            )
+                            }
+                        }
+
+                        if (!searchPlaylistMessage.isNullOrBlank()) {
+                            item {
+                                Text(
+                                    text =
+                                        searchPlaylistMessage.orEmpty(),
+                                    color = Color(0xFFFFB4AB),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(
+                                        horizontal = 20.dp,
+                                        vertical = 8.dp
+                                    )
+                                )
+                            }
+                        }
+
+                        if (searchResults.isNotEmpty()) {
+                            item {
+                                SectionHeader(
+                                    "Songs (${searchResults.size})"
+                                )
+                            }
+
+                            items(
+                                items = searchResults,
+                                key = { it.id }
+                            ) { track ->
+                                val isThisPlaying =
+                                    currentTrack?.id == track.id
+
+                                TrackListItem(
+                                    track = track,
+                                    isActive = isThisPlaying,
+                                    isPlaying =
+                                        isThisPlaying && isPlaying,
+                                    isLiked =
+                                        likedTrackIds.contains(track.id),
+                                    onTrackClick = {
+                                        viewModel.playSearchTrack(
+                                            track = track,
+                                            sourceResults =
+                                                searchResults
+                                        )
+                                    },
+                                    onLikeClick = {
+                                        viewModel.toggleLike(track)
+                                    },
+                                    onAddToQueue = {
+                                        viewModel.addToQueue(track)
+                                    },
+                                    onAddToPlaylist = {
+                                        playlistTargetTrack = track
+                                    }
+                                )
+                            }
+                        }
+
+                        if (isSearching) {
+                            item {
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            horizontal = 20.dp,
+                                            vertical = 10.dp
+                                        ),
+                                    color = Color(0xFF00E676),
+                                    trackColor = Color(0xFF263029)
+                                )
+                            }
                         }
                     }
                 }            } else if (activeNavTab == "home") {
