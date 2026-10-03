@@ -6,6 +6,8 @@ import android.content.Context
 import com.morningmusic.app.data.network.CloudPlaylist
 import com.morningmusic.app.data.network.SabdhamLibraryService
 import com.morningmusic.app.data.network.MusicSearchService
+import com.morningmusic.app.data.network.SabdhamToolbarNotification
+import com.morningmusic.app.data.network.SabdhamToolbarNotificationService
 import com.morningmusic.app.data.repository.currentLocalCatalogDay
 import com.morningmusic.app.data.repository.dailyRotatedCatalog
 import kotlinx.coroutines.launch
@@ -875,7 +877,39 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var isEditProfileDialogVisible by remember { mutableStateOf(false) }
     var isAuthDialogVisible by remember { mutableStateOf(false) }
     var isTopBarNotificationCenterVisible by remember { mutableStateOf(false) }
-    var unreadTopBarNotifications by remember { mutableStateOf(2) }
+
+    // Remote toolbar messages are delivered by the SABDHAM backend route.
+    var toolbarNotifications by remember {
+        mutableStateOf<List<SabdhamToolbarNotification>>(emptyList())
+    }
+    val toolbarNotificationPreferences =
+        remember(context) {
+            context.getSharedPreferences(
+                "sabdham_toolbar_notifications",
+                Context.MODE_PRIVATE
+            )
+        }
+    var readToolbarNotificationIds by remember {
+        mutableStateOf(
+            toolbarNotificationPreferences
+                .getStringSet("read_ids", emptySet())
+                ?.toSet()
+                ?: emptySet()
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            toolbarNotifications =
+                SabdhamToolbarNotificationService.fetchActive()
+            delay(120_000L)
+        }
+    }
+
+    val unreadToolbarNotificationCount =
+        toolbarNotifications.count {
+            it.id !in readToolbarNotificationIds
+        }
 
     val optionalUpdate = SabdhamUpdateCenter.optionalUpdate
     val updateNotificationPreferences =
@@ -898,7 +932,8 @@ fun HomeScreen(viewModel: MusicViewModel) {
             it > readOptionalUpdateVersionCode
         } == true
     val displayedUnreadTopBarNotifications =
-        unreadTopBarNotifications + if (optionalUpdateIsUnread) 1 else 0
+        unreadToolbarNotificationCount +
+            if (optionalUpdateIsUnread) 1 else 0
 
     var playlistTargetTrack by remember { mutableStateOf<Track?>(null) }
     var cloudPlaylists by remember { mutableStateOf<List<CloudPlaylist>>(emptyList()) }
@@ -1007,6 +1042,20 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         unreadCount = displayedUnreadTopBarNotifications,
                         onNotificationsClick = {
                             isTopBarNotificationCenterVisible = true
+
+                            if (toolbarNotifications.isNotEmpty()) {
+                                readToolbarNotificationIds =
+                                    readToolbarNotificationIds +
+                                        toolbarNotifications.map { it.id }
+
+                                toolbarNotificationPreferences
+                                    .edit()
+                                    .putStringSet(
+                                        "read_ids",
+                                        readToolbarNotificationIds
+                                    )
+                                    .apply()
+                            }
                         }
                     )
                 }
@@ -2675,6 +2724,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
         if (isTopBarNotificationCenterVisible) {
             SabdhamTopBarNotificationCenter(
                 unreadCount = displayedUnreadTopBarNotifications,
+                toolbarNotifications = toolbarNotifications,
                 optionalUpdate = optionalUpdate,
                 onOptionalUpdateClick = {
                     optionalUpdate?.let { update ->
@@ -2693,7 +2743,20 @@ fun HomeScreen(viewModel: MusicViewModel) {
                     }
                 },
                 onMarkAllRead = {
-                    unreadTopBarNotifications = 0
+                    if (toolbarNotifications.isNotEmpty()) {
+                        readToolbarNotificationIds =
+                            readToolbarNotificationIds +
+                                toolbarNotifications.map { it.id }
+
+                        toolbarNotificationPreferences
+                            .edit()
+                            .putStringSet(
+                                "read_ids",
+                                readToolbarNotificationIds
+                            )
+                            .apply()
+                    }
+
                     optionalUpdate?.let { update ->
                         readOptionalUpdateVersionCode = update.latestVersionCode
                         updateNotificationPreferences
@@ -7444,6 +7507,7 @@ private fun SabdhamHomeTopBar(
 @Composable
 private fun SabdhamTopBarNotificationCenter(
     unreadCount: Int,
+    toolbarNotifications: List<SabdhamToolbarNotification>,
     optionalUpdate: SabdhamUpdateInfo?,
     onOptionalUpdateClick: () -> Unit,
     onMarkAllRead: () -> Unit,
@@ -7505,6 +7569,63 @@ private fun SabdhamTopBarNotificationCenter(
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                toolbarNotifications.forEach { notification ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF101813))
+                            .border(
+                                1.dp,
+                                green.copy(alpha = 0.34f),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF0B2A1B)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector =
+                                    when (notification.type) {
+                                        "success" -> Icons.Default.CheckCircle
+                                        "warning" -> Icons.Default.Warning
+                                        "update" -> Icons.Default.NewReleases
+                                        else -> Icons.Default.Notifications
+                                    },
+                                contentDescription = null,
+                                tint = green,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = notification.title,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                text = notification.message,
+                                color = Color(0xFFB7C1BB),
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+
                 optionalUpdate?.let { update ->
                     Column(
                         modifier = Modifier
