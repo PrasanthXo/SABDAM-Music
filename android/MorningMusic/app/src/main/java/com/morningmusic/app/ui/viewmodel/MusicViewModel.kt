@@ -24,6 +24,7 @@ import com.morningmusic.app.audio.AudioRouteManager
 import com.morningmusic.app.audio.AudioRouteState
 import com.morningmusic.app.data.repository.MusicRepository
 import com.morningmusic.app.data.network.MusicSearchService
+import com.morningmusic.app.data.network.SearchPlaylistResult
 import com.morningmusic.app.data.network.SabdhamLibraryService
 import com.morningmusic.app.service.PlaybackService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -106,6 +107,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _searchResults = MutableStateFlow<List<Track>>(emptyList())
     val searchResults: StateFlow<List<Track>> = _searchResults.asStateFlow()
+
+    private val _searchPlaylistResults =
+        MutableStateFlow<List<SearchPlaylistResult>>(emptyList())
+    val searchPlaylistResults:
+        StateFlow<List<SearchPlaylistResult>> =
+        _searchPlaylistResults.asStateFlow()
+
+    private val _loadingSearchPlaylistId =
+        MutableStateFlow<String?>(null)
+    val loadingSearchPlaylistId: StateFlow<String?> =
+        _loadingSearchPlaylistId.asStateFlow()
+
+    private val _searchPlaylistMessage =
+        MutableStateFlow<String?>(null)
+    val searchPlaylistMessage: StateFlow<String?> =
+        _searchPlaylistMessage.asStateFlow()
 
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
@@ -900,6 +917,8 @@ if (incoming.isEmpty()) {
 
         if (trimmed.isEmpty()) {
             _searchResults.value = emptyList()
+            _searchPlaylistResults.value = emptyList()
+            _searchPlaylistMessage.value = null
             _suggestions.value = emptyList()
             _isSearching.value = false
             return
@@ -925,23 +944,49 @@ if (incoming.isEmpty()) {
                 // Short debounce prevents one API request per keystroke.
                 delay(300)
 
-                val remoteResults = MusicSearchService.searchSongs(
-                    query = trimmed,
-                    language = "all",
-                    page = 1,
-                    maxResults = 40
-                )
+                coroutineScope {
+                    val songsDeferred =
+                        async(Dispatchers.IO) {
+                            MusicSearchService.searchSongs(
+                                query = trimmed,
+                                language = "all",
+                                page = 1,
+                                maxResults = 40
+                            )
+                        }
 
-                // Ignore an old request if the user already typed something else.
-                if (normalizeSearchText(_searchQuery.value) != requestedQuery) {
-                    return@launch
+                    val playlistsDeferred =
+                        async(Dispatchers.IO) {
+                            MusicSearchService.searchPlaylists(
+                                query = trimmed,
+                                maxResults = 12
+                            )
+                        }
+
+                    val remoteResults = songsDeferred.await()
+                    val playlistResults =
+                        playlistsDeferred.await()
+
+                    if (
+                        normalizeSearchText(_searchQuery.value) !=
+                            requestedQuery
+                    ) {
+                        return@coroutineScope
+                    }
+
+                    _searchResults.value = rankSearchResults(
+                        tracks = localResults + remoteResults,
+                        query = trimmed,
+                        limit = 50
+                    )
+
+                    _searchPlaylistResults.value =
+                        playlistResults
+                            .distinctBy { it.id }
+                            .take(12)
+
+                    _searchPlaylistMessage.value = null
                 }
-
-                _searchResults.value = rankSearchResults(
-                    tracks = localResults + remoteResults,
-                    query = trimmed,
-                    limit = 50
-                )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -958,6 +1003,50 @@ if (incoming.isEmpty()) {
         }
     }
 
+    fun playSearchPlaylist(
+        playlist: SearchPlaylistResult
+    ) {
+        if (_loadingSearchPlaylistId.value != null) {
+            return
+        }
+
+        _loadingSearchPlaylistId.value = playlist.id
+        _searchPlaylistMessage.value = null
+
+        viewModelScope.launch {
+            try {
+                val tracks =
+                    MusicSearchService.fetchPlaylistTracks(
+                        playlistId = playlist.id,
+                        maxResults = 100
+                    )
+
+                if (tracks.isEmpty()) {
+                    _searchPlaylistMessage.value =
+                        "No playable songs found in this playlist"
+                    return@launch
+                }
+
+                playPlaylist(tracks)
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "SABDHAM_PLAYLIST_SEARCH",
+                    "Unable to open playlist " + playlist.id,
+                    e
+                )
+
+                _searchPlaylistMessage.value =
+                    "Unable to load this playlist"
+            } finally {
+                if (
+                    _loadingSearchPlaylistId.value ==
+                        playlist.id
+                ) {
+                    _loadingSearchPlaylistId.value = null
+                }
+            }
+        }
+    }
     private fun generateSuggestions(query: String): List<String> {
         val qLower = query.lowercase().trim()
         if (qLower.isEmpty()) return emptyList()
