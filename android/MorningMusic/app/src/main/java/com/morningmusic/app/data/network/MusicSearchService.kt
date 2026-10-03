@@ -263,6 +263,73 @@ object MusicSearchService {
             null
         }
     }
+    suspend fun resolveAudiusStream(
+        title: String,
+        artist: String
+    ): ResolvedStream? = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+
+        try {
+            val encodedTitle = URLEncoder.encode(title, "UTF-8")
+            val encodedArtist = URLEncoder.encode(artist, "UTF-8")
+
+            val urlString =
+                "$activeBackendUrl/api/audius/resolve" +
+                    "?title=$encodedTitle&artist=$encodedArtist"
+
+            connection = URL(urlString).openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 7000
+            connection.readTimeout = 7000
+            connection.setRequestProperty("Accept", "application/json")
+
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                return@withContext null
+            }
+
+            val response =
+                connection.inputStream.bufferedReader().use { it.readText() }
+
+            val json = JSONObject(response)
+            val resolvedUrl = json.optString("url").trim()
+            val source = json.optString("source").trim().lowercase()
+
+            if (resolvedUrl.isBlank() || source != "audius") {
+                return@withContext null
+            }
+
+            val coverUrl =
+                json.optString("coverUrl")
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+
+            val duration =
+                json.optLong("duration", 0L)
+                    .takeIf { it > 0L }
+
+            android.util.Log.d(
+                "SABDHAM_AUDIUS",
+                "FINAL FALLBACK title=$title artist=$artist"
+            )
+
+            ResolvedStream(
+                url = resolvedUrl,
+                coverUrl = coverUrl,
+                duration = duration,
+                source = source
+            )
+        } catch (e: Exception) {
+            android.util.Log.w(
+                "SABDHAM_AUDIUS",
+                "Audius final fallback failed title=$title",
+                e
+            )
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     suspend fun resolveCatalogStream(
         title: String,
         artist: String
