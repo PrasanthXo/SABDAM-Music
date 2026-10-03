@@ -1825,6 +1825,20 @@ if (incoming.isEmpty()) {
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
 
+        fun searchQueueTitleKey(value: String): String =
+            value
+                .lowercase()
+                .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+
+        val selectedTitleKey = searchQueueTitleKey(track.title)
+        val seenRelatedTitles = mutableSetOf<String>()
+
+        if (selectedTitleKey.isNotBlank()) {
+            seenRelatedTitles.add(selectedTitleKey)
+        }
+
         val matchingTracks =
             sourceResults
                 .distinctBy { it.id }
@@ -1834,7 +1848,7 @@ if (incoming.isEmpty()) {
                         true
                     } else {
                         val languageMatches =
-                            selectedLanguage.isBlank() ||
+                            selectedLanguage.isNotBlank() &&
                                 candidate.language
                                     .trim()
                                     .equals(
@@ -1850,7 +1864,7 @@ if (incoming.isEmpty()) {
                                 .filter { it.isNotBlank() }
 
                         val genreMatches =
-                            selectedGenres.isEmpty() ||
+                            selectedGenres.isNotEmpty() &&
                                 candidateGenres.any { candidateGenre ->
                                     selectedGenres.any { selectedGenre ->
                                         candidateGenre == selectedGenre ||
@@ -1859,16 +1873,33 @@ if (incoming.isEmpty()) {
                                     }
                                 }
 
-                        languageMatches && genreMatches
+                        val candidateTitleKey =
+                            searchQueueTitleKey(candidate.title)
+
+                        val differentSongTitle =
+                            candidateTitleKey.isNotBlank() &&
+                                candidateTitleKey != selectedTitleKey &&
+                                seenRelatedTitles.add(candidateTitleKey)
+
+                        languageMatches &&
+                            genreMatches &&
+                            differentSongTitle
                     }
                 }
 
+        /*
+         * Search auto-queue policy:
+         * - clicked result is always first
+         * - following songs MUST match its language
+         * - following songs MUST match its genre
+         * - never queue another result with the same normalized title
+         * - never repeat a title later in the related queue
+         *
+         * Playlist and catalogue playback are intentionally untouched.
+         */
         val baseQueue =
-            if (matchingTracks.any { it.id == track.id }) {
-                matchingTracks
-            } else {
-                listOf(track) + matchingTracks
-            }
+            listOf(track) +
+                matchingTracks.filterNot { it.id == track.id }
 
         /*
          * Rotate the queue so whichever search song was clicked
