@@ -1,16 +1,15 @@
-﻿{
-    "latestVersionCode":  11,
-    "minimumVersionCode":  9,
-    "latestVersionName":  "1.2.5",
-    "forceUpdate":  false,
-    "downloadUrl":  "https://raw.githubusercontent.com/PrasanthXo/SABDAM-Music/main/public/downloads/SABDHAM-signed.apk",
-    "message":  "SABDHAM 1.2.5 is available with important playback and player stability fixes.",
-    "releaseNotes":  [
-                         "Fixed search-result song playback.",
-                         "Fixed search-result playlist playback.",
-                         "Search playlists now continue beyond the initial 20 songs.",
-                         "Improved catalogue song playback reliability.",
-                         "Fixed music player overlap and small-screen UI glitches.",
-                         "Improved playlist auto-next playback."
-                     ]
+{
+  "latestVersionCode": 13,
+  "minimumVersionCode": 9,
+  "latestVersionName": "1.2.7",
+  "forceUpdate": false,
+  "downloadUrl": "https://sabdham.cyou/downloads/SABDHAM-signed.apk",
+  "message": "SABDHAM 1.2.7 is available with improved search matching and playback reliability.",
+  "releaseNotes": [
+    "Improved closest-match search for mistyped song searches without changing the text you typed.",
+    "Improved search-result and playlist playback resolution.",
+    "Improved catalogue playback reliability while preserving the newer verified playback fallbacks.",
+    "Improved playlist title matching and playable-audio resolution.",
+    "SABDHAM artwork continues to use catalogue metadata instead of YouTube cover art."
+  ]
 }

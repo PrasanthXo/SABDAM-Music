@@ -1104,51 +1104,31 @@ if (incoming.isEmpty()) {
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
 
-        val trimmed = query
-            .trim()
-            .replace(Regex("\\s+"), " ")
+        // SABDHAM_SEARCH_CLOSEST_MATCH
+        // Keep exactly what the user typed in the search box.
+        // Use the hidden closest-match query only for finding results.
+        val typedQuery = query.trim()
 
-        lastSearchJob?.cancel()
+        val closestMatchQuery =
+            autoCorrectSearchQuery(typedQuery)
 
-        // A playlist selected from an older query must not keep the new
-        // playlist results disabled or start playback later.
-        searchPlaylistOpenGeneration.incrementAndGet()
-        searchPlaylistOpenJob?.cancel()
-        searchPlaylistOpenJob = null
-        searchPlaylistExpansionJob?.cancel()
-        searchPlaylistExpansionJob = null
-        _loadingSearchPlaylistId.value = null
+        val trimmed = closestMatchQuery.trim()
 
-        _openedSearchPlaylist.value = null
-        _openedSearchPlaylistTracks.value = emptyList()
+        // Stale-result protection must compare against what the user typed,
+        // NOT the hidden closest-match query.
+        val requestedQuery =
+            normalizeSearchText(typedQuery)
 
-        if (trimmed.isEmpty()) {
-            _searchResults.value = emptyList()
-            _searchPlaylistResults.value = emptyList()
-            _searchPlaylistMessage.value = null
-            _suggestions.value = emptyList()
-            _isSearching.value = false
-            return
-        }
+        // SABDHAM_CLOSEST_LOCAL_RESULTS
+        val localResults =
+            rankSearchResults(
+                tracks = allTracks,
+                query = trimmed,
+                limit = 40
+            )
 
-        // Never show playlist results from the previous query while a new
-        // search is still loading.
-        _searchPlaylistResults.value = emptyList()
-        _searchPlaylistMessage.value = null
-
-        _suggestions.value = generateSuggestions(trimmed)
-
-        val localResults = rankSearchResults(
-            tracks = allTracks,
-            query = trimmed,
-            limit = 40
-        )
-
-        // Local playable matches appear immediately.
+        // Show closest local matches immediately.
         _searchResults.value = localResults
-
-        val requestedQuery = normalizeSearchText(trimmed)
-
         lastSearchJob = viewModelScope.launch {
             _isSearching.value = true
 
@@ -1558,6 +1538,59 @@ if (incoming.isEmpty()) {
                 }
             }
         }
+    }
+    // SABDHAM_SEARCH_AUTOCORRECT
+    private fun autoCorrectSearchQuery(rawQuery: String): String {
+        // SABDHAM_POKKIRI_QUERY_ALIAS
+        val normalizedInput =
+            rawQuery
+                .trim()
+                .replace(Regex("\\s+"), " ")
+
+        if (
+            normalizedInput.equals("pokiri pongal", ignoreCase = true) ||
+            normalizedInput.equals("pokkiri pongal", ignoreCase = true)
+        ) {
+            android.util.Log.d(
+                "SABDHAM_SEARCH",
+                "AUTO CORRECT '$rawQuery' -> 'Aadungada Enna Suthi'"
+            )
+            return "Aadungada Enna Suthi"
+        }
+
+        var corrected =
+            rawQuery
+                .trim()
+                .replace(Regex("\\s+"), " ")
+
+        val corrections =
+            listOf(
+                Regex("\\bpokiri\\b", RegexOption.IGNORE_CASE) to "Pokkiri",
+                Regex("\\btamill\\b", RegexOption.IGNORE_CASE) to "Tamil",
+                Regex("\\btamilu\\b", RegexOption.IGNORE_CASE) to "Tamil",
+                Regex("\\bsinhla\\b", RegexOption.IGNORE_CASE) to "Sinhala",
+                Regex("\\bsinahla\\b", RegexOption.IGNORE_CASE) to "Sinhala",
+                Regex("\\bsingala\\b", RegexOption.IGNORE_CASE) to "Sinhala",
+                Regex("\\benglsih\\b", RegexOption.IGNORE_CASE) to "English",
+                Regex("\\benglsh\\b", RegexOption.IGNORE_CASE) to "English",
+                Regex("\\bthupakki\\b", RegexOption.IGNORE_CASE) to "Thuppakki",
+                Regex("\\bmersel\\b", RegexOption.IGNORE_CASE) to "Mersal",
+                Regex("\\btherii\\b", RegexOption.IGNORE_CASE) to "Theri",
+                Regex("\\bvijai\\b", RegexOption.IGNORE_CASE) to "Vijay"
+            )
+
+        corrections.forEach { (pattern, replacement) ->
+            corrected = corrected.replace(pattern, replacement)
+        }
+
+        if (!corrected.equals(rawQuery.trim(), ignoreCase = false)) {
+            android.util.Log.d(
+                "SABDHAM_SEARCH",
+                "AUTO CORRECT '$rawQuery' -> '$corrected'"
+            )
+        }
+
+        return corrected
     }
     private fun generateSuggestions(query: String): List<String> {
         val qLower = query.lowercase().trim()
@@ -2161,7 +2194,26 @@ if (incoming.isEmpty()) {
         originalTrack: Track
     ): Pair<Track, MediaItem>? {
 
-        val track = sanitizeSearchTrack(originalTrack)
+        val sanitizedTrack = sanitizeSearchTrack(originalTrack)
+
+        val track =
+            if (
+                sanitizedTrack.title.contains("pokkiri pongal", ignoreCase = true) ||
+                sanitizedTrack.title.contains("pokiri pongal", ignoreCase = true)
+            ) {
+                android.util.Log.d(
+                    "SABDHAM_ALIAS",
+                    "Pokkiri Pongal -> Aadungada Yennai Suthi"
+                )
+
+                sanitizedTrack.copy(
+                    title = "Aadungada Enna Suthi",
+                    artist = "Naveen",
+                    album = "Pokkiri"
+                )
+            } else {
+                sanitizedTrack
+            }
         val audio = originalTrack.audioUrl.trim()
 
         val hasDirectAudio =
@@ -2227,7 +2279,6 @@ if (incoming.isEmpty()) {
             } else {
                 null
             }
-
         /*
          * Existing sources always get first chance.
          *
@@ -2363,16 +2414,118 @@ if (incoming.isEmpty()) {
     private suspend fun buildPlaylistPlayableTrack(
         track: Track
     ): Pair<Track, MediaItem>? {
-        val hasYouTubeReference =
-            searchVideoId(track).isNotBlank()
+        /*
+         * SEARCH PLAYLIST FAST PATH
+         *
+         * Do NOT waste time trying the broken YouTube audio proxy.
+         * Search playlists use:
+         *
+         * existing direct audio -> Saavn title resolver -> skip
+         *
+         * Normal search and catalogue playback are untouched.
+         */
+        val sanitizedPlaylistTrack = sanitizeSearchTrack(track)
 
-        return if (hasYouTubeReference) {
-            // Public search playlists are YouTube-ID based. Use the same
-            // exact-ID resolver that already powers playable search songs.
-            buildSearchPlayableTrack(track)
-        } else {
-            buildPlayableTrack(track)
+        val cleanTrack =
+            if (
+                sanitizedPlaylistTrack.title.contains("pokkiri pongal", ignoreCase = true) ||
+                sanitizedPlaylistTrack.title.contains("pokiri pongal", ignoreCase = true)
+            ) {
+                android.util.Log.d(
+                    "SABDHAM_ALIAS",
+                    "Playlist Pokkiri Pongal -> Aadungada Yennai Suthi"
+                )
+
+                sanitizedPlaylistTrack.copy(
+                    title = "Aadungada Enna Suthi",
+                    artist = "Naveen",
+                    album = "Pokkiri"
+                )
+            } else {
+                sanitizedPlaylistTrack
+            }
+
+        val existingUrl =
+            cleanTrack.audioUrl
+                .trim()
+                .takeIf {
+                    (it.startsWith("http://", ignoreCase = true) ||
+                        it.startsWith("https://", ignoreCase = true)) &&
+                        !it.contains("youtube", ignoreCase = true) &&
+                        !it.contains("invidious", ignoreCase = true)
+                }
+
+        val saavnResult =
+            if (existingUrl == null) {
+                try {
+                    MusicSearchService.resolveStream(
+                        title = cleanTrack.title,
+                        artist = cleanTrack.artist
+                    )
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    android.util.Log.w(
+                        "SABDHAM_PLAYLIST_FAST",
+                        "Saavn resolver failed title=${cleanTrack.title}",
+                        e
+                    )
+                    null
+                }
+            } else {
+                null
+            }
+
+        val saavnUrl =
+            saavnResult
+                ?.takeIf {
+                    it.source.equals("saavn", ignoreCase = true)
+                }
+                ?.url
+                ?.trim()
+                ?.takeIf {
+                    it.startsWith("http://", ignoreCase = true) ||
+                        it.startsWith("https://", ignoreCase = true)
+                }
+
+        val playableUrl = existingUrl ?: saavnUrl
+
+        if (playableUrl.isNullOrBlank()) {
+            android.util.Log.w(
+                "SABDHAM_PLAYLIST_FAST",
+                "SKIP FAST UNPLAYABLE title=${cleanTrack.title}"
+            )
+            return null
         }
+
+        val playableTrack =
+            cleanTrack.copy(
+                audioUrl = playableUrl
+            )
+
+        val metadataBuilder =
+            androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(playableTrack.title)
+                .setArtist(playableTrack.artist)
+                .setAlbumTitle(playableTrack.album)
+
+        if (playableTrack.coverUrl.isNotBlank()) {
+            metadataBuilder.setArtworkUri(
+                android.net.Uri.parse(playableTrack.coverUrl)
+            )
+        }
+
+        android.util.Log.d(
+            "SABDHAM_PLAYLIST_FAST",
+            "FAST PLAY title=${playableTrack.title} url=$playableUrl"
+        )
+
+        return playableTrack to
+            MediaItem.Builder()
+                .setUri(playableUrl)
+                .setMediaId(playableTrack.id)
+                .setMediaMetadata(metadataBuilder.build())
+                .build()
     }
 
     private suspend fun extendActivePlaylistQueue(
@@ -2875,8 +3028,7 @@ if (incoming.isEmpty()) {
          * /api/youtube/stream?id=...
          *
          * ExoPlayer needs a complete absolute URL.
-         */
-        val normalizedResolvedStreamUrl =
+         */        val normalizedResolvedStreamUrl =
             resolvedStream?.url
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }

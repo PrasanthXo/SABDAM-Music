@@ -5111,23 +5111,30 @@ async function resolveAudioStreamInfo(
   // Do not retry title-only when a real artist is known.
   // Same-title covers/remixes are common and can otherwise replace the
   // requested recording (for example, "Gangnam Style" by another artist).
-  // Tier 2: Dynamically resolve to YouTube video ID
+  /*
+   * Do not fabricate a playable audio URL from public Invidious
+   * latest_version endpoints.
+   *
+   * JioSaavn above is the playable-audio resolver. If it did not
+   * produce audio, preserve the YouTube ID only as metadata and let
+   * the client continue to its next supported audio fallback.
+   */
   if ((!activeVideoId || excludeVideoIds.includes(activeVideoId)) && activeTitle) {
-    const resolvedYt = await resolveYouTubeVideoBySong(activeTitle, activeArtist, excludeVideoIds);
-    if (resolvedYt && resolvedYt.videoId) {
+    const resolvedYt = await resolveYouTubeVideoBySong(
+      activeTitle,
+      activeArtist,
+      excludeVideoIds
+    );
+
+    if (resolvedYt?.videoId) {
       activeVideoId = resolvedYt.videoId;
     }
   }
 
-  // Return authentic YouTube stream
-  let audioUrl: string | null = null;
-  if (activeVideoId && activeVideoId.length === 11) {
-    audioUrl = await resolveYouTubeAudioUrl(activeVideoId);
-  }
   return {
-    url: audioUrl,
+    url: null,
     videoId: activeVideoId,
-        source: 'youtube',
+    source: 'youtube',
   };
 }
 
@@ -6232,12 +6239,94 @@ app.get('/api/youtube/playlist', async (req, res) => {
 
       const highResArt = SABDHAM_DEFAULT_ARTWORK;
 
+      // SABDHAM_PLAYLIST_TITLE_RESOLVER
+      // YouTube playlist items often use:
+      // "Artist - Song ft. Artist Official Video"
+      //
+      // SABDHAM's Saavn resolver is more reliable with the clean song
+      // title and no uploader/channel forced into the artist field.
+      let playlistTitle =
+        trackName
+          .replace(/\s*\|\s*.*$/g, ' ')
+          .replace(
+            /[\(\[\{][^)\]\}]*[\)\]\}]/g,
+            ' '
+          )
+          .replace(
+            /\b(?:official|music\s*video|video\s*song|video|audio\s*song|audio|lyrics?|lyrical|full\s*song|hd|4k|8k|60fps|visualizer)\b/gi,
+            ' '
+          )
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
+      /*
+       * Remove a leading artist only when it agrees with the uploader.
+       *
+       * YES:
+       *   Ed Sheeran - Shape of You
+       *   uploader: Ed Sheeran
+       *
+       * NO:
+       *   Master - Vaathi Coming
+       *   uploader: Sony Music South
+       */
+      const dashMatch =
+        playlistTitle.match(/^(.+?)\s+-\s+(.+)$/);
+
+      if (dashMatch) {
+        const possibleArtist = dashMatch[1].trim();
+        const possibleSong = dashMatch[2].trim();
+
+        const normalizeIdentity = (value: string) =>
+          value
+            .toLowerCase()
+            .replace(
+              /\b(?:official|music|vevo|topic|channel)\b/g,
+              ''
+            )
+            .replace(/[^a-z0-9]+/g, '');
+
+        const artistKey =
+          normalizeIdentity(possibleArtist);
+
+        const channelKey =
+          normalizeIdentity(channelTitle);
+
+        if (
+          artistKey.length >= 3 &&
+          channelKey.length >= 3 &&
+          (
+            channelKey.includes(artistKey) ||
+            artistKey.includes(channelKey)
+          )
+        ) {
+          playlistTitle = possibleSong;
+        }
+      }
+
+      /*
+       * Featured artists frequently make the current Saavn matcher miss.
+       * Your local tests confirmed:
+       *
+       * "See You Again" + blank artist = playable
+       * "See You Again ft. Charlie Puth" + Wiz Khalifa = no Saavn URL
+       */
+      playlistTitle =
+        playlistTitle
+          .replace(
+            /\s+\b(?:ft\.?|feat\.?|featuring)\b.*$/i,
+            ''
+          )
+          .replace(/\s*-\s*$/g, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
       return {
         id: `yt-${videoId}`,
         audio_source_id: videoId,
-        title: trackName.replace(/[\(\[\{].*?official.*?[\)\]\}]/gi, '').replace(/\s*\|\s*.*/, '').trim(),
-        artist: channelTitle.replace(/Topic|VEVO|Official/gi, '').trim() || 'Sabdham Artist',
-        album: 'YouTube Singles',
+        title: playlistTitle,
+        artist: '',
+        album: channelTitle.replace(/Topic|VEVO|Official/gi, '').trim() || 'YouTube Playlist',
         duration: durationSeconds,
         durationFormatted: durationFormatted,
         coverUrl: highResArt,

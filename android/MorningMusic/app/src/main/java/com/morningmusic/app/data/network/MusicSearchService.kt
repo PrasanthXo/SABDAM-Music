@@ -36,7 +36,7 @@ data class SearchPlaylistResult(
 object MusicSearchService {
 
     const val DEFAULT_PRIMARY_URL = "https://sabdham-backend.onrender.com"
-    const val DEFAULT_DEV_URL = "https://ais-dev-eavywet5zknxtgryw4gwib-602144079882.asia-southeast1.run.app"
+    const val DEFAULT_DEV_URL = "https://sabdham-backend.onrender.com"
 
     private const val PREFS_NAME = "morning_music_network_prefs"
     private const val KEY_BACKEND_URL = "custom_backend_url"
@@ -50,6 +50,9 @@ object MusicSearchService {
         if (!saved.isNullOrBlank()) {
             activeBackendUrl = saved.trim().removeSuffix("/")
         }
+
+        // TEMP LOCAL PLAYBACK TEST - force adb reverse backend.
+        activeBackendUrl = "https://sabdham-backend.onrender.com"
     }
 
     fun setBackendUrl(context: Context, newUrl: String) {

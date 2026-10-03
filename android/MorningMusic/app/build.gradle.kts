@@ -13,8 +13,8 @@ android {
         applicationId = "com.sabdham.music"
         minSdk = 24
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.2.6"
+        versionCode = 13
+        versionName = "1.2.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
