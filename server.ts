@@ -143,9 +143,35 @@ app.get('/api/app/update', (_req, res) => {
       .trim()
       .toLowerCase() === 'true';
 
+  const releaseNotes = [
+    'Smarter personalized Home catalogues based on listening interests.',
+    'Larger Home catalogues with up to 50 unique songs and stronger empty-section backfill.',
+    'Daily catalogue rotation improvements with better duplicate protection.',
+    'Persistent full-player volume control wired to native Media3 playback.',
+    'Native Audio Output routing for phone, Bluetooth and supported multi-device routes.',
+    'Audio Output control moved beside the volume panel with mobile safe-area protection.',
+    'Queue drag-and-drop reordering with native playback queue synchronization.',
+    'Add to Queue now preserves manually added songs during background prefetch.',
+    'Search now separates Songs and Playlists and opens playlist details before playback.',
+    'Playlist Play All, fast first-page loading and background expansion up to full playlists.',
+    'Playlist three-dot actions for Add to Library and Add to Queue.',
+    'Public YouTube playlist discovery with caching, stale-search cancellation and fallback handling.',
+    'Public Spotify playlist search merged into Android search with provider labels.',
+    'Spotify and YouTube playlist loading now respects each provider source.',
+    'Cleaner song search titles with video-style labels removed.',
+    'Music-only search relevance filters news, reviews, explanations, trailers, podcasts and other non-music videos.',
+    'Improved Tamil and Sinhala search matching with Unicode preserved.',
+    'Faster and more reliable search playback with dead-audio validation and fallback checks.',
+    'YouTube playback fallback improved, with Audius available only as a final playback fallback.',
+    'Verified artwork matching improved using Apple/MusicBrainz plus TMDB and Last.fm fallbacks.',
+    'Movie artwork matching now uses language/year disambiguation and ignores generic labels.',
+    'Artwork provider credits added to About SABDHAM.',
+    'Bottom navigation and full-player controls protected from overlap on smaller and gesture-navigation phones.'
+  ];
+
   const message =
     process.env.ANDROID_UPDATE_MESSAGE ||
-    'SABDHAM 1.2.0 is available. Update now for improved search, playlist discovery, audio output controls, and the latest fixes.';
+    'SABDHAM 1.2.0 is available with major search, playlist, playback, artwork, queue, personalization and audio-output improvements.';
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
@@ -156,7 +182,8 @@ app.get('/api/app/update', (_req, res) => {
     latestVersionName,
     downloadUrl,
     forceUpdate,
-    message
+    message,
+    releaseNotes
   });
 });
 // Health check endpoints for Cloud Run deployment, kubernetes probes, and load balancers
