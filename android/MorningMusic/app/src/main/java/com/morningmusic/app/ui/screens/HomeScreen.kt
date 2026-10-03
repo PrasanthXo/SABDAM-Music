@@ -206,6 +206,8 @@ fun HomeScreen(viewModel: MusicViewModel) {
         viewModel.searchPlaylistResults.collectAsState()
     val loadingSearchPlaylistId by
         viewModel.loadingSearchPlaylistId.collectAsState()
+    val searchPlaylistActionId by
+        viewModel.searchPlaylistActionId.collectAsState()
     val searchPlaylistMessage by
         viewModel.searchPlaylistMessage.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
@@ -792,6 +794,15 @@ fun HomeScreen(viewModel: MusicViewModel) {
     }
     var playlistSaving by remember { mutableStateOf(false) }
     var playlistMessage by remember { mutableStateOf<String?>(null) }
+    var searchPlaylistMenuId by remember {
+        mutableStateOf<String?>(null)
+    }
+    var searchPlaylistLibraryActionId by remember {
+        mutableStateOf<String?>(null)
+    }
+    var searchPlaylistLibraryMessage by remember {
+        mutableStateOf<String?>(null)
+    }
     val playlistScope = rememberCoroutineScope()
     // Search page history only
     var recentSearches by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -1465,30 +1476,229 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                     }
                                                 }
 
-                                                if (loading) {
-                                                    CircularProgressIndicator(
-                                                        modifier =
-                                                            Modifier.size(
-                                                                22.dp
-                                                            ),
-                                                        color =
-                                                            Color(
-                                                                0xFF00E676
-                                                            ),
-                                                        strokeWidth = 2.dp
-                                                    )
-                                                } else {
-                                                    Icon(
-                                                        imageVector =
-                                                            Icons.Default
-                                                                .PlayArrow,
-                                                        contentDescription =
-                                                            "Open playlist",
-                                                        tint =
-                                                            Color(
-                                                                0xFF00E676
+                                                Column(
+                                                    horizontalAlignment =
+                                                        Alignment.CenterHorizontally
+                                                ) {
+                                                    if (loading) {
+                                                        CircularProgressIndicator(
+                                                            modifier =
+                                                                Modifier.size(
+                                                                    22.dp
+                                                                ),
+                                                            color =
+                                                                Color(
+                                                                    0xFF00E676
+                                                                ),
+                                                            strokeWidth = 2.dp
+                                                        )
+                                                    } else {
+                                                        Icon(
+                                                            imageVector =
+                                                                Icons.Default
+                                                                    .PlayArrow,
+                                                            contentDescription =
+                                                                "Open playlist",
+                                                            tint =
+                                                                Color(
+                                                                    0xFF00E676
+                                                                ),
+                                                            modifier =
+                                                                Modifier.size(
+                                                                    22.dp
+                                                                )
+                                                        )
+                                                    }
+
+                                                    Box {
+                                                        IconButton(
+                                                            onClick = {
+                                                                searchPlaylistMenuId =
+                                                                    playlist.id
+                                                            },
+                                                            modifier =
+                                                                Modifier.size(
+                                                                    34.dp
+                                                                )
+                                                        ) {
+                                                            Icon(
+                                                                imageVector =
+                                                                    Icons.Default
+                                                                        .MoreVert,
+                                                                contentDescription =
+                                                                    "Playlist options",
+                                                                tint =
+                                                                    Color(
+                                                                        0xFF9AA29D
+                                                                    ),
+                                                                modifier =
+                                                                    Modifier.size(
+                                                                        20.dp
+                                                                    )
                                                             )
-                                                    )
+                                                        }
+
+                                                        DropdownMenu(
+                                                            expanded =
+                                                                searchPlaylistMenuId ==
+                                                                    playlist.id,
+                                                            onDismissRequest = {
+                                                                searchPlaylistMenuId =
+                                                                    null
+                                                            },
+                                                            containerColor =
+                                                                Color(
+                                                                    0xFF171A18
+                                                                )
+                                                        ) {
+                                                            DropdownMenuItem(
+                                                                text = {
+                                                                    Text(
+                                                                        text =
+                                                                            if (
+                                                                                searchPlaylistLibraryActionId ==
+                                                                                    playlist.id
+                                                                            ) {
+                                                                                "Adding to Library..."
+                                                                            } else {
+                                                                                "Add to Library"
+                                                                            },
+                                                                        color =
+                                                                            Color.White
+                                                                    )
+                                                                },
+                                                                leadingIcon = {
+                                                                    Icon(
+                                                                        imageVector =
+                                                                            Icons.Default
+                                                                                .LibraryAdd,
+                                                                        contentDescription =
+                                                                            null,
+                                                                        tint =
+                                                                            Color(
+                                                                                0xFF00E676
+                                                                            )
+                                                                    )
+                                                                },
+                                                                enabled =
+                                                                    searchPlaylistLibraryActionId ==
+                                                                        null,
+                                                                onClick = {
+                                                                    searchPlaylistMenuId =
+                                                                        null
+
+                                                                    if (
+                                                                        authUser ==
+                                                                        null
+                                                                    ) {
+                                                                        isAuthDialogVisible =
+                                                                            true
+                                                                    } else if (
+                                                                        searchPlaylistLibraryActionId ==
+                                                                            null
+                                                                    ) {
+                                                                        searchPlaylistLibraryActionId =
+                                                                            playlist.id
+                                                                        searchPlaylistLibraryMessage =
+                                                                            null
+
+                                                                        playlistScope.launch {
+                                                                            val result =
+                                                                                SabdhamLibraryService
+                                                                                    .importYouTubePlaylist(
+                                                                                        context =
+                                                                                            context,
+                                                                                        playlistId =
+                                                                                            playlist.id,
+                                                                                        playlistName =
+                                                                                            playlist.title,
+                                                                                        playlistOwner =
+                                                                                            playlist.owner
+                                                                                    )
+
+                                                                            if (
+                                                                                result.success
+                                                                            ) {
+                                                                                if (
+                                                                                    result.playlists
+                                                                                        .isNotEmpty()
+                                                                                ) {
+                                                                                    cloudPlaylists =
+                                                                                        result.playlists
+                                                                                } else {
+                                                                                    val refreshed =
+                                                                                        SabdhamLibraryService
+                                                                                            .getPlaylists(
+                                                                                                context
+                                                                                            )
+
+                                                                                    if (
+                                                                                        refreshed.success
+                                                                                    ) {
+                                                                                        cloudPlaylists =
+                                                                                            refreshed.playlists
+                                                                                    }
+                                                                                }
+                                                                            }
+
+                                                                            searchPlaylistLibraryMessage =
+                                                                                result.message
+
+                                                                            if (
+                                                                                searchPlaylistLibraryActionId ==
+                                                                                    playlist.id
+                                                                            ) {
+                                                                                searchPlaylistLibraryActionId =
+                                                                                    null
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            )
+
+                                                            DropdownMenuItem(
+                                                                text = {
+                                                                    Text(
+                                                                        text =
+                                                                            if (
+                                                                                searchPlaylistActionId ==
+                                                                                    playlist.id
+                                                                            ) {
+                                                                                "Adding to Queue..."
+                                                                            } else {
+                                                                                "Add to Queue"
+                                                                            },
+                                                                        color =
+                                                                            Color.White
+                                                                    )
+                                                                },
+                                                                leadingIcon = {
+                                                                    Icon(
+                                                                        imageVector =
+                                                                            Icons.Default
+                                                                                .PlaylistAdd,
+                                                                        contentDescription =
+                                                                            null,
+                                                                        tint =
+                                                                            Color(
+                                                                                0xFF00E676
+                                                                            )
+                                                                    )
+                                                                },
+                                                                enabled =
+                                                                    searchPlaylistActionId ==
+                                                                        null,
+                                                                onClick = {
+                                                                    searchPlaylistMenuId =
+                                                                        null
+                                                                    viewModel
+                                                                        .addSearchPlaylistToQueue(
+                                                                            playlist
+                                                                        )
+                                                                }
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -1497,12 +1707,32 @@ fun HomeScreen(viewModel: MusicViewModel) {
                             }
                         }
 
-                        if (!searchPlaylistMessage.isNullOrBlank()) {
+                        val playlistSearchFeedback =
+                            searchPlaylistLibraryMessage
+                                ?: searchPlaylistMessage
+
+                        if (!playlistSearchFeedback.isNullOrBlank()) {
                             item {
+                                val isError =
+                                    playlistSearchFeedback
+                                        .orEmpty()
+                                        .lowercase()
+                                        .let { message ->
+                                            message.contains("unable") ||
+                                                message.contains("failed") ||
+                                                message.contains("no playable") ||
+                                                message.contains("could not")
+                                        }
+
                                 Text(
                                     text =
-                                        searchPlaylistMessage.orEmpty(),
-                                    color = Color(0xFFFFB4AB),
+                                        playlistSearchFeedback.orEmpty(),
+                                    color =
+                                        if (isError) {
+                                            Color(0xFFFFB4AB)
+                                        } else {
+                                            Color(0xFF00E676)
+                                        },
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(
                                         horizontal = 20.dp,
