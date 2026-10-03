@@ -117,6 +117,9 @@ class PlaybackService : MediaSessionService() {
             androidx.media3.datasource
                 .DefaultHttpDataSource
                 .Factory()
+                .setUserAgent(
+                    "Mozilla/5.0 (Linux; Android 15) SABDHAM/1.0"
+                )
                 .setAllowCrossProtocolRedirects(
                     true
                 )
@@ -170,8 +173,11 @@ class PlaybackService : MediaSessionService() {
                 .setMediaSourceFactory(
                     mediaSourceFactory
                 )
+                // Queued songs must always advance. The SABDHAM "Autoplay"
+                // preference controls transition/recommendation behaviour, not
+                // whether a playlist pauses after every song.
                 .setPauseAtEndOfMediaItems(
-                    !autoplayEnabled
+                    false
                 )
                 .setAudioAttributes(
                     audioAttributes,
@@ -432,8 +438,9 @@ class PlaybackService : MediaSessionService() {
     ) {
         autoplayEnabled = enabled
 
+        // Never stop a real playlist/catalogue queue at item boundaries.
         player?.setPauseAtEndOfMediaItems(
-            !enabled
+            false
         )
 
         if (!enabled) {
