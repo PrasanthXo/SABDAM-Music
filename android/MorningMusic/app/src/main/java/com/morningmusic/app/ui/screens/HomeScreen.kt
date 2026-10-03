@@ -79,7 +79,6 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val suggestions by viewModel.suggestions.collectAsState()
 
     val popularTamilSource by viewModel.popularTamil.collectAsState()
-    val popularSinhalaSource by viewModel.popularSinhalaFlow.collectAsState()
     val popularEnglishSource by viewModel.popularEnglishFlow.collectAsState()
     val acousticMelodiesSource by viewModel.acousticMelodiesFlow.collectAsState()
     val newReleasesSource by viewModel.newReleasesFlow.collectAsState()
@@ -87,9 +86,6 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val tamilEvergreenSource by viewModel.tamilEvergreen.collectAsState()
     val tamilRomanticSource by viewModel.tamilRomantic.collectAsState()
     val tamilDanceSource by viewModel.tamilDance.collectAsState()
-    val sinhalaClassicsSource by viewModel.sinhalaClassics.collectAsState()
-    val sinhalaRomanticSource by viewModel.sinhalaRomantic.collectAsState()
-    val sinhalaTrendingSource by viewModel.sinhalaTrending.collectAsState()
     val englishPopSource by viewModel.englishPop.collectAsState()
     val chillRelaxSource by viewModel.chillRelax.collectAsState()
     val partyHitsSource by viewModel.partyHits.collectAsState()
@@ -110,17 +106,26 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val popularTamil = remember(popularTamilSource, catalogDay, likedTrackIds) {
         dailyRotatedCatalog(context, popularTamilSource, "popular_tamil", catalogDay, 20, likedTrackIds)
     }
-    val popularSinhala = remember(popularSinhalaSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, popularSinhalaSource, "popular_sinhala", catalogDay, 20, likedTrackIds)
-    }
     val popularEnglish = remember(popularEnglishSource, catalogDay, likedTrackIds) {
         dailyRotatedCatalog(context, popularEnglishSource, "popular_english", catalogDay, 20, likedTrackIds)
     }
+
+    val tamilNew = remember(popularTamilSource, catalogDay, likedTrackIds) {
+        val pool = popularTamilSource.filter { it.year >= 2023 || it.isTrendingNow }
+        dailyRotatedCatalog(context, pool, "tamil_new", catalogDay, 18, likedTrackIds)
+    }
+    val tamilModern = remember(popularTamilSource, catalogDay, likedTrackIds) {
+        val pool = popularTamilSource.filter { it.year in 2010..2022 }
+        dailyRotatedCatalog(context, pool, "tamil_modern", catalogDay, 18, likedTrackIds)
+    }
+
     val acousticMelodies = remember(acousticMelodiesSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, acousticMelodiesSource, "acoustic", catalogDay, 18, likedTrackIds)
+        val pool = acousticMelodiesSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
+        dailyRotatedCatalog(context, pool, "acoustic", catalogDay, 18, likedTrackIds)
     }
     val newReleases = remember(newReleasesSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, newReleasesSource, "new_releases", catalogDay, 18, likedTrackIds)
+        val pool = newReleasesSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
+        dailyRotatedCatalog(context, pool, "new_releases", catalogDay, 18, likedTrackIds)
     }
     val tamilEvergreen = remember(tamilEvergreenSource, catalogDay, likedTrackIds) {
         dailyRotatedCatalog(context, tamilEvergreenSource, "tamil_evergreen", catalogDay, 18, likedTrackIds)
@@ -131,29 +136,64 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val tamilDance = remember(tamilDanceSource, catalogDay, likedTrackIds) {
         dailyRotatedCatalog(context, tamilDanceSource, "tamil_dance", catalogDay, 18, likedTrackIds)
     }
-    val sinhalaClassics = remember(sinhalaClassicsSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, sinhalaClassicsSource, "sinhala_classics", catalogDay, 18, likedTrackIds)
-    }
-    val sinhalaRomantic = remember(sinhalaRomanticSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, sinhalaRomanticSource, "sinhala_romantic", catalogDay, 18, likedTrackIds)
-    }
-    val sinhalaTrending = remember(sinhalaTrendingSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, sinhalaTrendingSource, "sinhala_trending", catalogDay, 18, likedTrackIds)
-    }
+
     val englishPop = remember(englishPopSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, englishPopSource, "english_pop", catalogDay, 18, likedTrackIds)
+        dailyRotatedCatalog(context, englishPopSource, "international_pop", catalogDay, 18, likedTrackIds)
     }
+    val internationalTrending = remember(popularEnglishSource, catalogDay, likedTrackIds) {
+        val pool = popularEnglishSource.filter { it.year >= 2023 || it.isTrendingNow }
+        dailyRotatedCatalog(context, pool, "international_trending", catalogDay, 18, likedTrackIds)
+    }
+    val internationalRnB = remember(popularEnglishSource, catalogDay, likedTrackIds) {
+        val pool = popularEnglishSource.filter {
+            it.genre.contains("R&B", ignoreCase = true) ||
+                it.genre.contains("Synthwave", ignoreCase = true)
+        }
+        dailyRotatedCatalog(context, pool, "international_rnb", catalogDay, 18, likedTrackIds)
+    }
+    val internationalLove = remember(popularEnglishSource, catalogDay, likedTrackIds) {
+        val pool = popularEnglishSource.filter {
+            it.genre.contains("Love", ignoreCase = true) ||
+                it.genre.contains("Acoustic", ignoreCase = true) ||
+                it.genre.contains("Pop", ignoreCase = true)
+        }
+        dailyRotatedCatalog(context, pool, "international_love", catalogDay, 18, likedTrackIds)
+    }
+    val internationalThrowbacks = remember(popularEnglishSource, catalogDay, likedTrackIds) {
+        val pool = popularEnglishSource.filter { it.year in 1990..2019 }
+        dailyRotatedCatalog(context, pool, "international_throwbacks", catalogDay, 18, likedTrackIds)
+    }
+
     val chillRelax = remember(chillRelaxSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, chillRelaxSource, "chill_relax", catalogDay, 18, likedTrackIds)
+        val pool = chillRelaxSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
+        dailyRotatedCatalog(context, pool, "chill_relax", catalogDay, 18, likedTrackIds)
     }
     val partyHits = remember(partyHitsSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, partyHitsSource, "party_hits", catalogDay, 18, likedTrackIds)
+        val pool = partyHitsSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
+        dailyRotatedCatalog(context, pool, "party_hits", catalogDay, 18, likedTrackIds)
     }
     val throwbacks = remember(throwbacksSource, catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, throwbacksSource, "throwbacks", catalogDay, 18, likedTrackIds)
+        val pool = throwbacksSource.filterNot { it.language.equals("sinhala", ignoreCase = true) }
+        dailyRotatedCatalog(context, pool, "throwbacks", catalogDay, 18, likedTrackIds)
     }
     val dailyTrending = remember(catalogDay, likedTrackIds) {
-        dailyRotatedCatalog(context, viewModel.trending, "trending", catalogDay, 20, likedTrackIds)
+        val pool = viewModel.trending.filterNot { it.language.equals("sinhala", ignoreCase = true) }
+        dailyRotatedCatalog(context, pool, "trending", catalogDay, 20, likedTrackIds)
+    }
+
+    val tamilCatalog = remember(tamilNew, popularTamil, tamilRomantic, tamilDance, tamilEvergreen, tamilModern) {
+        (tamilNew + popularTamil + tamilRomantic + tamilDance + tamilEvergreen + tamilModern).distinctBy { it.id }
+    }
+    val internationalCatalog = remember(
+        internationalTrending,
+        popularEnglish,
+        englishPop,
+        internationalRnB,
+        internationalLove,
+        internationalThrowbacks
+    ) {
+        (internationalTrending + popularEnglish + englishPop + internationalRnB + internationalLove + internationalThrowbacks)
+            .distinctBy { it.id }
     }
 
     val likedSongs = likedTracks
@@ -240,7 +280,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     }
     val authLoading by authViewModel.loading.collectAsState()
 
-    val categories = listOf("All", "Tamil Hits", "Sinhala Pop", "English Pop", "Trending", "Liked Songs")
+    val categories = listOf("All", "Tamil", "International", "Trending", "Liked Songs")
 
     Box(
         modifier = Modifier
@@ -626,41 +666,28 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 }            } else if (activeNavTab == "home") {
                 // Category-filtered Catalog Views
                 when (selectedCategory) {
-                    "Tamil Hits" -> {
+                    "Tamil" -> {
                         item {
-                            SectionHeader("Popular Tamil Hits (${popularTamil.size})") { viewModel.playCatalog(popularTamil) }
+                            SectionHeader("Tamil Collection (${tamilCatalog.size})") { viewModel.playCatalog(tamilCatalog) }
                             VerticalTrackList(
-                                tracks = popularTamil,
+                                tracks = tamilCatalog,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularTamil) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, tamilCatalog) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
                     }
-                    "Sinhala Pop" -> {
+                    "International" -> {
                         item {
-                            SectionHeader("Modern Sinhala & Classics (${popularSinhala.size})") { viewModel.playCatalog(popularSinhala) }
+                            SectionHeader("International Collection (${internationalCatalog.size})") { viewModel.playCatalog(internationalCatalog) }
                             VerticalTrackList(
-                                tracks = popularSinhala,
+                                tracks = internationalCatalog,
                                 currentTrack = currentTrack,
                                 isPlaying = isPlaying,
                                 likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularSinhala) },
-                                onLikeClick = { viewModel.toggleLike(it) }
-                            )
-                        }
-                    }
-                    "English Pop" -> {
-                        item {
-                            SectionHeader("Global Pop Chartbusters (${popularEnglish.size})") { viewModel.playCatalog(popularEnglish) }
-                            VerticalTrackList(
-                                tracks = popularEnglish,
-                                currentTrack = currentTrack,
-                                isPlaying = isPlaying,
-                                likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularEnglish) },
+                                onTrackClick = { viewModel.playCatalogTrack(it, internationalCatalog) },
                                 onLikeClick = { viewModel.toggleLike(it) }
                             )
                         }
@@ -737,22 +764,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Sinhala Hits & Masterpieces") { viewModel.playCatalog(popularSinhala) }
-                            HorizontalTrackGrid(
-                                tracks = popularSinhala,
-                                currentTrack = currentTrack,
-                                isPlaying = isPlaying,
-                                likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, popularSinhala) },
-                                onLikeClick = { viewModel.toggleLike(it) },
-                                onAddToQueue = { viewModel.addToQueue(it) },
-                                onAddToPlaylist = { playlistTargetTrack = it },
-                                onLoadMore = { viewModel.loadMoreSinhala() }
-                            )
-                        }
-
-                        item {
-                            SectionHeader("Global English Chartbusters") { viewModel.playCatalog(popularEnglish) }
+                            SectionHeader("International Chartbusters") { viewModel.playCatalog(popularEnglish) }
                             HorizontalTrackGrid(
                                 tracks = popularEnglish,
                                 currentTrack = currentTrack,
@@ -831,6 +843,34 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
+                            SectionHeader("Tamil New & Trending") { viewModel.playCatalog(tamilNew) }
+                            HorizontalTrackGrid(
+                                tracks=tamilNew,
+                                currentTrack=currentTrack,
+                                isPlaying=isPlaying,
+                                likedTrackIds=likedTrackIds,
+                                onTrackClick={ viewModel.playCatalogTrack(it, tamilNew) },
+                                onLikeClick={ viewModel.toggleLike(it) },
+                                onAddToQueue={ viewModel.addToQueue(it) },
+                                onAddToPlaylist={ playlistTargetTrack=it }
+                            )
+                        }
+
+                        item {
+                            SectionHeader("Tamil Modern Hits") { viewModel.playCatalog(tamilModern) }
+                            HorizontalTrackGrid(
+                                tracks=tamilModern,
+                                currentTrack=currentTrack,
+                                isPlaying=isPlaying,
+                                likedTrackIds=likedTrackIds,
+                                onTrackClick={ viewModel.playCatalogTrack(it, tamilModern) },
+                                onLikeClick={ viewModel.toggleLike(it) },
+                                onAddToQueue={ viewModel.addToQueue(it) },
+                                onAddToPlaylist={ playlistTargetTrack=it }
+                            )
+                        }
+
+                        item {
                             SectionHeader("Tamil Evergreen Classics") { viewModel.playCatalog(tamilEvergreen) }
                             HorizontalTrackGrid(
                                 tracks=tamilEvergreen,
@@ -876,52 +916,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
 
                         item {
-                            SectionHeader("Sinhala Golden Classics") { viewModel.playCatalog(sinhalaClassics) }
-                            HorizontalTrackGrid(
-                                tracks=sinhalaClassics,
-                                currentTrack=currentTrack,
-                                isPlaying=isPlaying,
-                                likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaClassics) },
-                                onLikeClick={ viewModel.toggleLike(it) },
-                                onAddToQueue={ viewModel.addToQueue(it) },
-                                onAddToPlaylist={ playlistTargetTrack=it },
-                                onLoadMore={ viewModel.loadMoreSinhalaClassics() }
-                            )
-                        }
-
-                        item {
-                            SectionHeader("Sinhala Romantic Hits") { viewModel.playCatalog(sinhalaRomantic) }
-                            HorizontalTrackGrid(
-                                tracks=sinhalaRomantic,
-                                currentTrack=currentTrack,
-                                isPlaying=isPlaying,
-                                likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaRomantic) },
-                                onLikeClick={ viewModel.toggleLike(it) },
-                                onAddToQueue={ viewModel.addToQueue(it) },
-                                onAddToPlaylist={ playlistTargetTrack=it },
-                                onLoadMore={ viewModel.loadMoreSinhalaRomantic() }
-                            )
-                        }
-
-                        item {
-                            SectionHeader("Sinhala Trending") { viewModel.playCatalog(sinhalaTrending) }
-                            HorizontalTrackGrid(
-                                tracks=sinhalaTrending,
-                                currentTrack=currentTrack,
-                                isPlaying=isPlaying,
-                                likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, sinhalaTrending) },
-                                onLikeClick={ viewModel.toggleLike(it) },
-                                onAddToQueue={ viewModel.addToQueue(it) },
-                                onAddToPlaylist={ playlistTargetTrack=it },
-                                onLoadMore={ viewModel.loadMoreSinhalaTrending() }
-                            )
-                        }
-
-                        item {
-                            SectionHeader("English Pop Hits") { viewModel.playCatalog(englishPop) }
+                            SectionHeader("International Pop Hits") { viewModel.playCatalog(englishPop) }
                             HorizontalTrackGrid(
                                 tracks=englishPop,
                                 currentTrack=currentTrack,
@@ -932,6 +927,62 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 onAddToQueue={ viewModel.addToQueue(it) },
                                 onAddToPlaylist={ playlistTargetTrack=it },
                                 onLoadMore={ viewModel.loadMoreEnglishPop() }
+                            )
+                        }
+
+                        item {
+                            SectionHeader("International Trending Now") { viewModel.playCatalog(internationalTrending) }
+                            HorizontalTrackGrid(
+                                tracks=internationalTrending,
+                                currentTrack=currentTrack,
+                                isPlaying=isPlaying,
+                                likedTrackIds=likedTrackIds,
+                                onTrackClick={ viewModel.playCatalogTrack(it, internationalTrending) },
+                                onLikeClick={ viewModel.toggleLike(it) },
+                                onAddToQueue={ viewModel.addToQueue(it) },
+                                onAddToPlaylist={ playlistTargetTrack=it }
+                            )
+                        }
+
+                        item {
+                            SectionHeader("International R&B & Night") { viewModel.playCatalog(internationalRnB) }
+                            HorizontalTrackGrid(
+                                tracks=internationalRnB,
+                                currentTrack=currentTrack,
+                                isPlaying=isPlaying,
+                                likedTrackIds=likedTrackIds,
+                                onTrackClick={ viewModel.playCatalogTrack(it, internationalRnB) },
+                                onLikeClick={ viewModel.toggleLike(it) },
+                                onAddToQueue={ viewModel.addToQueue(it) },
+                                onAddToPlaylist={ playlistTargetTrack=it }
+                            )
+                        }
+
+                        item {
+                            SectionHeader("International Love & Pop") { viewModel.playCatalog(internationalLove) }
+                            HorizontalTrackGrid(
+                                tracks=internationalLove,
+                                currentTrack=currentTrack,
+                                isPlaying=isPlaying,
+                                likedTrackIds=likedTrackIds,
+                                onTrackClick={ viewModel.playCatalogTrack(it, internationalLove) },
+                                onLikeClick={ viewModel.toggleLike(it) },
+                                onAddToQueue={ viewModel.addToQueue(it) },
+                                onAddToPlaylist={ playlistTargetTrack=it }
+                            )
+                        }
+
+                        item {
+                            SectionHeader("International Throwbacks") { viewModel.playCatalog(internationalThrowbacks) }
+                            HorizontalTrackGrid(
+                                tracks=internationalThrowbacks,
+                                currentTrack=currentTrack,
+                                isPlaying=isPlaying,
+                                likedTrackIds=likedTrackIds,
+                                onTrackClick={ viewModel.playCatalogTrack(it, internationalThrowbacks) },
+                                onLikeClick={ viewModel.toggleLike(it) },
+                                onAddToQueue={ viewModel.addToQueue(it) },
+                                onAddToPlaylist={ playlistTargetTrack=it }
                             )
                         }
 
