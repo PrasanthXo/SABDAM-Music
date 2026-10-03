@@ -127,13 +127,13 @@ async function robustFetchJson(url: string, options: any = {}) {
 // ==========================================
 app.get('/api/app/update', (_req, res) => {
   const latestVersionCode =
-    Number(process.env.ANDROID_LATEST_VERSION_CODE || '6');
+    Number(process.env.ANDROID_LATEST_VERSION_CODE || '7');
 
   const minimumVersionCode =
-    Number(process.env.ANDROID_MINIMUM_VERSION_CODE || '2');
+    Number(process.env.ANDROID_MINIMUM_VERSION_CODE || '7');
 
   const latestVersionName =
-    process.env.ANDROID_LATEST_VERSION_NAME || '1.2.0';
+    process.env.ANDROID_LATEST_VERSION_NAME || '1.2.1';
 
   const downloadUrl =
     process.env.ANDROID_DOWNLOAD_URL || 'https://raw.githubusercontent.com/PrasanthXo/SABDAM-Music/main/public/downloads/SABDHAM-signed.apk';
@@ -144,6 +144,8 @@ app.get('/api/app/update', (_req, res) => {
       .toLowerCase() === 'true';
 
   const releaseNotes = [
+    'Required update system added so future outdated SABDHAM versions can be blocked until updated.',
+    'New modern SABDHAM Home top bar with greeting, profile name, notifications and MUSIC FOR EVERY MOOD branding.',
     'Smarter personalized Home catalogues based on listening interests.',
     'Larger Home catalogues with up to 50 unique songs and stronger empty-section backfill.',
     'Daily catalogue rotation improvements with better duplicate protection.',
@@ -171,7 +173,7 @@ app.get('/api/app/update', (_req, res) => {
 
   const message =
     process.env.ANDROID_UPDATE_MESSAGE ||
-    'SABDHAM 1.2.0 is available with major search, playlist, playback, artwork, queue, personalization and audio-output improvements.';
+    'SABDHAM 1.2.1 is required. Update now for the latest search, playlists, playback, artwork, queue, personalization, audio-output and interface improvements.';
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
