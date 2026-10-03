@@ -1323,6 +1323,44 @@ if (incoming.isEmpty()) {
                                 if (fullQueue.isNotEmpty()) {
                                     _openedSearchPlaylistTracks.value =
                                         fullQueue
+
+                                    /*
+                                     * If playback already started from the
+                                     * first 20 visible tracks, extend that
+                                     * same active search-playlist queue with
+                                     * the newly loaded tracks. Previously the
+                                     * UI expanded to 100 while Media3 stayed
+                                     * limited to the first page.
+                                     */
+                                    val activeQueueIds =
+                                        _queue.value
+                                            .mapTo(mutableSetOf()) { it.id }
+
+                                    val firstQueueIds =
+                                        firstQueue
+                                            .mapTo(mutableSetOf()) { it.id }
+
+                                    val fullQueueIds =
+                                        fullQueue
+                                            .mapTo(mutableSetOf()) { it.id }
+
+                                    val playingThisSearchPlaylist =
+                                        playlistPlaybackMode &&
+                                            activeQueueIds.isNotEmpty() &&
+                                            activeQueueIds.any {
+                                                it in firstQueueIds
+                                            } &&
+                                            activeQueueIds.all {
+                                                it in fullQueueIds
+                                            }
+
+                                    if (playingThisSearchPlaylist) {
+                                        extendActivePlaylistQueue(
+                                            tracks = fullQueue,
+                                            playbackGeneration =
+                                                playbackRequestGeneration.get()
+                                        )
+                                    }
                                 }
                             } catch (
                                 e: kotlinx.coroutines.CancellationException
