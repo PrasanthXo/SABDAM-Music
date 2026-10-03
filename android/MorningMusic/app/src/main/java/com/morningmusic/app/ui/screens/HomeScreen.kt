@@ -586,12 +586,31 @@ fun HomeScreen(viewModel: MusicViewModel) {
             safety++
         }
 
-        // Emergency backfill:
-        // Cross-section uniqueness is the normal rule, but an upstream source
-        // can temporarily return fewer than 6 * target unique songs. Never
-        // leave a catalogue empty (or unnecessarily tiny) in that case.
-        // Reuse is allowed only for deficient rows and remains unique inside
-        // each individual row.
+        // Only after the visible minimum is satisfied do we distribute up to
+        // 10 reserve songs per row for tomorrow's rotation.
+        var reserveCursor = 0
+        safety = 0
+
+        while (
+            remaining.isNotEmpty() &&
+            sections.any { it.size < sectionCapacity } &&
+            safety < 100_000
+        ) {
+            val sectionIndex = reserveCursor % sections.size
+
+            if (sections[sectionIndex].size < sectionCapacity) {
+                val first = remaining.entries.first()
+                sections[sectionIndex].add(first.value)
+                remaining.remove(first.key)
+            }
+
+            reserveCursor++
+            safety++
+        }
+
+        // Emergency backfill comes last. Cross-section uniqueness remains
+        // the normal rule; reuse happens only if the live source did not
+        // contain enough unique songs to keep every catalogue populated.
         sections.forEachIndexed { index, section ->
             if (section.size >= targetPerSection) {
                 return@forEachIndexed
@@ -621,29 +640,11 @@ fun HomeScreen(viewModel: MusicViewModel) {
             }
         }
 
-        // Only after the visible minimum is satisfied do we distribute up to
-        // 10 reserve songs per row for tomorrow's rotation.
-        var reserveCursor = 0
-        safety = 0
-
-        while (
-            remaining.isNotEmpty() &&
-            sections.any { it.size < sectionCapacity } &&
-            safety < 100_000
-        ) {
-            val sectionIndex = reserveCursor % sections.size
-
-            if (sections[sectionIndex].size < sectionCapacity) {
-                val first = remaining.entries.first()
-                sections[sectionIndex].add(first.value)
-                remaining.remove(first.key)
+        return sections.map {
+            it.distinctBy { track ->
+                semanticCatalogKey(track)
             }
-
-            reserveCursor++
-            safety++
         }
-
-        return sections.map { it.toList() }
     }
 
     val uniqueHomeCatalogs = remember(
