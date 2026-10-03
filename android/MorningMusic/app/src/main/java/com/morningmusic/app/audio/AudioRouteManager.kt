@@ -107,21 +107,21 @@ class AudioRouteManager(
             object : MediaRouter2.RouteCallback() {
                 override fun onRoutesAdded(
                     router: MediaRouter2,
-                    routes: MutableList<MediaRoute2Info>
+                    routes: List<MediaRoute2Info>
                 ) {
                     publishState()
                 }
 
                 override fun onRoutesChanged(
                     router: MediaRouter2,
-                    routes: MutableList<MediaRoute2Info>
+                    routes: List<MediaRoute2Info>
                 ) {
                     publishState()
                 }
 
                 override fun onRoutesRemoved(
                     router: MediaRouter2,
-                    routes: MutableList<MediaRoute2Info>
+                    routes: List<MediaRoute2Info>
                 ) {
                     publishState()
                 }
