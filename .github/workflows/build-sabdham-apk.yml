@@ -2,6 +2,11 @@ name: Build SABDHAM APK
 # Trigger online build
 
 on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "android/MorningMusic/**"
+      - ".github/workflows/build-sabdham-apk.yml"
   push:
     branches: [ main ]
     paths:
