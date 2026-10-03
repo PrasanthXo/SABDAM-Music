@@ -196,8 +196,9 @@ fun HomeScreen(viewModel: MusicViewModel) {
             .distinctBy { it.id }
     }
 
-    // One song should appear in only one Home catalogue row per day.
-    // The first matching section owns the track for that day's Home layout.
+    // Keep Home rows unique without starving later catalogues.
+    // Songs are allocated fairly across Tamil and international sections first,
+    // then each section keeps its own daily rotation.
     data class UniqueHomeCatalogs(
         val popularTamil: List<Track>,
         val tamilNew: List<Track>,
@@ -210,14 +211,58 @@ fun HomeScreen(viewModel: MusicViewModel) {
         val englishPop: List<Track>,
         val internationalRnB: List<Track>,
         val internationalLove: List<Track>,
-        val internationalThrowbacks: List<Track>,
-        val acousticMelodies: List<Track>,
-        val newReleases: List<Track>,
-        val chillRelax: List<Track>,
-        val partyHits: List<Track>,
-        val throwbacks: List<Track>,
-        val dailyTrending: List<Track>
+        val internationalThrowbacks: List<Track>
     )
+
+    fun allocateUniqueSections(
+        master: List<Track>,
+        preferredPools: List<List<Track>>
+    ): List<List<Track>> {
+        if (preferredPools.isEmpty()) return emptyList()
+
+        val masterUnique = master.distinctBy { it.id }
+        if (masterUnique.isEmpty()) return List(preferredPools.size) { emptyList() }
+
+        val remaining = linkedMapOf<String, Track>()
+        masterUnique.forEach { track -> remaining[track.id] = track }
+
+        val sections = MutableList(preferredPools.size) { mutableListOf<Track>() }
+        val baseTarget = maxOf(1, masterUnique.size / preferredPools.size)
+
+        // Give every catalogue its preferred songs first, but cap the first pass
+        // so broad catalogues cannot consume the whole language pool.
+        preferredPools.forEachIndexed { index, pool ->
+            for (track in pool.distinctBy { it.id }) {
+                if (sections[index].size >= baseTarget) break
+                val available = remaining.remove(track.id) ?: continue
+                sections[index].add(available)
+            }
+        }
+
+        // If a narrow genre has no exact match, give it one unused song rather
+        // than rendering an empty catalogue.
+        sections.forEach { section ->
+            if (section.isEmpty() && remaining.isNotEmpty()) {
+                val first = remaining.entries.first()
+                section.add(first.value)
+                remaining.remove(first.key)
+            }
+        }
+
+        // Spread all remaining tracks evenly. No track can enter two rows.
+        var cursor = 0
+        while (remaining.isNotEmpty()) {
+            val first = remaining.entries.first()
+            val sectionIndex = cursor % sections.size
+            if (sections[sectionIndex].size < 18) {
+                sections[sectionIndex].add(first.value)
+            }
+            remaining.remove(first.key)
+            cursor++
+        }
+
+        return sections.map { it.toList() }
+    }
 
     val uniqueHomeCatalogs = remember(
         catalogDay,
@@ -232,40 +277,54 @@ fun HomeScreen(viewModel: MusicViewModel) {
         englishPop,
         internationalRnB,
         internationalLove,
-        internationalThrowbacks,
-        acousticMelodies,
-        newReleases,
-        chillRelax,
-        partyHits,
-        throwbacks,
-        dailyTrending
+        internationalThrowbacks
     ) {
-        val usedIds = mutableSetOf<String>()
+        val tamilMaster =
+            (popularTamil + tamilNew + tamilModern + tamilEvergreen + tamilRomantic + tamilDance)
+                .distinctBy { it.id }
 
-        fun takeUnique(tracks: List<Track>): List<Track> {
-            val unique = tracks.filter { track -> usedIds.add(track.id) }
-            return unique
-        }
+        val tamilSections = allocateUniqueSections(
+            master = tamilMaster,
+            preferredPools = listOf(
+                tamilNew,
+                tamilRomantic,
+                tamilDance,
+                tamilEvergreen,
+                tamilModern,
+                popularTamil
+            )
+        )
+
+        val internationalMaster =
+            (popularEnglish + internationalTrending + englishPop + internationalRnB +
+                internationalLove + internationalThrowbacks)
+                .distinctBy { it.id }
+
+        val internationalSections = allocateUniqueSections(
+            master = internationalMaster,
+            preferredPools = listOf(
+                internationalTrending,
+                internationalRnB,
+                internationalLove,
+                internationalThrowbacks,
+                englishPop,
+                popularEnglish
+            )
+        )
 
         UniqueHomeCatalogs(
-            popularTamil = takeUnique(popularTamil),
-            tamilNew = takeUnique(tamilNew),
-            tamilModern = takeUnique(tamilModern),
-            tamilEvergreen = takeUnique(tamilEvergreen),
-            tamilRomantic = takeUnique(tamilRomantic),
-            tamilDance = takeUnique(tamilDance),
-            popularEnglish = takeUnique(popularEnglish),
-            internationalTrending = takeUnique(internationalTrending),
-            englishPop = takeUnique(englishPop),
-            internationalRnB = takeUnique(internationalRnB),
-            internationalLove = takeUnique(internationalLove),
-            internationalThrowbacks = takeUnique(internationalThrowbacks),
-            acousticMelodies = takeUnique(acousticMelodies),
-            newReleases = takeUnique(newReleases),
-            chillRelax = takeUnique(chillRelax),
-            partyHits = takeUnique(partyHits),
-            throwbacks = takeUnique(throwbacks),
-            dailyTrending = takeUnique(dailyTrending)
+            popularTamil = tamilSections.getOrElse(5) { emptyList() },
+            tamilNew = tamilSections.getOrElse(0) { emptyList() },
+            tamilModern = tamilSections.getOrElse(4) { emptyList() },
+            tamilEvergreen = tamilSections.getOrElse(3) { emptyList() },
+            tamilRomantic = tamilSections.getOrElse(1) { emptyList() },
+            tamilDance = tamilSections.getOrElse(2) { emptyList() },
+            popularEnglish = internationalSections.getOrElse(5) { emptyList() },
+            internationalTrending = internationalSections.getOrElse(0) { emptyList() },
+            englishPop = internationalSections.getOrElse(4) { emptyList() },
+            internationalRnB = internationalSections.getOrElse(1) { emptyList() },
+            internationalLove = internationalSections.getOrElse(2) { emptyList() },
+            internationalThrowbacks = internationalSections.getOrElse(3) { emptyList() }
         )
     }
 
@@ -867,22 +926,6 @@ fun HomeScreen(viewModel: MusicViewModel) {
                             }
                         }
 
-                        // Acoustic & Love Melodies
-                        item {
-                            SectionHeader("Acoustic & Love Melodies") { viewModel.playCatalog(uniqueHomeCatalogs.acousticMelodies) }
-                            HorizontalTrackGrid(
-                                tracks = uniqueHomeCatalogs.acousticMelodies,
-                                currentTrack = currentTrack,
-                                isPlaying = isPlaying,
-                                likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, uniqueHomeCatalogs.acousticMelodies) },
-                                onLikeClick = { viewModel.toggleLike(it) },
-                                onAddToQueue = { viewModel.addToQueue(it) },
-                                onAddToPlaylist = { playlistTargetTrack = it },
-                                onLoadMore = { viewModel.loadMoreAcoustic() }
-                            )
-                        }
-
                         // Explore Genres
                         item {
                             SectionHeader("Explore Genres")
@@ -897,22 +940,6 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                     })
                                 }
                             }
-                        }
-
-                        // Fresh Releases
-                        item {
-                            SectionHeader("Fresh New Releases") { viewModel.playCatalog(uniqueHomeCatalogs.newReleases) }
-                            HorizontalTrackGrid(
-                                tracks = uniqueHomeCatalogs.newReleases,
-                                currentTrack = currentTrack,
-                                isPlaying = isPlaying,
-                                likedTrackIds = likedTrackIds,
-                                onTrackClick = { viewModel.playCatalogTrack(it, uniqueHomeCatalogs.newReleases) },
-                                onLikeClick = { viewModel.toggleLike(it) },
-                                onAddToQueue = { viewModel.addToQueue(it) },
-                                onAddToPlaylist = { playlistTargetTrack = it },
-                                onLoadMore = { viewModel.loadMoreNewReleases() }
-                            )
                         }
 
                         item {
@@ -1059,50 +1086,6 @@ fun HomeScreen(viewModel: MusicViewModel) {
                             )
                         }
 
-                        item {
-                            SectionHeader("Chill & Relax") { viewModel.playCatalog(uniqueHomeCatalogs.chillRelax) }
-                            HorizontalTrackGrid(
-                                tracks=uniqueHomeCatalogs.chillRelax,
-                                currentTrack=currentTrack,
-                                isPlaying=isPlaying,
-                                likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, uniqueHomeCatalogs.chillRelax) },
-                                onLikeClick={ viewModel.toggleLike(it) },
-                                onAddToQueue={ viewModel.addToQueue(it) },
-                                onAddToPlaylist={ playlistTargetTrack=it },
-                                onLoadMore={ viewModel.loadMoreChillRelax() }
-                            )
-                        }
-
-                        item {
-                            SectionHeader("Party & Dance Hits") { viewModel.playCatalog(uniqueHomeCatalogs.partyHits) }
-                            HorizontalTrackGrid(
-                                tracks=uniqueHomeCatalogs.partyHits,
-                                currentTrack=currentTrack,
-                                isPlaying=isPlaying,
-                                likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, uniqueHomeCatalogs.partyHits) },
-                                onLikeClick={ viewModel.toggleLike(it) },
-                                onAddToQueue={ viewModel.addToQueue(it) },
-                                onAddToPlaylist={ playlistTargetTrack=it },
-                                onLoadMore={ viewModel.loadMorePartyHits() }
-                            )
-                        }
-
-                        item {
-                            SectionHeader("90s & 2000s Throwbacks") { viewModel.playCatalog(uniqueHomeCatalogs.throwbacks) }
-                            HorizontalTrackGrid(
-                                tracks=uniqueHomeCatalogs.throwbacks,
-                                currentTrack=currentTrack,
-                                isPlaying=isPlaying,
-                                likedTrackIds=likedTrackIds,
-                                onTrackClick={ viewModel.playCatalogTrack(it, uniqueHomeCatalogs.throwbacks) },
-                                onLikeClick={ viewModel.toggleLike(it) },
-                                onAddToQueue={ viewModel.addToQueue(it) },
-                                onAddToPlaylist={ playlistTargetTrack=it },
-                                onLoadMore={ viewModel.loadMoreThrowbacks() }
-                            )
-                        }
                     }
                 }
             }
