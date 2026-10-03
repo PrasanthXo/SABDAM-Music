@@ -745,6 +745,13 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var playlistTargetTrack by remember { mutableStateOf<Track?>(null) }
     var cloudPlaylists by remember { mutableStateOf<List<CloudPlaylist>>(emptyList()) }
     var playlistLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isAudioRouteDialogVisible) {
+        while (isAudioRouteDialogVisible) {
+            viewModel.refreshAudioRoutes()
+            delay(1500L)
+        }
+    }
     var playlistSaving by remember { mutableStateOf(false) }
     var playlistMessage by remember { mutableStateOf<String?>(null) }
     val playlistScope = rememberCoroutineScope()
