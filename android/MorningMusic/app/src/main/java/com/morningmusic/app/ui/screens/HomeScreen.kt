@@ -875,7 +875,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var isEditProfileDialogVisible by remember { mutableStateOf(false) }
     var isAuthDialogVisible by remember { mutableStateOf(false) }
     var isTopBarNotificationCenterVisible by remember { mutableStateOf(false) }
-    var unreadTopBarNotifications by remember { mutableStateOf(3) }
+    var unreadTopBarNotifications by remember { mutableStateOf(2) }
 
     val optionalUpdate = SabdhamUpdateCenter.optionalUpdate
     val updateNotificationPreferences =
