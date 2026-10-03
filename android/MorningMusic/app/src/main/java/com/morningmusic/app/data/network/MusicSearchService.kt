@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.morningmusic.app.data.model.Track
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -174,22 +177,38 @@ object MusicSearchService {
                     "?id=$videoId&itag=140&local=false"
             )
 
-        for (candidate in candidates) {
-            if (
-                isPlayableMediaUrl(
-                    rawUrl = candidate,
-                    timeoutMs = 3000
-                )
-            ) {
-                android.util.Log.d(
-                    "SABDHAM_STREAM_CHECK",
-                    "Device YouTube fallback succeeded id=$videoId"
-                )
-                return@withContext candidate
+        // Probe providers in parallel. Previously these ran one-by-one
+        // (up to ~12 seconds before the next fallback). Keeping a short
+        // per-provider timeout caps this stage at roughly 2-3 seconds.
+        val playableCandidate =
+            coroutineScope {
+                candidates
+                    .map { candidate ->
+                        async(Dispatchers.IO) {
+                            if (
+                                isPlayableMediaUrl(
+                                    rawUrl = candidate,
+                                    timeoutMs = 2200
+                                )
+                            ) {
+                                candidate
+                            } else {
+                                null
+                            }
+                        }
+                    }
+                    .awaitAll()
+                    .firstOrNull { !it.isNullOrBlank() }
             }
+
+        if (!playableCandidate.isNullOrBlank()) {
+            android.util.Log.d(
+                "SABDHAM_STREAM_CHECK",
+                "Device YouTube fallback succeeded id=$videoId"
+            )
         }
 
-        null
+        playableCandidate
     }
 
     suspend fun resolveStream(
