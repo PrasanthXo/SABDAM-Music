@@ -8,6 +8,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -751,90 +752,183 @@ object MusicSearchService {
         val encodedQuery =
             URLEncoder.encode(trimmed, "UTF-8")
 
+        val boundedMax =
+            maxResults.coerceIn(1, 20)
+
         val endpointsToTry =
             listOf(activeBackendUrl, DEFAULT_PRIMARY_URL)
                 .distinct()
 
-        for (baseUrl in endpointsToTry) {
+        suspend fun fetchProvider(
+            baseUrl: String,
+            route: String,
+            defaultSource: String
+        ): List<SearchPlaylistResult> {
             var connection: HttpURLConnection? = null
 
-            try {
+            return try {
                 val urlString =
-                    "$baseUrl/api/youtube/search-playlists" +
-                        "?q=$encodedQuery&maxResults=" +
-                        maxResults.coerceIn(1, 20)
+                    "$baseUrl$route" +
+                        "?q=$encodedQuery&maxResults=$boundedMax"
 
                 connection =
                     URL(urlString).openConnection() as HttpURLConnection
 
                 connection.requestMethod = "GET"
-                connection.connectTimeout = 4500
-                connection.readTimeout = 4500
+                connection.connectTimeout = 5500
+                connection.readTimeout = 5500
                 connection.setRequestProperty(
                     "Accept",
                     "application/json"
                 )
 
                 if (connection.responseCode != 200) {
-                    continue
-                }
+                    emptyList()
+                } else {
+                    val response =
+                        connection.inputStream
+                            .bufferedReader()
+                            .use { it.readText() }
 
-                val response =
-                    connection.inputStream
-                        .bufferedReader()
-                        .use { it.readText() }
+                    val json = JSONObject(response)
+                    val items =
+                        json.optJSONArray("playlists")
+                            ?: return emptyList()
 
-                val json = JSONObject(response)
-                val items =
-                    json.optJSONArray("playlists")
-                        ?: return@withContext emptyList()
+                    val results =
+                        mutableListOf<SearchPlaylistResult>()
 
-                val results =
-                    mutableListOf<SearchPlaylistResult>()
+                    for (index in 0 until items.length()) {
+                        val item =
+                            items.optJSONObject(index)
+                                ?: continue
 
-                for (index in 0 until items.length()) {
-                    val item = items.optJSONObject(index) ?: continue
+                        val id =
+                            item.optString("id").trim()
+                        val title =
+                            item.optString("title").trim()
 
-                    val id = item.optString("id").trim()
-                    val title = item.optString("title").trim()
+                        if (id.isBlank() || title.isBlank()) {
+                            continue
+                        }
 
-                    if (id.isBlank() || title.isBlank()) {
-                        continue
+                        val source =
+                            item.optString(
+                                "source",
+                                defaultSource
+                            )
+                                .trim()
+                                .ifBlank { defaultSource }
+
+                        results +=
+                            SearchPlaylistResult(
+                                id = id,
+                                title = title,
+                                owner =
+                                    item.optString(
+                                        "owner",
+                                        if (
+                                            source.equals(
+                                                "spotify",
+                                                ignoreCase = true
+                                            )
+                                        ) {
+                                            "Spotify"
+                                        } else {
+                                            "YouTube"
+                                        }
+                                    ),
+                                itemCount =
+                                    item.optInt(
+                                        "itemCount",
+                                        0
+                                    ).coerceAtLeast(0),
+                                source = source
+                            )
                     }
 
-                    results +=
-                        SearchPlaylistResult(
-                            id = id,
-                            title = title,
-                            owner =
-                                item.optString(
-                                    "owner",
-                                    "YouTube"
-                                ),
-                            itemCount =
-                                item.optInt(
-                                    "itemCount",
-                                    0
-                                ).coerceAtLeast(0),
-                            source =
-                                item.optString(
-                                    "source",
-                                    "youtube"
-                                )
-                        )
+                    results
+                        .distinctBy {
+                            it.source.lowercase() +
+                                ":" +
+                                it.id
+                        }
+                        .take(boundedMax)
                 }
-
-                return@withContext results
-                    .distinctBy { it.id }
-                    .take(maxResults.coerceIn(1, 20))
             } catch (e: Exception) {
                 android.util.Log.w(
                     "SABDHAM_PLAYLIST_SEARCH",
-                    "Playlist search failed for $baseUrl",
+                    "Playlist provider failed " +
+                        "$defaultSource for $baseUrl",
                     e
                 )
+                emptyList()
             } finally {
                 connection?.disconnect()
+            }
+        }
+
+        for (baseUrl in endpointsToTry) {
+            val combined =
+                coroutineScope {
+                    val youtubeDeferred =
+                        async(Dispatchers.IO) {
+                            fetchProvider(
+                                baseUrl = baseUrl,
+                                route =
+                                    "/api/youtube/search-playlists",
+                                defaultSource = "youtube"
+                            )
+                        }
+
+                    val spotifyDeferred =
+                        async(Dispatchers.IO) {
+                            fetchProvider(
+                                baseUrl = baseUrl,
+                                route =
+                                    "/api/spotify/search-playlists",
+                                defaultSource = "spotify"
+                            )
+                        }
+
+                    val youtube =
+                        youtubeDeferred.await()
+                    val spotify =
+                        spotifyDeferred.await()
+
+                    val merged =
+                        mutableListOf<SearchPlaylistResult>()
+
+                    val longest =
+                        maxOf(
+                            youtube.size,
+                            spotify.size
+                        )
+
+                    for (index in 0 until longest) {
+                        if (index < youtube.size) {
+                            merged += youtube[index]
+                        }
+                        if (index < spotify.size) {
+                            merged += spotify[index]
+                        }
+
+                        if (merged.size >= boundedMax) {
+                            break
+                        }
+                    }
+
+                    merged
+                        .distinctBy {
+                            it.source.lowercase() +
+                                ":" +
+                                it.id
+                        }
+                        .take(boundedMax)
+                }
+
+            if (combined.isNotEmpty()) {
+                return@withContext combined
             }
         }
 
@@ -843,6 +937,7 @@ object MusicSearchService {
 
     suspend fun fetchPlaylistTracks(
         playlistId: String,
+        source: String = "youtube",
         maxResults: Int = 100
     ): List<Track> = withContext(Dispatchers.IO) {
         val cleanId = playlistId.trim()
@@ -854,6 +949,9 @@ object MusicSearchService {
         val encodedId =
             URLEncoder.encode(cleanId, "UTF-8")
 
+        val normalizedSource =
+            source.trim().lowercase()
+
         val endpointsToTry =
             listOf(activeBackendUrl, DEFAULT_PRIMARY_URL)
                 .distinct()
@@ -863,9 +961,14 @@ object MusicSearchService {
 
             try {
                 val urlString =
-                    "$baseUrl/api/youtube/playlist" +
-                        "?id=$encodedId&maxResults=" +
-                        maxResults.coerceIn(20, 100)
+                    if (normalizedSource == "spotify") {
+                        "$baseUrl/api/spotify/playlist-tracks" +
+                            "?playlistId=$encodedId"
+                    } else {
+                        "$baseUrl/api/youtube/playlist" +
+                            "?id=$encodedId&maxResults=" +
+                            maxResults.coerceIn(20, 100)
+                    }
 
                 connection =
                     URL(urlString).openConnection() as HttpURLConnection
@@ -888,6 +991,121 @@ object MusicSearchService {
                         .bufferedReader()
                         .use { it.readText() }
 
+                if (normalizedSource == "spotify") {
+                    val items = JSONArray(response)
+                    val tracks = mutableListOf<Track>()
+
+                    for (
+                        index in 0 until
+                            minOf(items.length(), maxResults)
+                    ) {
+                        val wrapper =
+                            items.optJSONObject(index)
+                                ?: continue
+
+                        val item =
+                            wrapper.optJSONObject("track")
+                                ?: continue
+
+                        val title =
+                            item.optString("name").trim()
+
+                        if (title.isBlank()) {
+                            continue
+                        }
+
+                        val rawId =
+                            item.optString("id").trim()
+                                .ifBlank {
+                                    item.optString("uri")
+                                        .trim()
+                                }
+
+                        val artists =
+                            item.optJSONArray("artists")
+
+                        val artist =
+                            artists
+                                ?.optJSONObject(0)
+                                ?.optString(
+                                    "name",
+                                    "Unknown Artist"
+                                )
+                                ?.trim()
+                                .orEmpty()
+                                .ifBlank {
+                                    "Unknown Artist"
+                                }
+
+                        val album =
+                            item.optJSONObject("album")
+                                ?.optString(
+                                    "name",
+                                    "Spotify Playlist"
+                                )
+                                ?.trim()
+                                .orEmpty()
+                                .ifBlank {
+                                    "Spotify Playlist"
+                                }
+
+                        val durationMs =
+                            item.optLong(
+                                "duration_ms",
+                                180000L
+                            )
+                                .coerceAtLeast(0L)
+
+                        val durationSeconds =
+                            if (durationMs > 0L) {
+                                durationMs / 1000L
+                            } else {
+                                180L
+                            }
+
+                        val minutes =
+                            durationSeconds / 60L
+                        val seconds =
+                            durationSeconds % 60L
+
+                        tracks +=
+                            Track(
+                                id =
+                                    "spotify-" +
+                                        rawId.ifBlank {
+                                            cleanId +
+                                                "-" +
+                                                index
+                                        },
+                                title = title,
+                                artist = artist,
+                                album = album,
+                                movie = "",
+                                durationSeconds =
+                                    durationSeconds,
+                                durationFormatted =
+                                    "$minutes:" +
+                                        seconds
+                                            .toString()
+                                            .padStart(2, '0'),
+                                // Use SABDHAM/default artwork in the
+                                // player rather than playlist artwork.
+                                coverUrl = "",
+                                audioUrl = "",
+                                youtubeVideoId = "",
+                                language = "all",
+                                genre = "Playlist"
+                            )
+                    }
+
+                    if (tracks.isNotEmpty()) {
+                        return@withContext tracks
+                            .distinctBy { it.id }
+                    }
+
+                    continue
+                }
+
                 val json = JSONObject(response)
                 val items =
                     json.optJSONArray("tracks")
@@ -896,10 +1114,14 @@ object MusicSearchService {
                 val tracks = mutableListOf<Track>()
 
                 for (index in 0 until items.length()) {
-                    val item = items.optJSONObject(index) ?: continue
+                    val item =
+                        items.optJSONObject(index)
+                            ?: continue
 
-                    val id = item.optString("id").trim()
-                    val title = item.optString("title").trim()
+                    val id =
+                        item.optString("id").trim()
+                    val title =
+                        item.optString("title").trim()
 
                     if (id.isBlank() || title.isBlank()) {
                         continue
@@ -908,7 +1130,9 @@ object MusicSearchService {
                     val youtubeVideoId =
                         item.optString(
                             "youtubeVideoId",
-                            item.optString("audio_source_id")
+                            item.optString(
+                                "audio_source_id"
+                            )
                         ).trim()
 
                     tracks +=
@@ -925,7 +1149,8 @@ object MusicSearchService {
                                     "album",
                                     "Playlist"
                                 ),
-                            movie = item.optString("movie"),
+                            movie =
+                                item.optString("movie"),
                             durationSeconds =
                                 item.optLong(
                                     "duration",
@@ -942,13 +1167,17 @@ object MusicSearchService {
                             audioUrl =
                                 item.optString(
                                     "audioUrl",
-                                    if (youtubeVideoId.isNotBlank()) {
+                                    if (
+                                        youtubeVideoId
+                                            .isNotBlank()
+                                    ) {
                                         "yt:$youtubeVideoId"
                                     } else {
                                         ""
                                     }
                                 ),
-                            youtubeVideoId = youtubeVideoId,
+                            youtubeVideoId =
+                                youtubeVideoId,
                             language =
                                 item.optString(
                                     "language",
@@ -962,11 +1191,14 @@ object MusicSearchService {
                         )
                 }
 
-                return@withContext tracks.distinctBy { it.id }
+                return@withContext tracks
+                    .distinctBy { it.id }
             } catch (e: Exception) {
                 android.util.Log.w(
                     "SABDHAM_PLAYLIST_SEARCH",
-                    "Playlist load failed for $baseUrl id=$cleanId",
+                    "Playlist load failed for " +
+                        "$baseUrl source=$normalizedSource " +
+                        "id=$cleanId",
                     e
                 )
             } finally {
@@ -976,4 +1208,5 @@ object MusicSearchService {
 
         emptyList()
     }
+
 }
