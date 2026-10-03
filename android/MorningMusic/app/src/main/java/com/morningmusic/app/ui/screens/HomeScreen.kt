@@ -2603,8 +2603,10 @@ fun HomeScreen(viewModel: MusicViewModel) {
         }
 
         // Compact/collapsed phone bottom navigation.
-        // Inactive tabs remain icon-only; the selected tab expands with its label.
-        Row(
+        // Remove it entirely while the full player is visible so there is only
+        // one bottom navigation in composition and one touch target per tab.
+        if (!isFullPlayerVisible) {
+            Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(
@@ -2647,6 +2649,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 selected = activeNavTab == "profile",
                 onClick = { activeNavTab = "profile" }
             )
+            }
         }
 
         // Native Floating Mini Player Docked at Bottom.
@@ -4171,6 +4174,7 @@ fun FullPlayerSheet(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .clipToBounds()
             .background(Color(0xFF121212))
     ) {
         val compact = maxHeight < 760.dp
@@ -4215,6 +4219,9 @@ fun FullPlayerSheet(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
+                )
                 .padding(horizontal = 20.dp)
                 // Reserve fixed space so the bottom navigation never overlaps
                 // the volume/control area on short phones.
@@ -4683,6 +4690,13 @@ fun FullPlayerSheet(
                 }
 
                 else -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                     // Artwork
                     Box(
                         modifier = Modifier
@@ -5001,6 +5015,7 @@ fun FullPlayerSheet(
                     }
 
                     Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
         }
