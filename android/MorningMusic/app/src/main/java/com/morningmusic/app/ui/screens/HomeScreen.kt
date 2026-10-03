@@ -191,8 +191,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
         englishPop,
         internationalRnB,
         internationalLove,
-        internationalThrowbacks,
-        personalizedHomeIds
+        internationalThrowbacks
     ) {
         (internationalTrending + popularEnglish + englishPop + internationalRnB + internationalLove + internationalThrowbacks)
             .distinctBy { it.id }
