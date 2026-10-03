@@ -13,6 +13,13 @@ Release date: 3 October 2026
 - Kept the greeting and signed-in profile name.
 - Preserved the notification unread-count badge and compact-phone support.
 
+## Search playback queue
+
+- Search-result playback now queues only songs matching the clicked song's language and genre.
+- The clicked song title is excluded from following queue items, so alternate results with the same title are not repeated.
+- Related queue items are deduplicated by normalized title.
+- Playlist and catalogue playback logic is unchanged.
+
 ## Version
 
 - Android versionName: 1.2.3
