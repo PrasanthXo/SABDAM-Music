@@ -2504,6 +2504,86 @@ if (incoming.isEmpty()) {
             }
     }
 
+    fun moveQueuedTrack(trackId: String, direction: Int) {
+        if (direction == 0) return
+
+        val currentQueue = _queue.value.distinctBy { it.id }
+        if (currentQueue.size < 2) return
+
+        val fromIndex =
+            currentQueue.indexOfFirst { it.id == trackId }
+
+        if (fromIndex < 0) return
+
+        val currentId =
+            mediaController?.currentMediaItem?.mediaId
+                ?: _currentTrack.value?.id
+
+        val playingIndex =
+            currentQueue.indexOfFirst { it.id == currentId }
+
+        // The song that is already playing stays fixed. Drag-and-drop only
+        // reorders the future queue after it.
+        val firstMovableIndex =
+            if (playingIndex >= 0) playingIndex + 1 else 0
+
+        if (fromIndex < firstMovableIndex) return
+
+        val step = if (direction > 0) 1 else -1
+
+        val targetIndex =
+            (fromIndex + step)
+                .coerceIn(firstMovableIndex, currentQueue.lastIndex)
+
+        if (targetIndex == fromIndex) return
+
+        val targetTrackId = currentQueue[targetIndex].id
+
+        val reordered = currentQueue.toMutableList()
+        val movedTrack = reordered.removeAt(fromIndex)
+        reordered.add(targetIndex, movedTrack)
+        _queue.value = reordered
+
+        // Keep Media3's already-resolved native timeline in the same order
+        // when both neighbouring tracks are currently present. Tracks that
+        // have not been resolved yet still follow _queue when SABDHAM loads
+        // them for playback.
+        mediaController?.let { controller ->
+            try {
+                fun mediaIndexFor(id: String): Int {
+                    for (index in 0 until controller.mediaItemCount) {
+                        if (
+                            controller.getMediaItemAt(index).mediaId == id
+                        ) {
+                            return index
+                        }
+                    }
+                    return -1
+                }
+
+                val fromMediaIndex = mediaIndexFor(trackId)
+                val targetMediaIndex = mediaIndexFor(targetTrackId)
+
+                if (
+                    fromMediaIndex >= 0 &&
+                    targetMediaIndex >= 0 &&
+                    fromMediaIndex != targetMediaIndex
+                ) {
+                    controller.moveMediaItem(
+                        fromMediaIndex,
+                        targetMediaIndex
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "SABDHAM_QUEUE",
+                    "Unable to mirror drag reorder into Media3",
+                    e
+                )
+            }
+        }
+    }
+
     fun addToQueue(track: Track) {
         val currentQueue = _queue.value
 
