@@ -66,6 +66,132 @@ object MusicSearchService {
         return "$activeBackendUrl/api/youtube/stream?id=$videoId"
     }
 
+    private fun isPlayableMediaContentType(
+        rawContentType: String?
+    ): Boolean {
+        val contentType =
+            rawContentType
+                ?.substringBefore(";")
+                ?.trim()
+                ?.lowercase()
+                .orEmpty()
+
+        return contentType.startsWith("audio/") ||
+            contentType.startsWith("video/") ||
+            contentType == "application/octet-stream"
+    }
+
+    suspend fun isPlayableMediaUrl(
+        rawUrl: String,
+        timeoutMs: Int = 4500
+    ): Boolean = withContext(Dispatchers.IO) {
+        val url = rawUrl.trim()
+
+        if (
+            !url.startsWith("https://", ignoreCase = true) &&
+            !url.startsWith("http://", ignoreCase = true)
+        ) {
+            return@withContext false
+        }
+
+        var connection: HttpURLConnection? = null
+
+        try {
+            connection =
+                URL(url).openConnection() as HttpURLConnection
+
+            connection.instanceFollowRedirects = true
+            connection.requestMethod = "GET"
+            connection.connectTimeout = timeoutMs
+            connection.readTimeout = timeoutMs
+            connection.setRequestProperty(
+                "Range",
+                "bytes=0-1023"
+            )
+            connection.setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 15) " +
+                    "AppleWebKit/537.36 Chrome/154 Mobile Safari/537.36"
+            )
+            connection.setRequestProperty(
+                "Accept",
+                "audio/*,video/*,application/octet-stream;q=0.9,*/*;q=0.1"
+            )
+
+            val code = connection.responseCode
+            val contentType =
+                connection.getHeaderField("Content-Type")
+
+            val playable =
+                code in 200..299 &&
+                    isPlayableMediaContentType(contentType)
+
+            if (!playable) {
+                android.util.Log.w(
+                    "SABDHAM_STREAM_CHECK",
+                    "Rejected url=$url code=$code type=$contentType"
+                )
+            }
+
+            playable
+        } catch (e: Exception) {
+            android.util.Log.w(
+                "SABDHAM_STREAM_CHECK",
+                "Stream preflight failed url=$url",
+                e
+            )
+            false
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    suspend fun resolveYouTubeOnDevice(
+        videoIdOrRaw: String
+    ): String? = withContext(Dispatchers.IO) {
+        val videoId =
+            videoIdOrRaw
+                .replace("yt:", "")
+                .replace("yt-", "")
+                .trim()
+
+        if (!Regex("^[A-Za-z0-9_-]{11}$").matches(videoId)) {
+            return@withContext null
+        }
+
+        // These URLs are attempted from the user's Android connection rather
+        // than Render. Cloud IPs are frequently challenged by YouTube while
+        // a normal device connection can still succeed.
+        val candidates =
+            listOf(
+                "https://invidious.tiekoetter.com/latest_version" +
+                    "?id=$videoId&itag=140&local=false",
+                "https://invidious.no-logs.com/latest_version" +
+                    "?id=$videoId&itag=140&local=false",
+                "https://yewtu.be/latest_version" +
+                    "?id=$videoId&itag=140&local=false",
+                "https://inv.nadeko.net/latest_version" +
+                    "?id=$videoId&itag=140&local=false"
+            )
+
+        for (candidate in candidates) {
+            if (
+                isPlayableMediaUrl(
+                    rawUrl = candidate,
+                    timeoutMs = 3000
+                )
+            ) {
+                android.util.Log.d(
+                    "SABDHAM_STREAM_CHECK",
+                    "Device YouTube fallback succeeded id=$videoId"
+                )
+                return@withContext candidate
+            }
+        }
+
+        null
+    }
+
     suspend fun resolveStream(
         title: String,
         artist: String
@@ -137,6 +263,73 @@ object MusicSearchService {
             null
         }
     }
+    suspend fun resolveAudiusStream(
+        title: String,
+        artist: String
+    ): ResolvedStream? = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+
+        try {
+            val encodedTitle = URLEncoder.encode(title, "UTF-8")
+            val encodedArtist = URLEncoder.encode(artist, "UTF-8")
+
+            val urlString =
+                "$activeBackendUrl/api/audius/resolve" +
+                    "?title=$encodedTitle&artist=$encodedArtist"
+
+            connection = URL(urlString).openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 7000
+            connection.readTimeout = 7000
+            connection.setRequestProperty("Accept", "application/json")
+
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                return@withContext null
+            }
+
+            val response =
+                connection.inputStream.bufferedReader().use { it.readText() }
+
+            val json = JSONObject(response)
+            val resolvedUrl = json.optString("url").trim()
+            val source = json.optString("source").trim().lowercase()
+
+            if (resolvedUrl.isBlank() || source != "audius") {
+                return@withContext null
+            }
+
+            val coverUrl =
+                json.optString("coverUrl")
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+
+            val duration =
+                json.optLong("duration", 0L)
+                    .takeIf { it > 0L }
+
+            android.util.Log.d(
+                "SABDHAM_AUDIUS",
+                "FINAL FALLBACK title=$title artist=$artist"
+            )
+
+            ResolvedStream(
+                url = resolvedUrl,
+                coverUrl = coverUrl,
+                duration = duration,
+                source = source
+            )
+        } catch (e: Exception) {
+            android.util.Log.w(
+                "SABDHAM_AUDIUS",
+                "Audius final fallback failed title=$title",
+                e
+            )
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     suspend fun resolveCatalogStream(
         title: String,
         artist: String

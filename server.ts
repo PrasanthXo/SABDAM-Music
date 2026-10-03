@@ -3936,7 +3936,7 @@ interface StreamInfo {
   coverUrl?: string;
   duration?: number;
   videoId?: string;
-  source: 'saavn' | 'youtube' | 'cache' | 'catalog';
+  source: 'saavn' | 'youtube' | 'audius' | 'cache' | 'catalog';
 }
 
 // Helper to decrypt Saavn media URLs (using DES-EDE3)
@@ -3975,17 +3975,44 @@ function isValidSaavnMatch(targetTitle: string, targetArtist: string, match: any
 
   if (!songName || !tTitle) return false;
 
-  // Discard unwanted versions (karaoke, tribute, covers, nightcore, etc.) unless explicitly in target
-  const forbiddenTerms = ['karaoke', 'tribute', 'originally performed', 'ringtone', 'instrumental'];
-  if (!tTitle.includes('remix')) forbiddenTerms.push('remix');
+  // Discard unwanted versions (karaoke, tribute, covers, remixes, etc.)
+  // unless the user explicitly requested that version. Inspect all metadata,
+  // not only the song title: many bad matches hide "Instrumental" in the
+  // album/language or "Remixed" in the artist while keeping an exact title.
+  const candidateVersionText = cleanMatchingText(
+    [
+      match.song || match.title || '',
+      match.primary_artists || '',
+      match.singers || '',
+      match.album || '',
+      match.language || '',
+      match.more_info?.album || '',
+      match.more_info?.music || ''
+    ].join(' ')
+  );
+
+  const forbiddenTerms = [
+    'karaoke',
+    'tribute',
+    'originally performed',
+    'ringtone',
+    'instrumental',
+    'phonk',
+    'sped up'
+  ];
+  if (!tTitle.includes('remix')) {
+    forbiddenTerms.push('remix', 'remixed');
+  }
   if (!tTitle.includes('nightcore')) forbiddenTerms.push('nightcore');
   if (!tTitle.includes('cover')) forbiddenTerms.push('cover');
   if (!tTitle.includes('ambient')) forbiddenTerms.push('ambient');
-  if (!tTitle.includes('slowed')) forbiddenTerms.push('slowed');
+  if (!tTitle.includes('slowed')) forbiddenTerms.push('slowed', 'reverb');
   if (!tTitle.includes('techno')) forbiddenTerms.push('techno');
 
   for (const term of forbiddenTerms) {
-    if (songName.includes(term)) return false;
+    if (candidateVersionText.includes(term) && !tTitle.includes(term)) {
+      return false;
+    }
   }
 
   // Check title similarity: compare significant words
@@ -4079,6 +4106,221 @@ async function resolveFromJioSaavn(
   return null;
 }
 
+
+/**
+ * Final audio fallback for SABDHAM search playback.
+ *
+ * Audius is intentionally NOT part of normal search ranking. Android calls
+ * /api/audius/resolve only after the existing direct/JioSaavn/YouTube paths
+ * have failed. The API key stays on the backend and is used only for Audius
+ * request attribution/rate limits.
+ */
+async function resolveFromAudius(
+  query: string,
+  targetTitle: string,
+  targetArtist?: string
+): Promise<StreamInfo | null> {
+  const cleanQuery = cleanMatchingText(query);
+  const cleanTargetTitle = cleanMatchingText(targetTitle);
+  const cleanTargetArtist = cleanMatchingText(targetArtist || '');
+
+  if (!cleanQuery || !cleanTargetTitle) return null;
+
+  try {
+    const params = new URLSearchParams({
+      query: cleanQuery,
+      limit: '10',
+      app_name: 'SABDHAM'
+    });
+
+    const audiusApiKey = String(process.env.AUDIUS_API_KEY || '').trim();
+    if (audiusApiKey) {
+      params.set('api_key', audiusApiKey);
+    }
+
+    const response = await fetch(
+      `https://api.audius.co/v1/tracks/search?${params.toString()}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'SABDHAM/1.0'
+        },
+        signal: AbortSignal.timeout(5000)
+      }
+    );
+
+    if (!response.ok) {
+      console.warn('[Audius Resolver] Search failed:', response.status);
+      return null;
+    }
+
+    const payload = (await response.json()) as any;
+    const tracks = Array.isArray(payload?.data) ? payload.data : [];
+    if (tracks.length === 0) return null;
+
+    const targetWords = cleanTargetTitle
+      .split(' ')
+      .filter((word) => word.length > 2);
+
+    const artistWords = cleanTargetArtist
+      .split(' ')
+      .filter(
+        (word) =>
+          word.length > 2 &&
+          word !== 'the' &&
+          word !== 'and' &&
+          word !== 'unknown'
+      );
+
+    const requestedVersionText =
+      `${cleanTargetTitle} ${cleanTargetArtist}`;
+
+    const forbiddenTerms = [
+      'karaoke',
+      'instrumental',
+      'tribute',
+      'ringtone',
+      'nightcore',
+      'slowed',
+      'reverb',
+      '8d audio',
+      'remix',
+      'remixed',
+      'phonk',
+      'sped up',
+      'cover'
+    ];
+
+    let bestTrack: any | null = null;
+    let bestScore = -1;
+
+    for (const track of tracks) {
+      if (!track?.id || !track?.title) continue;
+      if (track.is_stream_gated === true || track.isStreamGated === true) continue;
+
+      const candidateTitle = cleanMatchingText(track.title || '');
+      const candidateArtist = cleanMatchingText(
+        track.user?.name ||
+        track.user?.handle ||
+        track.artist_name ||
+        track.artistName ||
+        ''
+      );
+      const candidateText = cleanMatchingText(
+        [
+          track.title || '',
+          track.user?.name || '',
+          track.user?.handle || '',
+          track.genre || '',
+          track.description || ''
+        ].join(' ')
+      );
+
+      const hasUnrequestedVersion =
+        forbiddenTerms.some(
+          (term) =>
+            candidateText.includes(term) &&
+            !requestedVersionText.includes(term)
+        );
+
+      if (hasUnrequestedVersion) continue;
+
+      if (targetWords.length > 0) {
+        const matchedTitleWords =
+          targetWords.filter((word) => candidateTitle.includes(word));
+        const titleRatio = matchedTitleWords.length / targetWords.length;
+
+        if (
+          titleRatio < 0.7 &&
+          !candidateTitle.includes(cleanTargetTitle) &&
+          !cleanTargetTitle.includes(candidateTitle)
+        ) {
+          continue;
+        }
+      }
+
+      if (artistWords.length > 0) {
+        const matchedArtistWords =
+          artistWords.filter((word) => candidateArtist.includes(word));
+        if (matchedArtistWords.length === 0) continue;
+      }
+
+      const duration =
+        Number(track.duration || track.duration_seconds || 0) || 0;
+      if (duration > 0 && (duration < 50 || duration > 650)) continue;
+
+      let score = 0;
+      if (candidateTitle === cleanTargetTitle) score += 100;
+      else if (candidateTitle.includes(cleanTargetTitle)) score += 60;
+
+      if (cleanTargetArtist) {
+        if (candidateArtist === cleanTargetArtist) score += 80;
+        else if (
+          candidateArtist.includes(cleanTargetArtist) ||
+          cleanTargetArtist.includes(candidateArtist)
+        ) {
+          score += 45;
+        }
+      }
+
+      score += Math.min(
+        Number(track.play_count || track.playCount || 0) / 100000,
+        20
+      );
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestTrack = track;
+      }
+    }
+
+    if (!bestTrack) return null;
+
+    const streamParams = new URLSearchParams({
+      app_name: 'SABDHAM'
+    });
+
+    // Audius read-only streaming works without exposing our API key in the APK.
+    const streamUrl =
+      `https://api.audius.co/v1/tracks/${encodeURIComponent(bestTrack.id)}/stream?` +
+      streamParams.toString();
+
+    const artwork = bestTrack.artwork || {};
+    const coverUrl =
+      artwork['1000x1000'] ||
+      artwork['480x480'] ||
+      artwork['150x150'] ||
+      artwork._1000x1000 ||
+      artwork._480x480 ||
+      artwork._150x150 ||
+      undefined;
+
+    const duration =
+      Number(bestTrack.duration || bestTrack.duration_seconds || 0) || undefined;
+
+    console.log(
+      '[Audius Resolver] Match:',
+      targetTitle,
+      '-',
+      targetArtist || '',
+      '=>',
+      bestTrack.title,
+      '-',
+      bestTrack.user?.name || bestTrack.user?.handle || ''
+    );
+
+    return {
+      url: streamUrl,
+      coverUrl,
+      duration,
+      source: 'audius'
+    };
+  } catch (err) {
+    console.warn('[Audius Resolver] Failed for:', query, err);
+    return null;
+  }
+}
+
 // Search and extract live YouTube videos using structured ytInitialData parser
 async function scrapeYouTubeVideos(query: string, limit: number = 15): Promise<any[]> {
   try {
@@ -4114,8 +4356,8 @@ async function scrapeYouTubeVideos(query: string, limit: number = 15): Promise<a
               let title = vr.title?.runs?.map((r: any) => r.text).join('') || vr.title?.simpleText || 'Unknown Title';
               let artist = vr.ownerText?.runs?.map((r: any) => r.text).join('') || vr.ownerText?.simpleText || 'Unknown Artist';
               const durText = vr.lengthText?.simpleText || '3:30';
-              const thumbs = vr.thumbnail?.thumbnails || [];
-              const coverUrl = thumbs[thumbs.length - 1]?.url || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600';
+              // SABDHAM artwork policy: never use YouTube thumbnails.
+              const coverUrl = '';
 
               // Parse duration
               const parts = durText.split(':').map((p: string) => parseInt(p, 10));
@@ -4407,25 +4649,9 @@ async function resolveAudioStreamInfo(
       return saavnStream;
     }
   }
-  // If title + artist failed on Saavn, retry title-only before YouTube.
-  if (saavnTitle && activeArtist) {
-    const titleOnlySaavnStream = await resolveFromJioSaavn(
-      saavnTitle,
-      saavnTitle
-    );
-
-    if (titleOnlySaavnStream && titleOnlySaavnStream.url) {
-      streamCache.set(cacheKey, {
-        url: titleOnlySaavnStream.url,
-        coverUrl: titleOnlySaavnStream.coverUrl,
-        duration: titleOnlySaavnStream.duration,
-        videoId: activeVideoId,
-        expiresAt: Date.now() + 6 * 3600 * 1000
-      });
-
-      return titleOnlySaavnStream;
-    }
-  }
+  // Do not retry title-only when a real artist is known.
+  // Same-title covers/remixes are common and can otherwise replace the
+  // requested recording (for example, "Gangnam Style" by another artist).
   // Tier 2: Dynamically resolve to YouTube video ID
   if ((!activeVideoId || excludeVideoIds.includes(activeVideoId)) && activeTitle) {
     const resolvedYt = await resolveYouTubeVideoBySong(activeTitle, activeArtist, excludeVideoIds);
@@ -4600,21 +4826,67 @@ app.get('/api/youtube/search', async (req, res) => {
           .filter((item: any) => {
             if (!item || !item.id || !item.song) return false;
 
-            const name = String(item.song || '').toLowerCase();
+            const requested = String(query || '').toLowerCase();
+            const candidateText = [
+              item.song,
+              item.primary_artists,
+              item.singers,
+              item.album,
+              item.language,
+              item.more_info?.album
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase();
+
             const badTerms = [
               'karaoke',
               'instrumental',
               'ringtone',
               'tribute',
+              'originally performed',
               'nightcore',
               'slowed',
               'reverb',
               '8d audio',
               'status',
-              'remix'
+              'remix',
+              'remixed',
+              'phonk',
+              'sped up',
+              'cover song'
             ];
 
-            return !badTerms.some((term) => name.includes(term));
+            if (
+              badTerms.some(
+                (term) =>
+                  candidateText.includes(term) &&
+                  !requested.includes(term)
+              )
+            ) {
+              return false;
+            }
+
+            // Require the meaningful query words to actually be represented.
+            // This blocks near-spelling/unrelated results such as
+            // "Ganganam Style" for a "Gangnam Style" search.
+            const queryTokens = requested
+              .replace(
+                /\b(songs?|music|mp3|video|audio|track|lyrics?|official|hd|4k)\b/g,
+                ' '
+              )
+              .split(/\s+/)
+              .map((token) => token.trim())
+              .filter((token) => token.length >= 3);
+
+            const songArtistText =
+              `${item.song || ''} ${item.primary_artists || ''} ${item.singers || ''}`
+                .toLowerCase();
+
+            return (
+              queryTokens.length === 0 ||
+              queryTokens.every((token) => songArtistText.includes(token))
+            );
           })
           .map((item: any) => {
             const encrypted =
@@ -4741,11 +5013,8 @@ app.get('/api/youtube/search', async (req, res) => {
                 const secs = durationSec % 60;
                 const durationFormatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 
-                const coverUrl =
-                  item.snippet?.thumbnails?.high?.url ||
-                  item.snippet?.thumbnails?.medium?.url ||
-                  item.snippet?.thumbnails?.default?.url ||
-                  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600';
+                // SABDHAM artwork policy: never return YouTube thumbnails.
+                const coverUrl = '';
 
                 let trackLang = 'english';
                 const textToScan = `${trackName} ${channelTitle} ${query}`.toLowerCase();
@@ -5652,7 +5921,29 @@ app.get(['/api/youtube/stream', '/api/youtube/mp3'], async (req, res) => {
           }
 
           const contentType =
-            upstreamRes.headers['content-type'] || 'audio/mp4';
+            String(upstreamRes.headers['content-type'] || '')
+              .toLowerCase();
+
+          const isPlayableMedia =
+            contentType.startsWith('audio/') ||
+            contentType.startsWith('video/') ||
+            contentType.startsWith('application/octet-stream');
+
+          if (!isPlayableMedia) {
+            console.error(
+              '[YouTube Stream Proxy] Rejected non-media upstream response',
+              { statusCode, videoId, contentType, targetUrl }
+            );
+            upstreamRes.resume();
+            if (!res.headersSent) {
+              res.status(502).json({
+                error: 'Upstream did not return playable audio',
+                contentType,
+                retryable: true,
+              });
+            }
+            return;
+          }
 
           res.setHeader('Content-Type', contentType);
           res.setHeader('Accept-Ranges', 'bytes');
@@ -5734,6 +6025,42 @@ app.get('/api/stream/resolve', async (req, res) => {
   } catch (err: any) {
     console.error('[Stream Resolve] Error resolving stream:', err);
     res.status(500).json({ error: 'Failed to resolve stream' });
+  }
+});
+
+
+/**
+ * Explicit last-resort resolver used by the Android client only after all
+ * existing playback sources have failed.
+ */
+app.get('/api/audius/resolve', async (req, res) => {
+  try {
+    const title = String(req.query.title || '').trim();
+    const artist = String(req.query.artist || '').trim();
+
+    if (!title) {
+      return res.status(400).json({ error: 'Missing title' });
+    }
+
+    const query = artist ? `${title} ${artist}` : title;
+    const streamInfo = await resolveFromAudius(query, title, artist);
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    if (!streamInfo || !streamInfo.url) {
+      return res.status(404).json({
+        error: 'Audius fallback unavailable',
+        source: 'audius'
+      });
+    }
+
+    return res.json(streamInfo);
+  } catch (err) {
+    console.error('[Audius Resolver] Endpoint failed:', err);
+    return res.status(500).json({
+      error: 'Audius fallback failed',
+      source: 'audius'
+    });
   }
 });
 
