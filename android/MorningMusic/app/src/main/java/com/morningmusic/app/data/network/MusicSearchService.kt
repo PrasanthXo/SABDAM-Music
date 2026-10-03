@@ -70,6 +70,79 @@ object MusicSearchService {
         return "$activeBackendUrl/api/youtube/stream?id=$videoId"
     }
 
+    /**
+     * Resolve an exact YouTube-backed item to the backend's direct audio URL.
+     *
+     * This avoids making Android depend on a proxy preflight request before
+     * Media3 can start playback. The proxy URL is still kept as a fallback.
+     */
+    suspend fun resolveExactStreamUrl(
+        videoIdOrRaw: String
+    ): String? = withContext(Dispatchers.IO) {
+        val videoId =
+            videoIdOrRaw
+                .removePrefix("yt:")
+                .removePrefix("yt-")
+                .trim()
+
+        if (videoId.isBlank()) {
+            return@withContext null
+        }
+
+        var connection: HttpURLConnection? = null
+
+        try {
+            val encodedId = URLEncoder.encode(videoId, "UTF-8")
+            val urlString =
+                "$activeBackendUrl/api/stream/resolve?id=$encodedId&direct=1"
+
+            connection =
+                URL(urlString).openConnection() as HttpURLConnection
+
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
+            connection.setRequestProperty("Accept", "application/json")
+
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                return@withContext null
+            }
+
+            val response =
+                connection.inputStream
+                    .bufferedReader()
+                    .use { it.readText() }
+
+            val json = JSONObject(response)
+            val rawUrl = json.optString("url").trim()
+
+            if (rawUrl.isBlank()) {
+                return@withContext null
+            }
+
+            when {
+                rawUrl.startsWith("https://", ignoreCase = true) ||
+                    rawUrl.startsWith("http://", ignoreCase = true) ->
+                    rawUrl
+
+                rawUrl.startsWith("/") ->
+                    activeBackendUrl.trimEnd('/') + rawUrl
+
+                else ->
+                    activeBackendUrl.trimEnd('/') + "/" + rawUrl
+            }
+        } catch (e: Exception) {
+            android.util.Log.w(
+                "SABDHAM_EXACT_STREAM",
+                "Exact stream resolver failed id=$videoId",
+                e
+            )
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     private fun isPlayableMediaContentType(
         rawContentType: String?
     ): Boolean {
