@@ -36,6 +36,28 @@ jobs:
           curl -fsS -m 45 "https://sabdham-backend.onrender.com/api/stream/resolve?title=Gangnam%20Style&artist=PSY&direct=1" -o /tmp/resolve.json || true
           cat /tmp/resolve.json || true
 
+          echo "=== JIOSAAVN QUERY VARIANTS ==="
+          for q in \
+            "PSY Gangnam Style" \
+            "PSY 6 Gangnam Style" \
+            "PSY 6 Six Rules Part 1" \
+            "싸이 강남스타일" \
+            "Gangnam Style Korean PSY" \
+            "강남스타일 PSY"
+          do
+            echo "--- $q ---"
+            curl -fsS -m 20 "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=25&p=1&q=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$q")&_marker=0" -o /tmp/jsq.json || true
+            python3 - <<'PY'
+import json
+try:
+    d=json.load(open('/tmp/jsq.json'))
+    for x in (d.get('results') or [])[:15]:
+        print(x.get('song'), '|', x.get('primary_artists') or x.get('singers'), '|', x.get('album'), '|', x.get('language'), '|', x.get('id'))
+except Exception as e:
+    print('ERR', e)
+PY
+          done
+
           echo "=== SABDHAM MUSIC SEARCH WITH PSY ==="
           curl -fsS -m 30 "https://sabdham-backend.onrender.com/api/music/search?q=Gangnam%20Style%20PSY&language=all&maxResults=25" -o /tmp/music-psy.json || true
           cat /tmp/music-psy.json || true
