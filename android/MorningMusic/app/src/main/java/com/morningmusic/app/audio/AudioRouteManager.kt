@@ -96,10 +96,7 @@ class AudioRouteManager(
 
         private val discoveryPreference =
             RouteDiscoveryPreference.Builder(
-                listOf(
-                    MediaRoute2Info.FEATURE_LIVE_AUDIO,
-                    MediaRoute2Info.FEATURE_REMOTE_PLAYBACK
-                ),
+                listOf(MediaRoute2Info.FEATURE_LIVE_AUDIO),
                 false
             ).build()
 
@@ -174,9 +171,6 @@ class AudioRouteManager(
                     if (
                         route.features.contains(
                             MediaRoute2Info.FEATURE_LIVE_AUDIO
-                        ) ||
-                        route.features.contains(
-                            MediaRoute2Info.FEATURE_REMOTE_PLAYBACK
                         )
                     ) {
                         allRoutes[route.id] = route
