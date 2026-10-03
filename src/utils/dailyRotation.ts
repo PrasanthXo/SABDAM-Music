@@ -1,6 +1,6 @@
 import { Track } from '../types';
 
-const STORAGE_PREFIX = 'sabdham.catalog.rotation.v2';
+const STORAGE_PREFIX = 'sabdham.catalog.rotation.v3';
 
 type CatalogHistory = {
   seenIds: string[];
@@ -90,8 +90,8 @@ function writeHistory(catalogKey: string, history: CatalogHistory): void {
  * Rules:
  * - Changes once per LOCAL calendar day.
  * - Liked songs are protected from the seen-history filter.
- * - Songs not shown before are placed first.
- * - Previously shown songs are only used as fallback and are placed after new songs.
+ * - Previously shown unliked songs do not return while unseen songs remain.
+ * - A new cycle starts only after every unliked song in that catalogue has been seen.
  * - History persists across app/browser restarts via localStorage.
  * - Newly added catalogue IDs are automatically treated as unseen.
  */
@@ -121,8 +121,6 @@ export function getDailyRotatedCatalog(
   const byId = new Map(uniquePool.map((track) => [track.id, track] as const));
 
   // Same local day = same catalogue window, even after refresh/re-render.
-  // This prevents React StrictMode, focus changes, or like-state changes from
-  // accidentally consuming another day's worth of unseen songs.
   if (history.lastDayIndex === dayIndex && history.todayIds.length > 0) {
     const sameDay = history.todayIds
       .map((id) => byId.get(id))
@@ -135,17 +133,17 @@ export function getDailyRotatedCatalog(
 
   const liked = uniquePool.filter((track) => likedTrackIds.has(track.id));
   const unliked = uniquePool.filter((track) => !likedTrackIds.has(track.id));
-
   const unseenUnliked = unliked.filter((track) => !seen.has(track.id));
-  const previouslySeenUnliked = unliked.filter((track) => seen.has(track.id));
+
+  // Never use previously seen tracks as same-cycle filler.
+  // Reset only after every unliked track in the catalogue has been shown.
+  const cycleReset = unliked.length > 0 && unseenUnliked.length === 0;
+  const eligibleUnliked = cycleReset ? unliked : unseenUnliked;
 
   const baseSeed = dayIndex * 1000003 + stringHash(catalogKey);
   const shuffledLiked = shuffleWithSeed(liked, baseSeed + 11);
-  const shuffledUnseen = shuffleWithSeed(unseenUnliked, baseSeed + 23);
-  const shuffledOld = shuffleWithSeed(previouslySeenUnliked, baseSeed + 37);
+  const shuffledEligible = shuffleWithSeed(eligibleUnliked, baseSeed + 23);
 
-  // Liked songs stay eligible every day. Fresh/unseen songs follow them.
-  // Old catalogue songs are pushed to the back and only fill remaining space.
   const selected: Track[] = [];
   const addUntilFull = (tracks: Track[]) => {
     for (const track of tracks) {
@@ -155,18 +153,15 @@ export function getDailyRotatedCatalog(
   };
 
   addUntilFull(shuffledLiked);
-  addUntilFull(shuffledUnseen);
-  addUntilFull(shuffledOld);
+  addUntilFull(shuffledEligible);
 
-  // Persist only unliked songs as seen. Liked songs never become rotation-excluded.
-  const nextSeen = new Set(seen);
+  const nextSeen = cycleReset ? new Set<string>() : new Set(seen);
   for (const track of selected) {
     if (!likedTrackIds.has(track.id)) {
       nextSeen.add(track.id);
     }
   }
 
-  // Keep only IDs still present in this catalogue to avoid unlimited stale history.
   const validIds = new Set(uniquePool.map((track) => track.id));
   const prunedSeen = Array.from(nextSeen).filter((id) => validIds.has(id));
 
