@@ -139,6 +139,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val searchPlaylistMessage: StateFlow<String?> =
         _searchPlaylistMessage.asStateFlow()
 
+    private fun searchPlaylistInteractionKey(
+        playlist: SearchPlaylistResult
+    ): String =
+        playlist.source.trim().lowercase() + ":" + playlist.id.trim()
+
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
 
@@ -1205,7 +1210,11 @@ if (incoming.isEmpty()) {
 
                     _searchPlaylistResults.value =
                         playlistResults
-                            .distinctBy { it.id }
+                            .distinctBy {
+                                it.source.trim().lowercase() +
+                                    ":" +
+                                    it.id.trim()
+                            }
                             .take(12)
 
                     _searchPlaylistMessage.value = null
@@ -1238,7 +1247,11 @@ if (incoming.isEmpty()) {
         searchPlaylistExpansionJob?.cancel()
         searchPlaylistExpansionJob = null
 
-        _loadingSearchPlaylistId.value = playlist.id
+        val playlistInteractionKey =
+            searchPlaylistInteractionKey(playlist)
+
+        _loadingSearchPlaylistId.value =
+            playlistInteractionKey
         _openedSearchPlaylist.value = playlist
         _openedSearchPlaylistTracks.value = emptyList()
         _searchPlaylistMessage.value = null
@@ -1359,7 +1372,7 @@ if (incoming.isEmpty()) {
                     ) {
                         if (
                             _loadingSearchPlaylistId.value ==
-                                playlist.id
+                                playlistInteractionKey
                         ) {
                             _loadingSearchPlaylistId.value = null
                         }
@@ -1390,7 +1403,11 @@ if (incoming.isEmpty()) {
             return
         }
 
-        _searchPlaylistActionId.value = playlist.id
+        val playlistInteractionKey =
+            searchPlaylistInteractionKey(playlist)
+
+        _searchPlaylistActionId.value =
+            playlistInteractionKey
         _searchPlaylistMessage.value = null
 
         val playbackGenerationAtAdd =
@@ -1497,7 +1514,7 @@ if (incoming.isEmpty()) {
             } finally {
                 if (
                     _searchPlaylistActionId.value ==
-                        playlist.id
+                        playlistInteractionKey
                 ) {
                     _searchPlaylistActionId.value = null
                 }
