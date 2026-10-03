@@ -104,28 +104,7 @@ class AudioRouteManager(
             ).build()
 
         private val routeCallback =
-            object : MediaRouter2.RouteCallback() {
-                override fun onRoutesAdded(
-                    router: MediaRouter2,
-                    routes: List<MediaRoute2Info>
-                ) {
-                    publishState()
-                }
-
-                override fun onRoutesChanged(
-                    router: MediaRouter2,
-                    routes: List<MediaRoute2Info>
-                ) {
-                    publishState()
-                }
-
-                override fun onRoutesRemoved(
-                    router: MediaRouter2,
-                    routes: List<MediaRoute2Info>
-                ) {
-                    publishState()
-                }
-            }
+            object : MediaRouter2.RouteCallback() {}
 
         private val controllerCallback =
             object : MediaRouter2.ControllerCallback() {
