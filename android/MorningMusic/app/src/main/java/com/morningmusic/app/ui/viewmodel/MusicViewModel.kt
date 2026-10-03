@@ -1283,7 +1283,7 @@ if (incoming.isEmpty()) {
                     }
 
                     val firstQueue =
-                        sanitizePlaylistQueue(firstTracks)
+                        sanitizeSearchPlaylistQueue(firstTracks)
 
                     _openedSearchPlaylistTracks.value =
                         firstQueue
@@ -1318,7 +1318,7 @@ if (incoming.isEmpty()) {
                                 }
 
                                 val fullQueue =
-                                    sanitizePlaylistQueue(fullTracks)
+                                    sanitizeSearchPlaylistQueue(fullTracks)
 
                                 if (fullQueue.isNotEmpty()) {
                                     _openedSearchPlaylistTracks.value =
@@ -1435,7 +1435,7 @@ if (incoming.isEmpty()) {
                         .mapTo(mutableSetOf()) { it.id }
 
                 val additions =
-                    sanitizePlaylistQueue(tracks)
+                    sanitizeSearchPlaylistQueue(tracks)
                         .filter { existingIds.add(it.id) }
 
                 if (additions.isEmpty()) {
@@ -2587,6 +2587,15 @@ if (incoming.isEmpty()) {
             }
         }
     }
+
+    private fun sanitizeSearchPlaylistQueue(
+        tracks: List<Track>
+    ): List<Track> =
+        sanitizePlaylistQueue(
+            tracks
+                .map { sanitizeSearchTrack(it) }
+                .filterNot { isSearchVideoJunk(it) }
+        )
 
     private fun sanitizePlaylistQueue(tracks: List<Track>): List<Track> {
         val seen = mutableSetOf<String>()
