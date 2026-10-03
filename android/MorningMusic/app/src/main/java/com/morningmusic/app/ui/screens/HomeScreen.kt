@@ -51,6 +51,7 @@ import coil.compose.AsyncImage
 import com.morningmusic.app.data.model.Artist
 import com.morningmusic.app.data.model.Genre
 import com.morningmusic.app.data.model.Track
+import com.morningmusic.app.audio.AudioRouteState
 import com.morningmusic.app.ui.viewmodel.MusicViewModel
 import com.morningmusic.app.auth.AuthViewModel
 import com.morningmusic.app.auth.SabdhamAuthDialog
@@ -191,6 +192,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val isRepeat by viewModel.isRepeat.collectAsState()
     val isMuted by viewModel.isMuted.collectAsState()
     val volume by viewModel.volume.collectAsState()
+    val audioRouteState by viewModel.audioRouteState.collectAsState()
     val playbackInterestVersion by viewModel.playbackInterestVersion.collectAsState()
 
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -735,6 +737,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
     var selectedCategory by remember { mutableStateOf("All") }
     var activeNavTab by remember { mutableStateOf("home") }
     var isFullPlayerVisible by remember { mutableStateOf(false) }
+    var isAudioRouteDialogVisible by remember { mutableStateOf(false) }
     var isEqDialogVisible by remember { mutableStateOf(false) }
     var isSettingsPageVisible by remember { mutableStateOf(false) }
     var isEditProfileDialogVisible by remember { mutableStateOf(false) }
@@ -1606,6 +1609,12 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 duration = duration,
                 isLiked = likedTrackIds.contains(track.id),
                 isMuted = isMuted,
+                audioRouteName = audioRouteState.displayName,
+                multiAudioActive = audioRouteState.multiAudioActive,
+                onAudioRouteClick = {
+                    viewModel.refreshAudioRoutes()
+                    isAudioRouteDialogVisible = true
+                },
                 onPlayPauseClick = { viewModel.togglePlayPause() },
                 onMuteClick = { viewModel.toggleMute() },
                 onPreviousClick = { viewModel.playPrevious() },
@@ -1632,10 +1641,16 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 isLiked = likedTrackIds.contains(currentTrack!!.id),
                 isMuted = isMuted,
                 volume = volume,
+                audioRouteName = audioRouteState.displayName,
+                multiAudioActive = audioRouteState.multiAudioActive,
                 isShuffle = isShuffle,
                 isRepeat = isRepeat,
                 onMute = { viewModel.toggleMute() },
                 onVolumeChange = { viewModel.setVolume(it) },
+                onAudioRouteClick = {
+                    viewModel.refreshAudioRoutes()
+                    isAudioRouteDialogVisible = true
+                },
                 onDismiss = { isFullPlayerVisible = false },
                 onPlayPause = { viewModel.togglePlayPause() },
                 onNext = { viewModel.playNext() },
@@ -1651,6 +1666,22 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         viewModel.onSearchQueryChange("")
                     }
                     isFullPlayerVisible = false
+                }
+            )
+        }
+
+        if (isAudioRouteDialogVisible) {
+            AudioRouteDialog(
+                state = audioRouteState,
+                onDismiss = { isAudioRouteDialogVisible = false },
+                onSwitch = { routeId ->
+                    viewModel.transferAudioTo(routeId)
+                },
+                onShare = { routeId ->
+                    viewModel.addSharedAudioRoute(routeId)
+                },
+                onRemoveShared = { routeId ->
+                    viewModel.removeSharedAudioRoute(routeId)
                 }
             )
         }
@@ -2605,6 +2636,203 @@ fun TrackListItem(
 }
 
 @Composable
+private fun AudioRouteDialog(
+    state: AudioRouteState,
+    onDismiss: () -> Unit,
+    onSwitch: (String) -> Unit,
+    onShare: (String) -> Unit,
+    onRemoveShared: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF18181D),
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Column {
+                Text(
+                    text = "Audio output",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 19.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text =
+                        if (state.multiAudioActive) {
+                            "Sharing to ${state.selectedDeviceNames.size} devices"
+                        } else {
+                            "Playing on ${state.displayName}"
+                        },
+                    color = Color(0xFF1DB954),
+                    fontSize = 12.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+            ) {
+                if (!state.supported) {
+                    Text(
+                        text =
+                            "In-app audio switching requires Android 11 or later. " +
+                                "Use your phone's Bluetooth/audio output controls on this device.",
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 13.sp
+                    )
+                } else if (state.devices.isEmpty()) {
+                    Text(
+                        text = "No additional audio devices are available.",
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 13.sp
+                    )
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            items = state.devices,
+                            key = { it.id }
+                        ) { device ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (device.selected) {
+                                            Color(0xFF1E3326)
+                                        } else {
+                                            Color(0xFF24242A)
+                                        }
+                                    )
+                                    .padding(11.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                            if (device.selected) {
+                                                Icons.Default.CheckCircle
+                                            } else {
+                                                Icons.Default.Speaker
+                                            },
+                                        contentDescription = null,
+                                        tint =
+                                            if (device.selected) {
+                                                Color(0xFF1DB954)
+                                            } else {
+                                                Color.White.copy(alpha = 0.7f)
+                                            },
+                                        modifier = Modifier.size(20.dp)
+                                    )
+
+                                    Spacer(Modifier.width(10.dp))
+
+                                    Column(
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = device.name,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text =
+                                                when {
+                                                    device.selected &&
+                                                        state.multiAudioActive ->
+                                                        "Shared output"
+                                                    device.selected ->
+                                                        "Current output"
+                                                    device.selectableForSharing ->
+                                                        "Available for sharing"
+                                                    else ->
+                                                        "Available"
+                                                },
+                                            color = Color.White.copy(alpha = 0.55f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+
+                                if (!device.selected) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        horizontalArrangement =
+                                            Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        TextButton(
+                                            onClick = {
+                                                onSwitch(device.id)
+                                            }
+                                        ) {
+                                            Text(
+                                                "Switch",
+                                                color = Color(0xFF1DB954)
+                                            )
+                                        }
+
+                                        if (device.selectableForSharing) {
+                                            TextButton(
+                                                onClick = {
+                                                    onShare(device.id)
+                                                }
+                                            ) {
+                                                Text(
+                                                    "Share too",
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else if (
+                                    state.multiAudioActive &&
+                                    device.deselectable
+                                ) {
+                                    Spacer(Modifier.height(8.dp))
+                                    TextButton(
+                                        onClick = {
+                                            onRemoveShared(device.id)
+                                        }
+                                    ) {
+                                        Text(
+                                            "Remove from sharing",
+                                            color = Color(0xFFFFB4AB)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!state.multiAudioAvailable) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text =
+                                "Multi-audio sharing is not exposed by this phone/device combination. " +
+                                    "SABDHAM will still allow normal output switching.",
+                            color = Color.White.copy(alpha = 0.55f),
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done", color = Color(0xFF1DB954))
+            }
+        }
+    )
+}
+
+@Composable
 fun NativeMiniPlayer(
     track: Track,
     isPlaying: Boolean,
@@ -2612,6 +2840,9 @@ fun NativeMiniPlayer(
     duration: Long,
     isLiked: Boolean,
     isMuted: Boolean,
+    audioRouteName: String,
+    multiAudioActive: Boolean,
+    onAudioRouteClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
     onMuteClick: () -> Unit,
     onPreviousClick: () -> Unit,
@@ -2676,6 +2907,33 @@ fun NativeMiniPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onAudioRouteClick() }
+                            .padding(top = 2.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector =
+                                if (multiAudioActive) {
+                                    Icons.Default.SpeakerGroup
+                                } else {
+                                    Icons.Default.Speaker
+                                },
+                            contentDescription = "Audio output",
+                            tint = Color(0xFF1DB954),
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = audioRouteName,
+                            color = Color(0xFF1DB954),
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 IconButton(onClick = onLikeClick) {
@@ -2740,10 +2998,13 @@ fun FullPlayerSheet(
     isLiked: Boolean,
     isMuted: Boolean,
     volume: Float,
+    audioRouteName: String,
+    multiAudioActive: Boolean,
     isShuffle: Boolean,
     isRepeat: Boolean,
     onMute: () -> Unit,
     onVolumeChange: (Float) -> Unit,
+    onAudioRouteClick: () -> Unit,
     onDismiss: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -2860,6 +3121,34 @@ fun FullPlayerSheet(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.widthIn(max = 180.dp)
                     )
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onAudioRouteClick() }
+                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector =
+                                if (multiAudioActive) {
+                                    Icons.Default.SpeakerGroup
+                                } else {
+                                    Icons.Default.Speaker
+                                },
+                            contentDescription = "Audio output",
+                            tint = Color(0xFF1DB954),
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = audioRouteName,
+                            color = Color(0xFF1DB954),
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 160.dp)
+                        )
+                    }
                 }
             }
 
