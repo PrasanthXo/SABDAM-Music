@@ -586,6 +586,41 @@ fun HomeScreen(viewModel: MusicViewModel) {
             safety++
         }
 
+        // Emergency backfill:
+        // Cross-section uniqueness is the normal rule, but an upstream source
+        // can temporarily return fewer than 6 * target unique songs. Never
+        // leave a catalogue empty (or unnecessarily tiny) in that case.
+        // Reuse is allowed only for deficient rows and remains unique inside
+        // each individual row.
+        sections.forEachIndexed { index, section ->
+            if (section.size >= targetPerSection) {
+                return@forEachIndexed
+            }
+
+            val sectionKeys =
+                section
+                    .mapTo(mutableSetOf()) {
+                        semanticCatalogKey(it)
+                    }
+
+            val emergencyPool =
+                (
+                    preferredPools.getOrElse(index) { emptyList() } +
+                        masterUnique
+                    )
+                    .filter { it.id.isNotBlank() }
+                    .distinctBy { semanticCatalogKey(it) }
+
+            for (track in emergencyPool) {
+                if (section.size >= targetPerSection) break
+
+                val key = semanticCatalogKey(track)
+                if (sectionKeys.add(key)) {
+                    section.add(track)
+                }
+            }
+        }
+
         // Only after the visible minimum is satisfied do we distribute up to
         // 10 reserve songs per row for tomorrow's rotation.
         var reserveCursor = 0
