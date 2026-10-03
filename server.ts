@@ -3936,7 +3936,7 @@ interface StreamInfo {
   coverUrl?: string;
   duration?: number;
   videoId?: string;
-  source: 'saavn' | 'youtube' | 'cache' | 'catalog';
+  source: 'saavn' | 'youtube' | 'audius' | 'cache' | 'catalog';
 }
 
 // Helper to decrypt Saavn media URLs (using DES-EDE3)
@@ -4104,6 +4104,221 @@ async function resolveFromJioSaavn(
     console.warn('[Saavn Resolver] Search failed for:', query, err);
   }
   return null;
+}
+
+
+/**
+ * Final audio fallback for SABDHAM search playback.
+ *
+ * Audius is intentionally NOT part of normal search ranking. Android calls
+ * /api/audius/resolve only after the existing direct/JioSaavn/YouTube paths
+ * have failed. The API key stays on the backend and is used only for Audius
+ * request attribution/rate limits.
+ */
+async function resolveFromAudius(
+  query: string,
+  targetTitle: string,
+  targetArtist?: string
+): Promise<StreamInfo | null> {
+  const cleanQuery = cleanMatchingText(query);
+  const cleanTargetTitle = cleanMatchingText(targetTitle);
+  const cleanTargetArtist = cleanMatchingText(targetArtist || '');
+
+  if (!cleanQuery || !cleanTargetTitle) return null;
+
+  try {
+    const params = new URLSearchParams({
+      query: cleanQuery,
+      limit: '10',
+      app_name: 'SABDHAM'
+    });
+
+    const audiusApiKey = String(process.env.AUDIUS_API_KEY || '').trim();
+    if (audiusApiKey) {
+      params.set('api_key', audiusApiKey);
+    }
+
+    const response = await fetch(
+      `https://api.audius.co/v1/tracks/search?${params.toString()}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'SABDHAM/1.0'
+        },
+        signal: AbortSignal.timeout(5000)
+      }
+    );
+
+    if (!response.ok) {
+      console.warn('[Audius Resolver] Search failed:', response.status);
+      return null;
+    }
+
+    const payload = (await response.json()) as any;
+    const tracks = Array.isArray(payload?.data) ? payload.data : [];
+    if (tracks.length === 0) return null;
+
+    const targetWords = cleanTargetTitle
+      .split(' ')
+      .filter((word) => word.length > 2);
+
+    const artistWords = cleanTargetArtist
+      .split(' ')
+      .filter(
+        (word) =>
+          word.length > 2 &&
+          word !== 'the' &&
+          word !== 'and' &&
+          word !== 'unknown'
+      );
+
+    const requestedVersionText =
+      `${cleanTargetTitle} ${cleanTargetArtist}`;
+
+    const forbiddenTerms = [
+      'karaoke',
+      'instrumental',
+      'tribute',
+      'ringtone',
+      'nightcore',
+      'slowed',
+      'reverb',
+      '8d audio',
+      'remix',
+      'remixed',
+      'phonk',
+      'sped up',
+      'cover'
+    ];
+
+    let bestTrack: any | null = null;
+    let bestScore = -1;
+
+    for (const track of tracks) {
+      if (!track?.id || !track?.title) continue;
+      if (track.is_stream_gated === true || track.isStreamGated === true) continue;
+
+      const candidateTitle = cleanMatchingText(track.title || '');
+      const candidateArtist = cleanMatchingText(
+        track.user?.name ||
+        track.user?.handle ||
+        track.artist_name ||
+        track.artistName ||
+        ''
+      );
+      const candidateText = cleanMatchingText(
+        [
+          track.title || '',
+          track.user?.name || '',
+          track.user?.handle || '',
+          track.genre || '',
+          track.description || ''
+        ].join(' ')
+      );
+
+      const hasUnrequestedVersion =
+        forbiddenTerms.some(
+          (term) =>
+            candidateText.includes(term) &&
+            !requestedVersionText.includes(term)
+        );
+
+      if (hasUnrequestedVersion) continue;
+
+      if (targetWords.length > 0) {
+        const matchedTitleWords =
+          targetWords.filter((word) => candidateTitle.includes(word));
+        const titleRatio = matchedTitleWords.length / targetWords.length;
+
+        if (
+          titleRatio < 0.7 &&
+          !candidateTitle.includes(cleanTargetTitle) &&
+          !cleanTargetTitle.includes(candidateTitle)
+        ) {
+          continue;
+        }
+      }
+
+      if (artistWords.length > 0) {
+        const matchedArtistWords =
+          artistWords.filter((word) => candidateArtist.includes(word));
+        if (matchedArtistWords.length === 0) continue;
+      }
+
+      const duration =
+        Number(track.duration || track.duration_seconds || 0) || 0;
+      if (duration > 0 && (duration < 50 || duration > 650)) continue;
+
+      let score = 0;
+      if (candidateTitle === cleanTargetTitle) score += 100;
+      else if (candidateTitle.includes(cleanTargetTitle)) score += 60;
+
+      if (cleanTargetArtist) {
+        if (candidateArtist === cleanTargetArtist) score += 80;
+        else if (
+          candidateArtist.includes(cleanTargetArtist) ||
+          cleanTargetArtist.includes(candidateArtist)
+        ) {
+          score += 45;
+        }
+      }
+
+      score += Math.min(
+        Number(track.play_count || track.playCount || 0) / 100000,
+        20
+      );
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestTrack = track;
+      }
+    }
+
+    if (!bestTrack) return null;
+
+    const streamParams = new URLSearchParams({
+      app_name: 'SABDHAM'
+    });
+
+    // Audius read-only streaming works without exposing our API key in the APK.
+    const streamUrl =
+      `https://api.audius.co/v1/tracks/${encodeURIComponent(bestTrack.id)}/stream?` +
+      streamParams.toString();
+
+    const artwork = bestTrack.artwork || {};
+    const coverUrl =
+      artwork['1000x1000'] ||
+      artwork['480x480'] ||
+      artwork['150x150'] ||
+      artwork._1000x1000 ||
+      artwork._480x480 ||
+      artwork._150x150 ||
+      undefined;
+
+    const duration =
+      Number(bestTrack.duration || bestTrack.duration_seconds || 0) || undefined;
+
+    console.log(
+      '[Audius Resolver] Match:',
+      targetTitle,
+      '-',
+      targetArtist || '',
+      '=>',
+      bestTrack.title,
+      '-',
+      bestTrack.user?.name || bestTrack.user?.handle || ''
+    );
+
+    return {
+      url: streamUrl,
+      coverUrl,
+      duration,
+      source: 'audius'
+    };
+  } catch (err) {
+    console.warn('[Audius Resolver] Failed for:', query, err);
+    return null;
+  }
 }
 
 // Search and extract live YouTube videos using structured ytInitialData parser
@@ -5810,6 +6025,42 @@ app.get('/api/stream/resolve', async (req, res) => {
   } catch (err: any) {
     console.error('[Stream Resolve] Error resolving stream:', err);
     res.status(500).json({ error: 'Failed to resolve stream' });
+  }
+});
+
+
+/**
+ * Explicit last-resort resolver used by the Android client only after all
+ * existing playback sources have failed.
+ */
+app.get('/api/audius/resolve', async (req, res) => {
+  try {
+    const title = String(req.query.title || '').trim();
+    const artist = String(req.query.artist || '').trim();
+
+    if (!title) {
+      return res.status(400).json({ error: 'Missing title' });
+    }
+
+    const query = artist ? `${title} ${artist}` : title;
+    const streamInfo = await resolveFromAudius(query, title, artist);
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    if (!streamInfo || !streamInfo.url) {
+      return res.status(404).json({
+        error: 'Audius fallback unavailable',
+        source: 'audius'
+      });
+    }
+
+    return res.json(streamInfo);
+  } catch (err) {
+    console.error('[Audius Resolver] Endpoint failed:', err);
+    return res.status(500).json({
+      error: 'Audius fallback failed',
+      source: 'audius'
+    });
   }
 });
 
