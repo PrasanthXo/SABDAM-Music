@@ -5044,6 +5044,121 @@ app.get('/api/youtube/trending', async (req, res) => {
   }
 });
 
+// API: Search public YouTube playlists for SABDHAM Search.
+// Playlist thumbnails are intentionally not returned; Android uses SABDHAM's
+// own playlist artwork so YouTube imagery never becomes app cover art.
+app.get('/api/youtube/search-playlists', async (req, res) => {
+  try {
+    const query = String(req.query.q || '').trim();
+    const maxResults =
+      Math.min(
+        Math.max(
+          parseInt(String(req.query.maxResults || '12'), 10) || 12,
+          1
+        ),
+        20
+      );
+
+    if (!query || !youtubeConfig.isConfigured()) {
+      return res.json({ playlists: [] });
+    }
+
+    const searchUrl = youtubeConfig.buildApiUrl('search', {
+      part: 'snippet',
+      type: 'playlist',
+      q: query,
+      maxResults: maxResults.toString(),
+      safeSearch: 'moderate'
+    });
+
+    const searchResponse = await fetch(searchUrl, {
+      headers: {
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(4500)
+    });
+
+    if (!searchResponse.ok) {
+      console.warn(
+        '[SABDHAM Playlist Search] YouTube returned',
+        searchResponse.status
+      );
+      return res.json({ playlists: [] });
+    }
+
+    const searchData = (await searchResponse.json()) as any;
+    const searchItems = Array.isArray(searchData.items)
+      ? searchData.items
+      : [];
+
+    const ids =
+      searchItems
+        .map((item: any) => String(item?.id?.playlistId || '').trim())
+        .filter(Boolean);
+
+    let itemCounts = new Map<string, number>();
+
+    if (ids.length > 0) {
+      try {
+        const detailsUrl = youtubeConfig.buildApiUrl('playlists', {
+          part: 'contentDetails',
+          id: ids.join(',')
+        });
+
+        const detailsResponse = await fetch(detailsUrl, {
+          headers: {
+            'Accept': 'application/json'
+          },
+          signal: AbortSignal.timeout(3500)
+        });
+
+        if (detailsResponse.ok) {
+          const detailsData = (await detailsResponse.json()) as any;
+
+          itemCounts = new Map(
+            (detailsData.items || []).map((item: any) => [
+              String(item?.id || ''),
+              Number(item?.contentDetails?.itemCount || 0)
+            ])
+          );
+        }
+      } catch (err) {
+        console.warn(
+          '[SABDHAM Playlist Search] Count lookup failed:',
+          err
+        );
+      }
+    }
+
+    const playlists =
+      searchItems
+        .map((item: any) => {
+          const id =
+            String(item?.id?.playlistId || '').trim();
+
+          const title =
+            String(item?.snippet?.title || '').trim();
+
+          if (!id || !title) return null;
+
+          return {
+            id,
+            title,
+            owner:
+              String(item?.snippet?.channelTitle || 'YouTube').trim(),
+            itemCount: itemCounts.get(id) || 0,
+            source: 'youtube'
+          };
+        })
+        .filter(Boolean);
+
+    return res.json({ playlists });
+  } catch (err) {
+    console.warn('[SABDHAM Playlist Search] Failed:', err);
+    return res.json({ playlists: [] });
+  }
+});
+
 // API: Fetch songs from a specific YouTube Playlist with pagination support
 app.get('/api/youtube/playlist', async (req, res) => {
   try {
