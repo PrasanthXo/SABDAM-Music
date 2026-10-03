@@ -400,6 +400,7 @@ if (incoming.isEmpty()) {
                     val controller = controllerFuture?.get()
                     mediaController = controller
                     if (controller != null) {
+                        controller.volume = if (_isMuted.value) 0f else _volume.value
                         _isPlaying.value = controller.isPlaying
                         
                         // Keep state of isPlaying and currentPosition in sync with controller
@@ -1456,8 +1457,7 @@ if (incoming.isEmpty()) {
 
             controller.shuffleModeEnabled = false
             controller.prepare()
-            controller.volume = 1f
-            _isMuted.value = false
+            controller.volume = if (_isMuted.value) 0f else _volume.value
             controller.playWhenReady = true
             controller.play()
 
@@ -1968,8 +1968,7 @@ if (incoming.isEmpty()) {
 
             controller.shuffleModeEnabled = false
             controller.prepare()
-            controller.volume = 1f
-            _isMuted.value = false
+            controller.volume = if (_isMuted.value) 0f else _volume.value
             controller.playWhenReady = true
             controller.play()
 
@@ -2074,20 +2073,52 @@ if (incoming.isEmpty()) {
             }
         }
     }
-    private val _isMuted = MutableStateFlow(false)
+    private val _volume = MutableStateFlow(
+        getApplication<android.app.Application>()
+            .getSharedPreferences(
+                "sabdham_player",
+                android.content.Context.MODE_PRIVATE
+            )
+            .getFloat("player_volume", 1f)
+            .coerceIn(0f, 1f)
+    )
+    val volume: StateFlow<Float> = _volume.asStateFlow()
+
+    private val _isMuted = MutableStateFlow(_volume.value <= 0f)
     val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
-    private var volumeBeforeMute = 1f
+
+    private var volumeBeforeMute =
+        if (_volume.value > 0f) _volume.value else 1f
+
+    fun setVolume(level: Float) {
+        val clamped = level.coerceIn(0f, 1f)
+
+        if (clamped > 0f) {
+            volumeBeforeMute = clamped
+            _isMuted.value = false
+        } else {
+            _isMuted.value = true
+        }
+
+        _volume.value = clamped
+        mediaController?.volume = clamped
+
+        getApplication<android.app.Application>()
+            .getSharedPreferences(
+                "sabdham_player",
+                android.content.Context.MODE_PRIVATE
+            )
+            .edit()
+            .putFloat("player_volume", clamped)
+            .apply()
+    }
 
     fun toggleMute() {
-        mediaController?.let { controller ->
-            if (_isMuted.value) {
-                controller.volume = volumeBeforeMute.coerceAtLeast(0.1f)
-                _isMuted.value = false
-            } else {
-                if (controller.volume > 0f) volumeBeforeMute = controller.volume
-                controller.volume = 0f
-                _isMuted.value = true
-            }
+        if (_isMuted.value || _volume.value <= 0f) {
+            setVolume(volumeBeforeMute.coerceIn(0.05f, 1f))
+        } else {
+            volumeBeforeMute = _volume.value.coerceAtLeast(0.05f)
+            setVolume(0f)
         }
     }
 
