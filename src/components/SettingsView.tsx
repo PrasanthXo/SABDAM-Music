@@ -530,13 +530,13 @@ export const SettingsView: React.FC<{
             </div>
             <div>
               <div className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
-                <span>Automatic Cookie Storage</span>
+                <span>Session & Local Storage</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Active (Terms Covered)
+                  Used When Needed
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Saves login session tokens and library preferences automatically in browser cookies as governed by our Terms of Service.
+                Used for sign-in sessions, preferences, library state and playback state where required by the app or web version.
               </p>
             </div>
           </div>
@@ -625,16 +625,16 @@ export const SettingsView: React.FC<{
 
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-sm font-semibold text-zinc-200">Sabdham Music Engine</span>
-            <p className="text-xs text-zinc-400">Production Release 1.0.0 • Target SDK 35 (Android 15)</p>
+            <span className="text-sm font-semibold text-zinc-200">SABDHAM Music</span>
+            <p className="text-xs text-zinc-400">Version 1.2.0 • Android target SDK 35 • Independent project by Santh Creatives</p>
           </div>
           <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20">
-            v1.0.0
+            v1.2.0
           </span>
         </div>
 
         <div className="text-xs text-zinc-500 pt-1">
-          © 2026 Sabdham Audio Inc. All rights reserved. High fidelity Tamil, Sinhala, & Global streaming engine.
+          SABDHAM is an independent music discovery, playback, playlist and library app. Third-party music, artwork, metadata and trademarks remain with their respective rights holders.
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/5">
@@ -814,11 +814,16 @@ export const SettingsView: React.FC<{
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="text-xs text-zinc-300 space-y-3 max-h-60 overflow-y-auto pr-2">
-                  <p>Sabdham respects your privacy and is committed to protecting your personal data.</p>
-                  <p>1. Data Collection: We collect account email and playback preferences strictly to sync your custom playlists and favorites securely across your devices.</p>
-                  <p>2. Local & Cookie Storage: Necessary browser cookies and local storage are automatically utilized to maintain your login session token and preserve your library state without pop-up consent banners.</p>
-                  <p>3. Third-Party Services: We integrate secure streaming providers for audio playback without sharing your personal identifiers.</p>
+                <div className="text-xs text-zinc-300 space-y-3 max-h-72 overflow-y-auto pr-2">
+                  <p><strong className="text-white">Version 1.2.0 • Updated 3 October 2026</strong></p>
+                  <p>1. Account Data: SABDHAM may process your email address, display name, account identifier, authentication provider, profile information and session information when account features are used.</p>
+                  <p>2. Library & Personalization: Liked songs, playlists, recently played items, imported playlist references, playback interests and settings may be stored or synchronized to provide your library and personalized catalogues.</p>
+                  <p>3. Search & External Requests: Search terms, track or playlist identifiers, artist/album information and similar request data may be sent to the provider needed for music search, playlist discovery, artwork lookup or playback.</p>
+                  <p>4. Audio Output: On supported Android devices, system-provided audio-route information may be used to show and switch phone, Bluetooth or other supported outputs. It is not intentionally used for precise-location tracking.</p>
+                  <p>5. Providers: Features may communicate with Google/Firebase, Spotify, YouTube, Audius, Apple/iTunes, MusicBrainz, Cover Art Archive, Last.fm, TMDB and hosting/database providers under their own policies.</p>
+                  <p>6. Storage & Security: SABDHAM may use local device storage, browser storage or cookies for sessions, preferences and app state. Reasonable security measures and HTTPS are used where supported, but no online service can guarantee absolute security.</p>
+                  <p>7. Sale & Advertising: SABDHAM does not sell personal information and does not intentionally use account information for unrelated advertising profiling.</p>
+                  <p>8. Deletion: Account deletion is intended to remove personal account and library information no longer required, subject to limited lawful, security or fraud-prevention retention.</p>
                 </div>
                 <div className="flex justify-end pt-2">
                   <button onClick={() => setModalType(null)} className="py-2 px-4 bg-zinc-800 text-zinc-200 text-xs font-bold rounded-xl">Close</button>
@@ -835,11 +840,17 @@ export const SettingsView: React.FC<{
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="text-xs text-zinc-300 space-y-3 max-h-60 overflow-y-auto pr-2">
-                  <p>Welcome to Sabdham. By accessing or using our music streaming application, you agree to these terms:</p>
-                  <p>1. Usage License: Sabdham is provided for personal, non-commercial music listening and catalog discovery.</p>
-                  <p>2. Intellectual Property: All track artwork, catalog metadata, and audio streams remain the property of their respective creators and licensors.</p>
-                  <p>3. Automatic Cookie & Session Storage: By using Sabdham, you agree that browser cookies and local storage are automatically utilized to keep you signed in seamlessly and preserve your liked songs and playlists across sessions.</p>
+                <div className="text-xs text-zinc-300 space-y-3 max-h-72 overflow-y-auto pr-2">
+                  <p><strong className="text-white">Version 1.2.0 • Updated 3 October 2026</strong></p>
+                  <p>1. Independent Project: SABDHAM is independently developed and published under the name Santh Creatives, which is not represented as a registered company, record label or music licensing organisation.</p>
+                  <p>2. Service: SABDHAM may provide music discovery, playback, personalized catalogues, public-playlist discovery/import, library sync, queue management and audio-output controls.</p>
+                  <p>3. Third-Party Content: SABDHAM does not claim ownership of third-party songs, recordings, lyrics, artwork, videos, artist identities, trademarks or metadata. Public availability does not mean content is copyright-free.</p>
+                  <p>4. Third-Party Services: Features may rely on Google/Firebase, Spotify, YouTube, Audius, Apple/iTunes, MusicBrainz, Cover Art Archive, Last.fm, TMDB and other infrastructure providers, each governed by its own terms.</p>
+                  <p>5. Playback & Routes: Track availability, fallback playback sources, audio routes and multi-device behavior depend on providers, Android, connected hardware and network conditions and are not guaranteed.</p>
+                  <p>6. Accounts & Sync: Playlists, likes, preferences and related data may be synchronized, but synchronization is not a guaranteed permanent backup.</p>
+                  <p>7. Responsible Use: Users must not infringe rights, bypass access controls, abuse accounts, attack infrastructure or use SABDHAM unlawfully.</p>
+                  <p>8. Updates: SABDHAM may require updates for security, compatibility, provider or service changes. Older versions may lose access when they are no longer compatible.</p>
+                  <p>9. Service Basis: To the maximum extent permitted by law, SABDHAM is provided on an "as is" and "as available" basis.</p>
                 </div>
                 <div className="flex justify-end pt-2">
                   <button onClick={() => setModalType(null)} className="py-2 px-4 bg-zinc-800 text-zinc-200 text-xs font-bold rounded-xl">Close</button>
@@ -860,7 +871,7 @@ export const SettingsView: React.FC<{
                   <p>Need assistance with Sabdham? Our support team is available 24/7.</p>
                   <div className="p-3 bg-zinc-800 rounded-xl space-y-1">
                     <span className="font-bold text-white">Support Email</span>
-                    <p className="text-amber-400 font-mono">support@sabdham.music</p>
+                    <p className="text-amber-400 font-mono">sabdhammusic@gmail.com</p>
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
