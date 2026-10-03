@@ -247,6 +247,10 @@ fun HomeScreen(viewModel: MusicViewModel) {
     val searchResults by viewModel.searchResults.collectAsState()
     val searchPlaylistResults by
         viewModel.searchPlaylistResults.collectAsState()
+    val openedSearchPlaylist by
+        viewModel.openedSearchPlaylist.collectAsState()
+    val openedSearchPlaylistTracks by
+        viewModel.openedSearchPlaylistTracks.collectAsState()
     val loadingSearchPlaylistId by
         viewModel.loadingSearchPlaylistId.collectAsState()
     val searchPlaylistActionId by
@@ -1252,6 +1256,246 @@ fun HomeScreen(viewModel: MusicViewModel) {
                         }
                     }
                 } else {
+                    val openedPlaylist = openedSearchPlaylist
+
+                    if (openedPlaylist != null) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        horizontal = 12.dp,
+                                        vertical = 8.dp
+                                    ),
+                                verticalAlignment =
+                                    Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        viewModel.closeSearchPlaylist()
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                            Icons.Default.ArrowBack,
+                                        contentDescription =
+                                            "Back to search results",
+                                        tint = Color.White
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(58.dp)
+                                        .clip(
+                                            RoundedCornerShape(12.dp)
+                                        )
+                                        .background(
+                                            Color(0xFF202922)
+                                        ),
+                                    contentAlignment =
+                                        Alignment.Center
+                                ) {
+                                    Image(
+                                        painter =
+                                            painterResource(
+                                                R.drawable
+                                                    .ic_playlist_sabdham
+                                            ),
+                                        contentDescription =
+                                            "Playlist",
+                                        modifier =
+                                            Modifier.size(42.dp),
+                                        contentScale =
+                                            ContentScale.Crop
+                                    )
+                                }
+
+                                Spacer(Modifier.width(12.dp))
+
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = openedPlaylist.title,
+                                        color = Color.White,
+                                        fontSize = 18.sp,
+                                        fontWeight =
+                                            FontWeight.Bold,
+                                        maxLines = 2,
+                                        overflow =
+                                            TextOverflow.Ellipsis
+                                    )
+
+                                    Text(
+                                        text = openedPlaylist.owner,
+                                        color = Color(0xFF9AA29D),
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow =
+                                            TextOverflow.Ellipsis
+                                    )
+
+                                    val shownCount =
+                                        if (
+                                            openedSearchPlaylistTracks
+                                                .isNotEmpty()
+                                        ) {
+                                            openedSearchPlaylistTracks.size
+                                        } else {
+                                            openedPlaylist.itemCount
+                                        }
+
+                                    if (shownCount > 0) {
+                                        Text(
+                                            text =
+                                                "$shownCount songs",
+                                            color =
+                                                Color(0xFF00E676),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (
+                            loadingSearchPlaylistId ==
+                                openedPlaylist.id &&
+                            openedSearchPlaylistTracks.isEmpty()
+                        ) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp),
+                                    contentAlignment =
+                                        Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color =
+                                            Color(0xFF00E676)
+                                    )
+                                }
+                            }
+                        } else if (
+                            openedSearchPlaylistTracks.isEmpty()
+                        ) {
+                            item {
+                                Text(
+                                    text =
+                                        searchPlaylistMessage
+                                            ?: "No playable songs found in this playlist",
+                                    color = Color(0xFFB8C0BB),
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(
+                                        horizontal = 20.dp,
+                                        vertical = 24.dp
+                                    )
+                                )
+                            }
+                        } else {
+                            item {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            horizontal = 18.dp,
+                                            vertical = 8.dp
+                                        )
+                                        .clickable {
+                                            viewModel.playPlaylist(
+                                                openedSearchPlaylistTracks
+                                            )
+                                        },
+                                    shape =
+                                        RoundedCornerShape(14.dp),
+                                    color = Color(0xFF00E676)
+                                ) {
+                                    Row(
+                                        modifier =
+                                            Modifier.padding(
+                                                horizontal = 18.dp,
+                                                vertical = 13.dp
+                                            ),
+                                        verticalAlignment =
+                                            Alignment.CenterVertically,
+                                        horizontalArrangement =
+                                            Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector =
+                                                Icons.Default
+                                                    .PlayArrow,
+                                            contentDescription =
+                                                null,
+                                            tint =
+                                                Color(0xFF07130B)
+                                        )
+
+                                        Spacer(
+                                            Modifier.width(7.dp)
+                                        )
+
+                                        Text(
+                                            text = "Play All",
+                                            color =
+                                                Color(0xFF07130B),
+                                            fontWeight =
+                                                FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
+                            items(
+                                items =
+                                    openedSearchPlaylistTracks,
+                                key = {
+                                    "search-playlist-" +
+                                        openedPlaylist.id +
+                                        "-" +
+                                        it.id
+                                }
+                            ) { track ->
+                                val isThisPlaying =
+                                    currentTrack?.id == track.id
+
+                                TrackListItem(
+                                    track = track,
+                                    isActive = isThisPlaying,
+                                    isPlaying =
+                                        isThisPlaying &&
+                                            isPlaying,
+                                    isLiked =
+                                        likedTrackIds.contains(
+                                            track.id
+                                        ),
+                                    onTrackClick = {
+                                        viewModel
+                                            .playPlaylistTrack(
+                                                track =
+                                                    track,
+                                                sourceQueue =
+                                                    openedSearchPlaylistTracks
+                                            )
+                                    },
+                                    onLikeClick = {
+                                        viewModel.toggleLike(track)
+                                    },
+                                    onAddToQueue = {
+                                        viewModel.addToQueue(
+                                            track
+                                        )
+                                    },
+                                    onAddToPlaylist = {
+                                        playlistTargetTrack =
+                                            track
+                                    }
+                                )
+                            }
+                        }
+                    } else {
 
                     val hasSearchContent =
                         searchResults.isNotEmpty() ||
@@ -1449,7 +1693,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                             null
                                                 ) {
                                                     viewModel
-                                                        .playSearchPlaylist(
+                                                        .openSearchPlaylist(
                                                             playlist
                                                         )
                                                 },
@@ -1575,7 +1819,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                                         Icon(
                                                             imageVector =
                                                                 Icons.Default
-                                                                    .PlayArrow,
+                                                                    .KeyboardArrowRight,
                                                             contentDescription =
                                                                 "Open playlist",
                                                             tint =
@@ -1876,6 +2120,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
                                 )
                             }
                         }
+                    }
                     }
                 }            } else if (activeNavTab == "home") {
                 // Category-filtered Catalog Views
