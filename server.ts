@@ -2687,6 +2687,12 @@ function isMeaningfulArtworkLabel(value: string): boolean {
   return !new Set([
     'single',
     'youtube audio',
+    'youtube singles',
+    'youtube playlist',
+    'playlist',
+    'trending release',
+    'popular hits',
+    'imported',
     'unknown',
     'unknown album',
     'featured hits',
