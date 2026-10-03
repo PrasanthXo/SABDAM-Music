@@ -20,6 +20,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -41,6 +42,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -183,6 +187,7 @@ private fun rememberSabdhamArtworkModel(track: Track): Any? {
 @Composable
 fun HomeScreen(viewModel: MusicViewModel) {
     val currentTrack by viewModel.currentTrack.collectAsState()
+    val queue by viewModel.queue.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
@@ -1669,6 +1674,7 @@ fun HomeScreen(viewModel: MusicViewModel) {
         if (isFullPlayerVisible && currentTrack != null) {
             FullPlayerSheet(
                 track = currentTrack!!,
+                queue = queue,
                 isPlaying = isPlaying,
                 currentPosition = currentPosition,
                 duration = duration,
@@ -1693,6 +1699,9 @@ fun HomeScreen(viewModel: MusicViewModel) {
                 onLike = { viewModel.toggleLike(currentTrack!!) },
                 onShuffle = { viewModel.toggleShuffle() },
                 onRepeat = { viewModel.toggleRepeat() },
+                onMoveQueueItem = { trackId, direction ->
+                    viewModel.moveQueuedTrack(trackId, direction)
+                },
                 onOpenEq = { isEqDialogVisible = true },
                 onNavigate = { destination ->
                     activeNavTab = destination
@@ -3026,6 +3035,7 @@ fun NativeMiniPlayer(
 @Composable
 fun FullPlayerSheet(
     track: Track,
+    queue: List<Track>,
     isPlaying: Boolean,
     currentPosition: Long,
     duration: Long,
@@ -3047,10 +3057,35 @@ fun FullPlayerSheet(
     onLike: () -> Unit,
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
+    onMoveQueueItem: (String, Int) -> Boolean,
     onOpenEq: () -> Unit,
     onNavigate: (String) -> Unit
 ) {
     var activeTab by remember { mutableStateOf("player") }
+
+    var draggedQueueTrackId by remember {
+        mutableStateOf<String?>(null)
+    }
+    var queueDragOffsetY by remember {
+        mutableStateOf(0f)
+    }
+
+    val queueDragStepPx =
+        with(LocalDensity.current) {
+            64.dp.toPx()
+        }
+
+    val queueUpNext =
+        remember(queue, track.id) {
+            val currentIndex =
+                queue.indexOfFirst { it.id == track.id }
+
+            if (currentIndex >= 0) {
+                queue.drop(currentIndex + 1)
+            } else {
+                queue.filterNot { it.id == track.id }
+            }
+        }
 
     val playerAnimation = rememberInfiniteTransition(label = "playerAnimation")
 
@@ -3332,21 +3367,274 @@ fun FullPlayerSheet(
 
                         Spacer(Modifier.height(20.dp))
 
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "UP NEXT",
+                                color = Color(0xFF888888),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.5.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            Text(
+                                text = if (queueUpNext.isEmpty()) {
+                                    "Empty"
+                                } else {
+                                    "${queueUpNext.size} songs"
+                                },
+                                color = Color(0xFF666666),
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Spacer(Modifier.height(6.dp))
+
                         Text(
-                            text = "UP NEXT",
-                            color = Color(0xFF888888),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.5.sp
+                            text = "Hold the drag handle and move songs to change playback order.",
+                            color = Color(0xFF777777),
+                            fontSize = 11.sp
                         )
 
                         Spacer(Modifier.height(10.dp))
 
-                        Text(
-                            text = "Your current native queue continues when you use Previous or Next.",
-                            color = Color(0xFF777777),
-                            fontSize = 12.sp
-                        )
+                        if (queueUpNext.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No songs are queued after this track.",
+                                    color = Color(0xFF777777),
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                verticalArrangement =
+                                    Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(
+                                    items = queueUpNext,
+                                    key = { it.id }
+                                ) { queuedTrack ->
+                                    val isDragging =
+                                        draggedQueueTrackId ==
+                                            queuedTrack.id
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .graphicsLayer {
+                                                translationY =
+                                                    if (isDragging) {
+                                                        queueDragOffsetY
+                                                    } else {
+                                                        0f
+                                                    }
+                                            }
+                                            .clip(
+                                                RoundedCornerShape(12.dp)
+                                            )
+                                            .background(
+                                                if (isDragging) {
+                                                    Color(0xFF26352B)
+                                                } else {
+                                                    Color(0xFF222222)
+                                                }
+                                            )
+                                            .padding(
+                                                start = 8.dp,
+                                                top = 8.dp,
+                                                bottom = 8.dp,
+                                                end = 2.dp
+                                            ),
+                                        verticalAlignment =
+                                            Alignment.CenterVertically
+                                    ) {
+                                        AsyncImage(
+                                            model =
+                                                rememberSabdhamArtworkModel(
+                                                    queuedTrack
+                                                ),
+                                            error = painterResource(
+                                                R.drawable
+                                                    .sabdham_default_song
+                                            ),
+                                            fallback = painterResource(
+                                                R.drawable
+                                                    .sabdham_default_song
+                                            ),
+                                            contentDescription =
+                                                queuedTrack.title,
+                                            modifier = Modifier
+                                                .size(46.dp)
+                                                .clip(
+                                                    RoundedCornerShape(
+                                                        8.dp
+                                                    )
+                                                ),
+                                            contentScale =
+                                                ContentScale.Crop
+                                        )
+
+                                        Spacer(Modifier.width(10.dp))
+
+                                        Column(
+                                            modifier =
+                                                Modifier.weight(1f)
+                                        ) {
+                                            Text(
+                                                text =
+                                                    queuedTrack.title,
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight =
+                                                    FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow =
+                                                    TextOverflow.Ellipsis
+                                            )
+
+                                            Text(
+                                                text =
+                                                    queuedTrack.artist,
+                                                color =
+                                                    Color(0xFF8B8B8B),
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow =
+                                                    TextOverflow.Ellipsis
+                                            )
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .pointerInput(
+                                                    queuedTrack.id
+                                                ) {
+                                                    detectDragGesturesAfterLongPress(
+                                                        onDragStart = {
+                                                            draggedQueueTrackId =
+                                                                queuedTrack.id
+                                                            queueDragOffsetY =
+                                                                0f
+                                                        },
+                                                        onDragCancel = {
+                                                            draggedQueueTrackId =
+                                                                null
+                                                            queueDragOffsetY =
+                                                                0f
+                                                        },
+                                                        onDragEnd = {
+                                                            draggedQueueTrackId =
+                                                                null
+                                                            queueDragOffsetY =
+                                                                0f
+                                                        },
+                                                        onDrag = {
+                                                            change,
+                                                            dragAmount ->
+                                                            change.consume()
+
+                                                            if (
+                                                                draggedQueueTrackId !=
+                                                                queuedTrack.id
+                                                            ) {
+                                                                draggedQueueTrackId =
+                                                                    queuedTrack.id
+                                                            }
+
+                                                            queueDragOffsetY +=
+                                                                dragAmount.y
+
+                                                            while (
+                                                                queueDragOffsetY >=
+                                                                queueDragStepPx
+                                                            ) {
+                                                                val moved =
+                                                                    onMoveQueueItem(
+                                                                        queuedTrack.id,
+                                                                        1
+                                                                    )
+
+                                                                if (moved) {
+                                                                    queueDragOffsetY -=
+                                                                        queueDragStepPx
+                                                                } else {
+                                                                    queueDragOffsetY =
+                                                                        queueDragOffsetY
+                                                                            .coerceAtMost(
+                                                                                queueDragStepPx *
+                                                                                    0.45f
+                                                                            )
+                                                                    break
+                                                                }
+                                                            }
+
+                                                            while (
+                                                                queueDragOffsetY <=
+                                                                -queueDragStepPx
+                                                            ) {
+                                                                val moved =
+                                                                    onMoveQueueItem(
+                                                                        queuedTrack.id,
+                                                                        -1
+                                                                    )
+
+                                                                if (moved) {
+                                                                    queueDragOffsetY +=
+                                                                        queueDragStepPx
+                                                                } else {
+                                                                    queueDragOffsetY =
+                                                                        queueDragOffsetY
+                                                                            .coerceAtLeast(
+                                                                                -queueDragStepPx *
+                                                                                    0.45f
+                                                                            )
+                                                                    break
+                                                                }
+                                                            }
+                                                        }
+                                                    )
+                                                },
+                                            contentAlignment =
+                                                Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector =
+                                                    Icons.Default
+                                                        .DragHandle,
+                                                contentDescription =
+                                                    "Drag to reorder",
+                                                tint =
+                                                    if (isDragging) {
+                                                        Color(
+                                                            0xFF1DB954
+                                                        )
+                                                    } else {
+                                                        Color(
+                                                            0xFF777777
+                                                        )
+                                                    },
+                                                modifier =
+                                                    Modifier.size(26.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     Spacer(Modifier.height(16.dp))
