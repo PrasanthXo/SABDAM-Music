@@ -119,6 +119,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val loadingSearchPlaylistId: StateFlow<String?> =
         _loadingSearchPlaylistId.asStateFlow()
 
+    private val _searchPlaylistActionId =
+        MutableStateFlow<String?>(null)
+    val searchPlaylistActionId: StateFlow<String?> =
+        _searchPlaylistActionId.asStateFlow()
+
     private val _searchPlaylistMessage =
         MutableStateFlow<String?>(null)
     val searchPlaylistMessage: StateFlow<String?> =
@@ -1153,6 +1158,126 @@ if (incoming.isEmpty()) {
                     }
                 }
             }
+    }
+    fun addSearchPlaylistToQueue(
+        playlist: SearchPlaylistResult
+    ) {
+        if (_searchPlaylistActionId.value != null) {
+            return
+        }
+
+        _searchPlaylistActionId.value = playlist.id
+        _searchPlaylistMessage.value = null
+
+        val playbackGenerationAtAdd =
+            playbackRequestGeneration.get()
+
+        viewModelScope.launch {
+            try {
+                val tracks =
+                    MusicSearchService.fetchPlaylistTracks(
+                        playlistId = playlist.id,
+                        maxResults = 100
+                    )
+
+                if (tracks.isEmpty()) {
+                    _searchPlaylistMessage.value =
+                        "No playable songs found in this playlist"
+                    return@launch
+                }
+
+                val existingQueue =
+                    _queue.value.distinctBy { it.id }
+                val existingIds =
+                    existingQueue
+                        .mapTo(mutableSetOf()) { it.id }
+
+                val additions =
+                    sanitizePlaylistQueue(tracks)
+                        .filter { existingIds.add(it.id) }
+
+                if (additions.isEmpty()) {
+                    _searchPlaylistMessage.value =
+                        "Playlist songs are already in your queue"
+                    return@launch
+                }
+
+                _queue.value =
+                    (existingQueue + additions)
+                        .distinctBy { it.id }
+
+                val controller = mediaController
+
+                if (controller != null) {
+                    for (candidate in additions) {
+                        if (
+                            playbackRequestGeneration.get() !=
+                                playbackGenerationAtAdd
+                        ) {
+                            break
+                        }
+
+                        val playable =
+                            kotlinx.coroutines.withContext(
+                                kotlinx.coroutines.Dispatchers.IO
+                            ) {
+                                buildPlaylistPlayableTrack(
+                                    candidate
+                                )
+                            } ?: continue
+
+                        if (
+                            playbackRequestGeneration.get() !=
+                                playbackGenerationAtAdd
+                        ) {
+                            break
+                        }
+
+                        addMediaItemFollowingCurrentQueue(
+                            controller = controller,
+                            trackId = playable.first.id,
+                            mediaItem = playable.second
+                        )
+
+                        _queue.value =
+                            _queue.value.map { queuedTrack ->
+                                if (
+                                    queuedTrack.id ==
+                                        playable.first.id
+                                ) {
+                                    playable.first
+                                } else {
+                                    queuedTrack
+                                }
+                            }
+                    }
+                }
+
+                _searchPlaylistMessage.value =
+                    "${additions.size} songs added to queue"
+            } catch (
+                e: kotlinx.coroutines.CancellationException
+            ) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "SABDHAM_PLAYLIST_SEARCH",
+                    "Unable to add playlist to queue " +
+                        playlist.id,
+                    e
+                )
+
+                _searchPlaylistMessage.value =
+                    "Unable to add playlist to queue"
+            } finally {
+                if (
+                    _searchPlaylistActionId.value ==
+                        playlist.id
+                ) {
+                    _searchPlaylistActionId.value = null
+                }
+            }
+        }
     }
     private fun generateSuggestions(query: String): List<String> {
         val qLower = query.lowercase().trim()
